@@ -30,3 +30,9 @@ app/vjepa_droid_v2/local/
 app/vjepa_droid_v3/local/
 app/vjepa_droid_v4/local/
 configs/local
+data
+/data/wjl/vjepa2/ckpts
+/data/wjl/vjepa2/logs
+/data/wjl/vjepa2/OpenMMLab___Kinetics-400
+ckpts
+logs

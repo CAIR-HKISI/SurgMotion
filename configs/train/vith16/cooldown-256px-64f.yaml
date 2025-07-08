@@ -1,26 +1,20 @@
 app: vjepa
 cpus_per_task: 32
-folder: /your_folder/anneal/32.8.vith16-256px-64f
+folder: logs/vith16-256px-64f_cooldown
 mem_per_gpu: 220G
 nodes: 32
 tasks_per_node: 8
 data:
-  dataset_type: VideoDataset
+  dataset_type: surgical_videodataset
   datasets:
-  - /your_k710_root_dir/k710_train_paths.csv
-  - /your_data_path/ssv2_train_paths.csv
-  - /your_data/howto_320p.csv
+  - /data/wjl/vjepa2/data_process/fixed_64frames_clips.csv
   datasets_weights:
-  - 0.335
-  - 0.100
-  - 0.565
+  - 1.0
   batch_size: 12
   crop_size: 256
   dataset_fpcs:
   - 64
-  - 64
-  - 64
-  fps: 4
+  fps: 1
   num_workers: 12
   patch_size: 16
   persistent_workers: true
@@ -69,7 +63,7 @@ meta:
   dtype: bfloat16
   eval_freq: 100
   load_checkpoint: true
-  read_checkpoint: null
+  read_checkpoint: /data/wjl/vjepa2/logs/pretrain/16.8.vith.256px.16f/latest.pt
   save_every_freq: 50
   seed: 239
   use_sdpa: true
@@ -84,7 +78,7 @@ model:
   use_rope: true
   zero_init_mask_tokens: true
 optimization:
-  anneal_ckpt: /your_folder/pretrain/16.8.vith.256px.16f/e0.pt
+  anneal_ckpt: /data/wjl/vjepa2/logs/pretrain/16.8.vith.256px.16f/latest.pt
   ema:
   - 0.99925
   - 0.99925

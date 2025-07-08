@@ -1,0 +1,16 @@
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000516.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000517.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000518.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000519.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000520.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000521.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000522.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000523.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000524.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000525.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000526.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000527.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000528.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000529.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000530.jpg
+/data/wjl/vjepa2/data/pitvis/video_05/frame_000531.jpg

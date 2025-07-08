@@ -185,30 +185,31 @@ def main(args, resume_preempt=False):
         ("%d", "dataload-time(ms)"),
     )
 
-    # -- init model
-    encoder, predictor = init_video_model(
-        uniform_power=uniform_power,
-        use_mask_tokens=use_mask_tokens,
-        num_mask_tokens=int(len(cfgs_mask) * len(dataset_fpcs)),
-        zero_init_mask_tokens=zero_init_mask_tokens,
-        device=device,
-        patch_size=patch_size,
-        max_num_frames=max_num_frames,
-        tubelet_size=tubelet_size,
-        model_name=model_name,
-        crop_size=crop_size,
-        pred_depth=pred_depth,
-        pred_num_heads=pred_num_heads,
-        pred_embed_dim=pred_embed_dim,
-        use_sdpa=use_sdpa,
-        use_silu=use_silu,
-        use_pred_silu=use_pred_silu,
-        wide_silu=wide_silu,
-        use_rope=use_rope,
-        use_activation_checkpointing=use_activation_checkpointing,
-    )
+    # # -- init model
+    # encoder, predictor = init_video_model(
+    #     uniform_power=uniform_power,
+    #     use_mask_tokens=use_mask_tokens,
+    #     num_mask_tokens=int(len(cfgs_mask) * len(dataset_fpcs)),
+    #     zero_init_mask_tokens=zero_init_mask_tokens,
+    #     device=device,
+    #     patch_size=patch_size,
+    #     max_num_frames=max_num_frames,
+    #     tubelet_size=tubelet_size,
+    #     model_name=model_name,
+    #     crop_size=crop_size,
+    #     pred_depth=pred_depth,
+    #     pred_num_heads=pred_num_heads,
+    #     pred_embed_dim=pred_embed_dim,
+    #     use_sdpa=use_sdpa,
+    #     use_silu=use_silu,
+    #     use_pred_silu=use_pred_silu,
+    #     wide_silu=wide_silu,
+    #     use_rope=use_rope,
+    #     use_activation_checkpointing=use_activation_checkpointing,
+    # )
+    
     target_encoder = copy.deepcopy(encoder)
-
+    
     if compile_model:
         logger.info("Compiling encoder, target_encoder, and predictor.")
         torch._dynamo.config.optimize_ddp = False

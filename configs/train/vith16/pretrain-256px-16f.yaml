@@ -3,26 +3,20 @@ nodes: 16
 tasks_per_node: 8
 cpus_per_task: 16
 mem_per_gpu: 220G
-folder: /your_folder/pretrain/16.8.vith.256px.16f
+folder: logs/pretrain/16.8.vith.256px.16f
 data:
-  dataset_type: VideoDataset
+  dataset_type: surgical_videodataset
   datasets:
-  - /your_k710_root_dir/k710_train_paths.csv
-  - /your_data_path/ssv2_train_paths.csv
-  - /your_data/howto_320p.csv
+  - /data/wjl/vjepa2/data_process/fixed_64frames_clips.csv
   datasets_weights:
-  - 0.335
-  - 0.100
-  - 0.565
+  - 1.0
   batch_size: 24
   crop_size: 256
   patch_size: 16
   dataset_fpcs:
   - 16
-  - 16
-  - 16
   tubelet_size: 2
-  fps: 4
+  fps: 1
   num_workers: 8
   persistent_workers: true
   pin_mem: true

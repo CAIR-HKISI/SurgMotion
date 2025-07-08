@@ -154,7 +154,7 @@ class VisionTransformerPredictorAC(nn.Module):
 
         cond_tokens = 3 if self.use_extrinsics else 2
         attn_mask = self.attn_mask[: x.size(1), : x.size(1)].to(x.device, non_blocking=True)
-
+        
         # Fwd prop
         for i, blk in enumerate(self.predictor_blocks):
             if self.use_activation_checkpointing:

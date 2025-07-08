@@ -34,6 +34,14 @@ parser.add_argument(
 
 def process_main(rank, fname, world_size, devices):
     import os
+    
+    # 1. 设定环境变量，防止通信冲突
+    os.environ["MASTER_ADDR"] = "127.0.0.1"
+    # 如果你用多实验，建议MASTER_PORT根据实验区分
+    os.environ["MASTER_PORT"] = os.environ.get("MASTER_PORT", "12345")
+    os.environ["WORLD_SIZE"] = str(world_size)
+    os.environ["RANK"] = str(rank)
+
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(devices[rank].split(":")[-1])
 
@@ -74,6 +82,9 @@ def process_main(rank, fname, world_size, devices):
 
 
 if __name__ == "__main__":
+    
+    
+    
     args = parser.parse_args()
     if args.debugmode:
         process_main(rank=0, fname=args.fname, world_size=1, devices=["cuda:0"])

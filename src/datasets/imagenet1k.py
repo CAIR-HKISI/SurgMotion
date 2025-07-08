@@ -48,7 +48,7 @@ class ImageNet(torchvision.datasets.ImageFolder):
 
         super(ImageNet, self).__init__(root=data_path, transform=transform)
         logger.info("Initialized ImageNet")
-
+        
         if index_targets:
             self.targets = []
             for sample in self.samples:

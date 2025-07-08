@@ -96,25 +96,28 @@ def load_checkpoint(
     scaler,
 ):
     logger.info(f"Loading checkpoint from {r_path}")
+    print(f"Loading checkpoint from {r_path}")
     checkpoint = robust_checkpoint_loader(r_path, map_location=torch.device("cpu"))
 
     epoch = checkpoint["epoch"]
 
     # -- loading encoder
     pretrained_dict = checkpoint["encoder"]
-    msg = encoder.load_state_dict(pretrained_dict)
+    msg = encoder.load_state_dict(pretrained_dict, strict=False)
     logger.info(f"loaded pretrained encoder from epoch {epoch} with msg: {msg}")
+    print(f"loaded pretrained encoder from epoch {epoch} with msg: {msg}")
 
     # -- loading predictor
     pretrained_dict = checkpoint["predictor"]
-    msg = predictor.load_state_dict(pretrained_dict)
+    msg = predictor.load_state_dict(pretrained_dict, strict=False)
     logger.info(f"loaded pretrained predictor from epoch {epoch} with msg: {msg}")
+    print(f"loaded pretrained predictor from epoch {epoch} with msg: {msg}")
 
     # -- loading target_encoder
     if target_encoder is not None:
         print(list(checkpoint.keys()))
         pretrained_dict = checkpoint["target_encoder"]
-        msg = target_encoder.load_state_dict(pretrained_dict)
+        msg = target_encoder.load_state_dict(pretrained_dict, strict=False)
         logger.info(f"loaded pretrained target encoder from epoch {epoch} with msg: {msg}")
 
     # -- loading optimizer

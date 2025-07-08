@@ -1,3 +1,6 @@
+import sys
+sys.path.append('/data/wjl/vjepa2')
+
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
 # This source code is licensed under the MIT license found in the
@@ -371,3 +374,53 @@ class VideoDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.samples)
+
+
+
+if __name__ == "__main__":
+    # data_paths = ["/data/wjl/vjepa2/data/pitvis/hourly_sampled_1000clips_16frames.csv"]
+    data = VideoDataset(
+        data_paths=["/data/wjl/vjepa2/data_process/train_ssv2.csv"],
+        datasets_weights=[1.0],
+        frames_per_clip=16,
+        fps=None,
+        dataset_fpcs=None,
+        frame_step=4,
+        num_clips=2,
+        transform=None,
+        shared_transform=None,
+        random_clip_sampling=True,
+        allow_clip_overlap=True,
+        filter_short_videos=False,
+        filter_long_videos=int(10**9),
+        duration=None,  # duration in seconds
+    )
+    print(len(data))
+    
+    for item in data:
+        import ipdb; ipdb.set_trace()
+        print(item)
+    
+    # dataset, data_loader, dist_sampler = make_videodataset(
+    #     data_paths=["/data/wjl/vjepa2/data_process/train_ssv2.csv"],
+    #     datasets_weights=[1.0],
+    #     frames_per_clip=16,
+    #     dataset_fpcs=[16],
+    #     frame_step=4,
+    #     num_clips=1,
+    #     batch_size=2,
+    #     transform=None,
+    #     shared_transform=None,
+    #     random_clip_sampling=True,
+    #     allow_clip_overlap=False,
+    #     filter_short_videos=False,
+    #     filter_long_videos=int(10**9),
+    #     duration=None,  # duration in seconds
+    # )
+    
+    # print(len(dataset))
+    
+    # for clip, label, clip_indices in data_loader:
+    #     import ipdb; ipdb.set_trace()
+    #     print(clip.shape, label, clip_indices)  
+        
