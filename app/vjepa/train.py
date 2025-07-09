@@ -33,7 +33,7 @@ from src.masks.multiseq_multiblock3d import MaskCollator
 from src.masks.utils import apply_masks
 from src.utils.distributed import init_distributed
 from src.utils.logging import AverageMeter, CSVLogger, get_logger, gpu_timer
-
+from src.utils.checkpoint_loader import robust_checkpoint_loader
 # --
 log_timings = True
 log_freq = 10
@@ -49,6 +49,30 @@ torch.backends.cudnn.benchmark = True
 
 
 logger = get_logger(__name__, force=True)
+
+
+def load_pretrained_ckpt(encoder, pretrained, checkpoint_key="target_encoder"):
+    logger.info(f"Loading pretrained model from {pretrained}")
+    checkpoint = robust_checkpoint_loader(pretrained, map_location="cpu")
+    pretrained_dict = checkpoint[checkpoint_key]
+    
+    
+    pretrained_dict = {k.replace("module.", ""): v for k, v in pretrained_dict.items()}
+    # pretrained_dict = {k.replace("backbone.", ""): v for k, v in pretrained_dict.items()}
+    for k, v in encoder.state_dict().items():
+        if k not in pretrained_dict:
+            logger.info(f"key '{k}' could not be found in loaded state dict")
+        elif pretrained_dict[k].shape != v.shape:
+            logger.info(f"{pretrained_dict[k].shape} | {v.shape}")
+            logger.info(f"key '{k}' is of different shape in model and loaded state dict")
+            exit(1)
+            pretrained_dict[k] = v
+    msg = encoder.load_state_dict(pretrained_dict, strict=False)
+    # print(encoder)
+    logger.info(f"loaded pretrained model with msg: {msg}")
+    logger.info(f"loaded pretrained encoder from epoch: {checkpoint['epoch']}\n path: {pretrained}")
+    del checkpoint
+    return encoder
 
 
 def main(args, resume_preempt=False):
@@ -96,6 +120,8 @@ def main(args, resume_preempt=False):
     use_silu = cfgs_model.get("use_silu", False)
     use_pred_silu = cfgs_model.get("use_pred_silu", False)
     wide_silu = cfgs_model.get("wide_silu", True)
+    load_pretrained = cfgs_model.get("load_pretrained", False)
+    pretrained_path = cfgs_model.get("pretrained_path", None)
 
     # -- DATA
     cfgs_data = args.get("data")
@@ -185,30 +211,38 @@ def main(args, resume_preempt=False):
         ("%d", "dataload-time(ms)"),
     )
 
-    # # -- init model
-    # encoder, predictor = init_video_model(
-    #     uniform_power=uniform_power,
-    #     use_mask_tokens=use_mask_tokens,
-    #     num_mask_tokens=int(len(cfgs_mask) * len(dataset_fpcs)),
-    #     zero_init_mask_tokens=zero_init_mask_tokens,
-    #     device=device,
-    #     patch_size=patch_size,
-    #     max_num_frames=max_num_frames,
-    #     tubelet_size=tubelet_size,
-    #     model_name=model_name,
-    #     crop_size=crop_size,
-    #     pred_depth=pred_depth,
-    #     pred_num_heads=pred_num_heads,
-    #     pred_embed_dim=pred_embed_dim,
-    #     use_sdpa=use_sdpa,
-    #     use_silu=use_silu,
-    #     use_pred_silu=use_pred_silu,
-    #     wide_silu=wide_silu,
-    #     use_rope=use_rope,
-    #     use_activation_checkpointing=use_activation_checkpointing,
-    # )
+    # -- init model
+    encoder, predictor = init_video_model(
+        uniform_power=uniform_power,
+        use_mask_tokens=use_mask_tokens,
+        num_mask_tokens=10,
+        zero_init_mask_tokens=zero_init_mask_tokens,
+        device=device,
+        patch_size=patch_size,
+        max_num_frames=max_num_frames,
+        tubelet_size=tubelet_size,
+        model_name=model_name,
+        crop_size=crop_size,
+        pred_depth=pred_depth,
+        pred_num_heads=pred_num_heads,
+        pred_embed_dim=pred_embed_dim,
+        use_sdpa=use_sdpa,
+        use_silu=use_silu,
+        use_pred_silu=use_pred_silu,
+        wide_silu=wide_silu,
+        use_rope=use_rope,
+        use_activation_checkpointing=use_activation_checkpointing,
+    )
     
     target_encoder = copy.deepcopy(encoder)
+    
+    ## load pretrained
+    if load_pretrained and pretrained_path is not None:
+        # import pdb; pdb.set_trace()
+        encoder = load_pretrained_ckpt(encoder, pretrained_path, checkpoint_key="encoder")
+        predictor = load_pretrained_ckpt(predictor, pretrained_path, checkpoint_key="predictor")
+        target_encoder = load_pretrained_ckpt(target_encoder, pretrained_path, checkpoint_key="target_encoder")
+        
     
     if compile_model:
         logger.info("Compiling encoder, target_encoder, and predictor.")
@@ -290,7 +324,7 @@ def main(args, resume_preempt=False):
     )
 
     start_epoch = 0
-    # -- load training checkpoint
+    # -- load training checkpoint and resume training
     if load_model or os.path.exists(latest_path):
         (
             encoder,
@@ -486,8 +520,13 @@ def main(args, resume_preempt=False):
             def log_stats():
                 csv_logger.log(epoch + 1, itr, loss, iter_elapsed_time_ms, gpu_etime_ms, data_elapsed_time_ms)
                 if (itr % log_freq == 0) or (itr == ipe - 1) or np.isnan(loss) or np.isinf(loss):
+                    # 计算剩余的iterations
+                    remaining_iters_in_epoch = ipe - itr - 1
+                    remaining_epochs = num_epochs - epoch - 1
+                    total_remaining_iters = remaining_iters_in_epoch + (remaining_epochs * ipe)
+                    
                     logger.info(
-                        "[%d, %5d] loss: %.3f "
+                        "[Epoch %d/%d, Iter %5d/%d] (Remaining: %d iters) loss: %.3f "
                         "masks: %s "
                         "[wd: %.2e] [lr: %.2e] "
                         "[mem: %.2e] "
@@ -496,7 +535,10 @@ def main(args, resume_preempt=False):
                         "[data: %.1f ms]"
                         % (
                             epoch + 1,
-                            itr,
+                            num_epochs,
+                            itr + 1,  # 改为从1开始计数更直观
+                            ipe,
+                            total_remaining_iters,
                             loss_meter.avg,
                             "[" + ", ".join([f"{k}: " + "%.1f" % mask_meters[k].avg for k in mask_meters]) + "]",
                             _new_wd,

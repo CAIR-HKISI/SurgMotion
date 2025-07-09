@@ -1,5 +1,5 @@
 cpus_per_task: 16
-eval_name: video_classification_frozen
+eval_name: surgical_video_classification_frozen
 folder: logs/pitvis_vitl16_16x2x3_16f_orgin_probing_3epochs
 mem_per_gpu: 220G
 nodes: 8

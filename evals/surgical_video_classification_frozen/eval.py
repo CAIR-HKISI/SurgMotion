@@ -19,12 +19,12 @@ import logging
 import math
 import pprint
 
-from sklearn.metrics import precision_score, recall_score, f1_score
 import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
+from sklearn.metrics import precision_recall_fscore_support
 
 from evals.video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
@@ -132,9 +132,21 @@ def main(args_eval, resume_preempt=False):
     log_file = os.path.join(folder, f"log_r{rank}.csv")
     latest_path = os.path.join(folder, "latest.pt")
 
-    # -- make csv_logger
+    # -- make csv_logger without frame_acc
     if rank == 0:
-        csv_logger = CSVLogger(log_file, ("%d", "epoch"), ("%.5f", "loss"), ("%.5f", "acc"))
+        csv_logger = CSVLogger(
+            log_file, 
+            ("%d", "epoch"), 
+            # Best metrics
+            ("%.5f", "acc_best"), 
+            ("%.5f", "precision_best"), ("%.5f", "recall_best"), ("%.5f", "f1_best"),
+            # Mean metrics
+            ("%.5f", "acc_mean"), 
+            ("%.5f", "precision_mean"), ("%.5f", "recall_mean"), ("%.5f", "f1_mean"),
+            # Worst metrics
+            ("%.5f", "acc_worst"), 
+            ("%.5f", "precision_worst"), ("%.5f", "recall_worst"), ("%.5f", "f1_worst")
+        )
 
     # Initialize model
 
@@ -240,12 +252,18 @@ def main(args_eval, resume_preempt=False):
 
     # TRAIN LOOP
     for epoch in range(start_epoch, num_epochs):
-        logger.info("Epoch %d" % (epoch + 1))
+        logger.info("="*50)
+        logger.info(f"Starting Epoch {epoch + 1}/{num_epochs}")
+        logger.info("="*50)
         train_sampler.set_epoch(epoch)
+        
         if val_only:
-            train_acc = -1.0
+            train_metrics = {
+                "all_metrics": [{"acc": -1.0, "precision": -1.0, "recall": -1.0, "f1_score": -1.0}]
+            }
         else:
-            train_acc = run_one_epoch(
+            logger.info(f"Training phase - Epoch {epoch + 1}/{num_epochs}")
+            train_metrics = run_one_epoch(
                 device=device,
                 training=True,
                 encoder=encoder,
@@ -256,9 +274,13 @@ def main(args_eval, resume_preempt=False):
                 wd_scheduler=wd_scheduler,
                 data_loader=train_loader,
                 use_bfloat16=use_bfloat16,
+                num_classes=num_classes,
+                epoch=epoch + 1,
+                num_epochs=num_epochs,
             )
 
-        val_acc = run_one_epoch(
+        logger.info(f"\nValidation phase - Epoch {epoch + 1}/{num_epochs}")
+        val_metrics = run_one_epoch(
             device=device,
             training=False,
             encoder=encoder,
@@ -269,16 +291,104 @@ def main(args_eval, resume_preempt=False):
             wd_scheduler=wd_scheduler,
             data_loader=val_loader,
             use_bfloat16=use_bfloat16,
+            num_classes=num_classes,
+            epoch=epoch + 1,
+            num_epochs=num_epochs,
         )
 
-        logger.info("[%5d] train: %.3f%% test: %.3f%%" % (epoch + 1, train_acc, val_acc))
+        # Extract aggregated metrics
+        train_agg = aggregate_metrics(train_metrics["all_metrics"])
+        val_agg = aggregate_metrics(val_metrics["all_metrics"])
+        
+        logger.info("\n" + "="*50)
+        logger.info(f"Epoch {epoch + 1}/{num_epochs} Summary")
+        logger.info("="*50)
+        
+        logger.info(
+            "TRAIN - Best: acc=%.3f%% prec=%.3f rec=%.3f f1=%.3f | "
+            "Mean: acc=%.3f%% prec=%.3f rec=%.3f f1=%.3f | "
+            "Worst: acc=%.3f%% prec=%.3f rec=%.3f f1=%.3f"
+            % (
+                train_agg["best"]["acc"], 
+                train_agg["best"]["precision"], train_agg["best"]["recall"], train_agg["best"]["f1_score"],
+                train_agg["mean"]["acc"], 
+                train_agg["mean"]["precision"], train_agg["mean"]["recall"], train_agg["mean"]["f1_score"],
+                train_agg["worst"]["acc"], 
+                train_agg["worst"]["precision"], train_agg["worst"]["recall"], train_agg["worst"]["f1_score"],
+            )
+        )
+
+        logger.info(
+            "VAL   - Best: acc=%.3f%% prec=%.3f rec=%.3f f1=%.3f | "
+            "Mean: acc=%.3f%% prec=%.3f rec=%.3f f1=%.3f | "
+            "Worst: acc=%.3f%% prec=%.3f rec=%.3f f1=%.3f"
+            % (
+                val_agg["best"]["acc"], 
+                val_agg["best"]["precision"], val_agg["best"]["recall"], val_agg["best"]["f1_score"],
+                val_agg["mean"]["acc"], 
+                val_agg["mean"]["precision"], val_agg["mean"]["recall"], val_agg["mean"]["f1_score"],
+                val_agg["worst"]["acc"], 
+                val_agg["worst"]["precision"], val_agg["worst"]["recall"], val_agg["worst"]["f1_score"],
+            )
+        )
+        logger.info("="*50 + "\n")
+             
+        # 记录日志时 - 不再包含 frame_acc
         if rank == 0:
-            csv_logger.log(epoch + 1, train_acc, val_acc)
+            csv_logger.log(
+                epoch + 1,
+                # Best metrics
+                val_agg["best"]["acc"], 
+                val_agg["best"]["precision"], 
+                val_agg["best"]["recall"], 
+                val_agg["best"]["f1_score"],
+                # Mean metrics
+                val_agg["mean"]["acc"], 
+                val_agg["mean"]["precision"], 
+                val_agg["mean"]["recall"], 
+                val_agg["mean"]["f1_score"],
+                # Worst metrics
+                val_agg["worst"]["acc"], 
+                val_agg["worst"]["precision"], 
+                val_agg["worst"]["recall"], 
+                val_agg["worst"]["f1_score"]
+            )
 
         if val_only:
             return
 
         save_checkpoint(epoch + 1)
+
+
+def aggregate_metrics(all_metrics):
+    """Aggregate metrics across all classifiers to get best, mean, worst"""
+    if len(all_metrics) == 1:
+        # Single classifier case
+        return {
+            "best": all_metrics[0],
+            "mean": all_metrics[0],
+            "worst": all_metrics[0]
+        }
+    
+    # Multiple classifiers case
+    metric_names = ["acc", "precision", "recall", "f1_score"]
+    
+    # Find best and worst based on accuracy
+    acc_values = [m["acc"] for m in all_metrics]
+    best_idx = np.argmax(acc_values)
+    worst_idx = np.argmin(acc_values)
+    
+    # Calculate mean
+    mean_metrics = {}
+    for metric in metric_names:
+        values = [m[metric] for m in all_metrics]
+        mean_metrics[metric] = np.mean(values)
+    
+    return {
+        "best": all_metrics[best_idx],
+        "mean": mean_metrics,
+        "worst": all_metrics[worst_idx]
+    }
 
 
 def run_one_epoch(
@@ -292,13 +402,27 @@ def run_one_epoch(
     wd_scheduler,
     data_loader,
     use_bfloat16,
+    num_classes,
+    epoch,
+    num_epochs,
 ):
 
     for c in classifiers:
         c.train(mode=training)
 
     criterion = torch.nn.CrossEntropyLoss()
-    top1_meters = [AverageMeter() for _ in classifiers]
+    
+    # Meters for each classifier
+    acc_meters = [AverageMeter() for _ in classifiers]
+    
+    # Store predictions and labels for each classifier (only for validation)
+    if not training:
+        all_predictions = [[] for _ in classifiers]
+        all_labels = [[] for _ in classifiers]
+    
+    # 获取总的iteration数量
+    total_iters = len(data_loader)
+    
     for itr, data in enumerate(data_loader):
         if training:
             [s.step() for s in scheduler]
@@ -307,8 +431,8 @@ def run_one_epoch(
         with torch.cuda.amp.autocast(dtype=torch.float16, enabled=use_bfloat16):
             # Load data and put on GPU
             clips = [
-                [dij.to(device, non_blocking=True) for dij in di]  # iterate over spatial views of clip
-                for di in data[0]  # iterate over temporal index of clip
+                [dij.to(device, non_blocking=True) for dij in di]
+                for di in data[0]
             ]
             clip_indices = [d.to(device, non_blocking=True) for d in data[2]]
             labels = data[1].to(device)
@@ -324,136 +448,128 @@ def run_one_epoch(
 
         # Compute loss
         losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
+        
         with torch.no_grad():
-            outputs = [sum([F.softmax(o, dim=1) for o in coutputs]) / len(coutputs) for coutputs in outputs]
-            top1_accs = [100.0 * coutputs.max(dim=1).indices.eq(labels).sum() / batch_size for coutputs in outputs]
-            top1_accs = [float(AllReduce.apply(t1a)) for t1a in top1_accs]
-            for t1m, t1a in zip(top1_meters, top1_accs):
-                t1m.update(t1a)
-
-        if training:
-            if use_bfloat16:
-                [[s.scale(lij).backward() for lij in li] for s, li in zip(scaler, losses)]
-                [s.step(o) for s, o in zip(scaler, optimizer)]
-                [s.update() for s in scaler]
-            else:
-                [[lij.backward() for lij in li] for li in losses]
-                [o.step() for o in optimizer]
-            [o.zero_grad() for o in optimizer]
-
-        _agg_top1 = np.array([t1m.avg for t1m in top1_meters])
-        if itr % 10 == 0:
-            logger.info(
-                "[%5d] %.3f%% [%.3f%% %.3f%%] [mem: %.2e]"
-                % (
-                    itr,
-                    _agg_top1.max(),
-                    _agg_top1.mean(),
-                    _agg_top1.min(),
-                    torch.cuda.max_memory_allocated() / 1024.0**2,
-                )
-            )
-
-    return _agg_top1.max()
-
-
-def run_one_surgical_epoch(
-    device,
-    training,
-    encoder,
-    classifiers,
-    scaler,
-    optimizer,
-    scheduler,
-    wd_scheduler,
-    data_loader,
-    use_bfloat16,
-):
-
-    all_preds = []
-    all_labels = []
-
-    for c in classifiers:
-        c.train(mode=training)
-
-    criterion = torch.nn.CrossEntropyLoss()
-    top1_meters = [AverageMeter() for _ in classifiers]
-    for itr, data in enumerate(data_loader):
-        if training:
-            [s.step() for s in scheduler]
-            [wds.step() for wds in wd_scheduler]
-
-        with torch.cuda.amp.autocast(dtype=torch.float16, enabled=use_bfloat16):
-            # Load data and put on GPU
-            clips = [
-                [dij.to(device, non_blocking=True) for dij in di]  # iterate over spatial views of clip
-                for di in data[0]  # iterate over temporal index of clip
-            ]
-            clip_indices = [d.to(device, non_blocking=True) for d in data[2]]
-            labels = data[1].to(device)
-            batch_size = len(labels)
-
-            # Forward and prediction
-            with torch.no_grad():
-                outputs = encoder(clips, clip_indices)
+            # Process each classifier separately
+            for c_idx, coutputs in enumerate(outputs):
+                # 由于 num_segments=1，coutputs 只有一个元素
+                output = coutputs[0]  # 直接取第一个（也是唯一的）输出
+                
+                # Predictions
+                preds = output.max(dim=1).indices
+                acc = 100.0 * preds.eq(labels).sum() / batch_size
+                acc = float(AllReduce.apply(acc))
+                acc_meters[c_idx].update(acc)
+                
+                # Store predictions for metrics calculation (only during validation)
                 if not training:
-                    outputs = [[c(o) for o in outputs] for c in classifiers]
-            if training:
-                outputs = [[c(o) for o in outputs] for c in classifiers]
-
-        # Compute loss
-        losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
-
-        with torch.no_grad():
-            outputs = [sum([F.softmax(o, dim=1) for o in coutputs]) / len(coutputs) for coutputs in outputs]
-            top1_accs = [100.0 * coutputs.max(dim=1).indices.eq(labels).sum() / batch_size for coutputs in outputs]
-            top1_accs = [float(AllReduce.apply(t1a)) for t1a in top1_accs]
-            for t1m, t1a in zip(top1_meters, top1_accs):
-                t1m.update(t1a)
+                    all_predictions[c_idx].extend(preds.cpu().numpy())
+                    all_labels[c_idx].extend(labels.cpu().numpy())
 
         if training:
             if use_bfloat16:
-                [[s.scale(lij).backward() for lij in li] for s, li in zip(scaler, losses)]
+                # 简化：直接处理单个loss
+                for s, losses_per_classifier in zip(scaler, losses):
+                    s.scale(losses_per_classifier[0]).backward()
                 [s.step(o) for s, o in zip(scaler, optimizer)]
                 [s.update() for s in scaler]
             else:
-                [[lij.backward() for lij in li] for li in losses]
+                [losses_per_classifier[0].backward() for losses_per_classifier in losses]
                 [o.step() for o in optimizer]
             [o.zero_grad() for o in optimizer]
 
-        _agg_top1 = np.array([t1m.avg for t1m in top1_meters])
         if itr % 10 == 0:
+            _agg_acc = np.array([am.avg for am in acc_meters])
+            
+            # 修改日志格式，添加epoch和iter信息
             logger.info(
-                "[%5d] %.3f%% [%.3f%% %.3f%%] [mem: %.2e]"
+                "[Epoch %d/%d, Iter %5d/%5d] accuracy: %.3f%% [mean: %.3f%% worst: %.3f%%] [mem: %.2e]"
                 % (
-                    itr,
-                    _agg_top1.max(),
-                    _agg_top1.mean(),
-                    _agg_top1.min(),
+                    epoch,
+                    num_epochs,
+                    itr + 1,
+                    total_iters,
+                    _agg_acc.max(),
+                    _agg_acc.mean(),
+                    _agg_acc.min(),
                     torch.cuda.max_memory_allocated() / 1024.0**2,
                 )
             )
 
-        # 收集预测结果和真实标签
-        preds = outputs[0].max(dim=1).indices.cpu().numpy()
-        labels = labels.cpu().numpy()
-        all_preds.extend(preds)
-        all_labels.extend(labels)
-
-    # 计算 case level 的准确率
-    accuracy = sum([p == l for p, l in zip(all_preds, all_labels)]) / len(all_preds)
-
-    # 计算宏平均的精确率、召回率和 F1 分数
-    precision = precision_score(all_labels, all_preds, average='macro')
-    recall = recall_score(all_labels, all_preds, average='macro')
-    f1 = f1_score(all_labels, all_preds, average='macro')
-
-    logger.info(f"Case level accuracy: {accuracy * 100:.3f}%")
-    logger.info(f"Macro-average precision: {precision * 100:.3f}%")
-    logger.info(f"Macro-average recall: {recall * 100:.3f}%")
-    logger.info(f"Macro-average F1 score: {f1 * 100:.3f}%")
-
-    return _agg_top1.max()
+    # Calculate metrics for each classifier at the end of epoch
+    all_metrics = []
+    
+    for c_idx in range(len(classifiers)):
+        metrics = {
+            "acc": acc_meters[c_idx].avg,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1_score": 0.0
+        }
+        
+        # Calculate precision, recall, f1 only at epoch end and only for validation
+        if not training and len(all_predictions[c_idx]) > 0:
+            # Gather all predictions and labels from all ranks
+            world_size = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+            
+            if world_size > 1:
+                gathered_predictions = [None for _ in range(world_size)]
+                gathered_labels = [None for _ in range(world_size)]
+                
+                torch.distributed.all_gather_object(gathered_predictions, all_predictions[c_idx])
+                torch.distributed.all_gather_object(gathered_labels, all_labels[c_idx])
+                
+                all_predictions[c_idx] = [pred for preds in gathered_predictions for pred in preds]
+                all_labels[c_idx] = [label for labels in gathered_labels for label in labels]
+            
+            # Calculate metrics using macro averaging
+            precision, recall, f1, _ = precision_recall_fscore_support(
+                all_labels[c_idx], 
+                all_predictions[c_idx], 
+                average='macro',
+                zero_division=0
+            )
+            
+            metrics["precision"] = precision * 100.0
+            metrics["recall"] = recall * 100.0
+            metrics["f1_score"] = f1 * 100.0
+        
+        all_metrics.append(metrics)
+    
+    if not training:
+        # Log individual classifier performance at epoch end
+        logger.info(f"\n[Epoch {epoch}/{num_epochs}] End of Epoch - Individual Classifier Performance:")
+        for c_idx, metrics in enumerate(all_metrics):
+            logger.info(
+                f"Classifier {c_idx}: Accuracy: {metrics['acc']:.3f}%, "
+                f"Precision: {metrics['precision']:.3f}%, "
+                f"Recall: {metrics['recall']:.3f}%, "
+                f"F1-Score: {metrics['f1_score']:.3f}%"
+            )
+        
+        # Log aggregated metrics
+        agg = aggregate_metrics(all_metrics)
+        logger.info("\nAggregated Performance:")
+        logger.info(
+            f"Best - Accuracy: {agg['best']['acc']:.3f}%, "
+            f"Precision: {agg['best']['precision']:.3f}%, "
+            f"Recall: {agg['best']['recall']:.3f}%, "
+            f"F1-Score: {agg['best']['f1_score']:.3f}%"
+        )
+        logger.info(
+            f"Mean - Accuracy: {agg['mean']['acc']:.3f}%, "
+            f"Precision: {agg['mean']['precision']:.3f}%, "
+            f"Recall: {agg['mean']['recall']:.3f}%, "
+            f"F1-Score: {agg['mean']['f1_score']:.3f}%"
+        )
+        logger.info(
+            f"Worst - Accuracy: {agg['worst']['acc']:.3f}%, "
+            f"Precision: {agg['worst']['precision']:.3f}%, "
+            f"Recall: {agg['worst']['recall']:.3f}%, "
+            f"F1-Score: {agg['worst']['f1_score']:.3f}%"
+        )
+    
+    return {"all_metrics": all_metrics}
 
 
 def load_checkpoint(device, r_path, classifiers, opt, scaler, val_only=False):
@@ -635,3 +751,4 @@ class CosineWDSchedule(object):
             else:
                 new_wd = min(final_wd, new_wd)
             group["weight_decay"] = new_wd
+
