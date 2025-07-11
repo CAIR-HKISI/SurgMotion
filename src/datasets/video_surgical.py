@@ -372,7 +372,7 @@ def make_surgical_videodataset(
     batch_size,
     frames_per_clip=8,
     dataset_fpcs=None,
-    frame_step=4,
+    frame_step=1,
     duration=None,
     fps=None,
     num_clips=1,

@@ -40,6 +40,9 @@ parser.add_argument("--override_config_folder", action="store_true")
 parser.add_argument("--checkpoint", type=str, help="location of pretrained ckpt")
 parser.add_argument("--model_name", type=str, help="Model name")
 parser.add_argument("--batch_size", type=int)
+parser.add_argument("--resolution",  type=int, default=256)
+parser.add_argument("--frames_per_clip", type=int)
+parser.add_argument("--epochs", type=int)
 parser.add_argument("--use_fsdp", action="store_true")
 
 
@@ -73,6 +76,16 @@ def process_main(args, rank, fname, world_size, devices):
 
         if args.batch_size:
             params["experiment"]["optimization"]["batch_size"] = args.batch_size
+        
+        if args.frames_per_clip:
+            params["experiment"]["data"]["frames_per_clip"] = args.frames_per_clip
+        
+        if args.epochs:
+            params["experiment"]["optimization"]["num_epochs"] = args.epochs
+        
+        if args.resolution:
+            params["experiment"]["data"]["resolution"] = args.resolution
+        
 
         if args.override_config_folder:
             params["folder"] = args.folder

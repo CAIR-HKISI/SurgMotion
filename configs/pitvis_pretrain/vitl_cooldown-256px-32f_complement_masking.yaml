@@ -1,0 +1,97 @@
+app: vjepa
+cpus_per_task: 32
+folder: logs/cpt_vitl16-256px-32f_cooldown_complement_masking
+mem_per_gpu: 220G
+nodes: 32
+tasks_per_node: 8
+data:
+  dataset_type: surgical_videodataset
+  datasets:
+  - /data/wjl/vjepa2/data_process/pitvis_clips/train_dense_64f.csv
+  datasets_weights:
+  - 1.0
+  batch_size: 64
+  crop_size: 256
+  dataset_fpcs:
+  - 32
+  fps: 1
+  num_workers: 12
+  patch_size: 16
+  persistent_workers: true
+  pin_mem: false
+  tubelet_size: 2
+data_aug:
+  auto_augment: false
+  motion_shift: false
+  random_resize_aspect_ratio:
+  - 0.75
+  - 1.35
+  random_resize_scale:
+  - 0.3
+  - 1.0
+  reprob: 0.0
+loss:
+  loss_exp: 1.0
+mask:
+- aspect_ratio:
+  - 0.75
+  - 1.5
+  full_complement: true
+  max_keep: null
+  max_temporal_keep: 1.0
+  num_blocks: 8
+  spatial_scale:
+  - 0.15
+  - 0.15
+  temporal_scale:
+  - 1.0
+  - 1.0
+- aspect_ratio:
+  - 0.75
+  - 1.5
+  full_complement: true
+  max_keep: null
+  max_temporal_keep: 1.0
+  num_blocks: 2
+  spatial_scale:
+  - 0.7
+  - 0.7
+  temporal_scale:
+  - 1.0
+  - 1.0
+meta:
+  dtype: bfloat16
+  eval_freq: 100
+  load_checkpoint: false
+  read_checkpoint: /data/wjl/vjepa2/logs/latest.pt
+  save_every_freq: 50
+  seed: 239
+  use_sdpa: true
+model:
+  model_name: vit_large
+  pred_depth: 12
+  pred_embed_dim: 384
+  pred_num_heads: 12
+  uniform_power: true
+  use_activation_checkpointing: true
+  use_mask_tokens: true
+  use_rope: true
+  zero_init_mask_tokens: true
+  load_pretrained: true
+  pretrained_path: /data/wjl/vjepa2/ckpts/vitl.pt 
+optimization:
+  anneal_ckpt: /your_folder/pretrain/16.8.vitl.256px.16f/e0.pt
+  ema:
+  - 0.99925
+  - 0.99925
+  epochs: 2
+  final_lr: 1.0e-07
+  final_weight_decay: 0.04
+  ipe: 300
+  ipe_scale: 1.25
+  is_anneal: true
+  lr: 1.0e-05
+  resume_anneal: true
+  start_lr: 0.0001
+  warmup: 0
+  weight_decay: 0.04
