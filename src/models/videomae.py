@@ -22,7 +22,7 @@ class VisionTransformer(nn.Module):
     def __init__(
         self,
         img_size=(224, 224),
-        patch_size=16,
+        patch_size=14,
         num_frames=1,
         tubelet_size=2,
         in_chans=3,
@@ -30,7 +30,7 @@ class VisionTransformer(nn.Module):
         depth=12,
         num_heads=12,
         mlp_ratio=4.0,
-        qkv_bias=True,
+        qkv_bias=False,
         qk_scale=None,
         drop_rate=0.0,
         attn_drop_rate=0.0,
@@ -416,6 +416,18 @@ def vit_giant(patch_size=16, **kwargs):
     )
     return model
 
+def vit_videomae(patch_size=14, **kwargs):
+    model = VisionTransformer(
+        patch_size=patch_size,
+        embed_dim=1408,
+        depth=40,
+        num_heads=16,
+        mlp_ratio=48 / 11,
+        qkv_bias=False,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
+    return model
 
 def vit_giant_rope(patch_size=16, **kwargs):
     model = VisionTransformer(
@@ -474,19 +486,6 @@ def vit_gigantic_xformers(patch_size=16, **kwargs):
     )
     return model
 
-
-def vit_videomae(patch_size=14, **kwargs):
-    model = VisionTransformer(
-        patch_size=patch_size,
-        embed_dim=1408,
-        depth=40,
-        num_heads=16,
-        mlp_ratio=48 / 11,
-        qkv_bias=False,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs
-    )
-    return model
 
 VIT_EMBED_DIMS = {
     "vit_synthetic": 1,

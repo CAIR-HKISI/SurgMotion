@@ -26,7 +26,7 @@ import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import precision_recall_fscore_support
 
-from evals.video_classification_frozen.models import init_module
+from evals.surgical_video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
 from src.datasets.data_manager import init_data
 from src.models.attentive_pooler import AttentiveClassifier
@@ -151,6 +151,17 @@ def main(args_eval, resume_preempt=False):
     # Initialize model
 
     # -- init models
+    # if "mae" in module_name:
+    #     encoder = init_videomae_module(
+    #         module_name=module_name,
+    #         frames_per_clip=frames_per_clip,
+    #         resolution=resolution,
+    #         checkpoint=checkpoint,
+    #         model_kwargs=args_model,
+    #         wrapper_kwargs=args_wrapper,
+    #         device=device,
+    #     )
+    # else:
     encoder = init_module(
         module_name=module_name,
         frames_per_clip=frames_per_clip,
@@ -160,6 +171,7 @@ def main(args_eval, resume_preempt=False):
         wrapper_kwargs=args_wrapper,
         device=device,
     )
+    
     # -- init classifier
     classifiers = [
         AttentiveClassifier(

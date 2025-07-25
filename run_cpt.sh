@@ -1,22 +1,27 @@
 #! /bin/bash
 
-# configs=(
-#         "vitl_cooldown-256px-32f_mask_small"
-#     "vitl_cooldown-256px-32f_mask_large"
-#     "vitl_cooldown-256px-32f_complement_masking"
-# )
+configs=(
+    "vitl_cooldown-256px-32f_lr2e-4.yaml"
+    "vitl_cooldown-256px-32f_lr4e-4.yaml"
+    "vitl_cooldown-256px-32f_lr5e-4.yaml"
+)
 
-# for config in "${configs[@]}"; do
-#     MASTER_PORT=12333 python -m app.main --fname configs/pitvis_pretrain/${config}.yaml --devices cuda:2 cuda:3
-# done
+for config in "${configs[@]}"; do
+    MASTER_PORT=$((RANDOM % 55536 + 10000))
+    folder="logs/cpt_${config}"
+    mkdir -p "${folder}"
+    MASTER_PORT=${MASTER_PORT} nohup python -m app.main \
+                                --fname configs/pitvis_pretrain/${config}.yaml \
+                                --devices cuda:0 cuda:1 \
+                                > "${folder}/cpt_train.log" 2>&1 
+done
 
 
 ### eval pretrained vitl 
 ckpt_dirs=(
-"logs/cpt_vitl16-256px-32f_cooldown"
-"logs/cpt_vitl16-256px-32f_cooldown_complement_masking"
-"logs/cpt_vitl16-256px-32f_cooldown_lr1e-4"
-"logs/cpt_vitl16-256px-32f_cooldown_lr2e-5"
+"logs/cpt_vitl16-256px-32f_cooldown_lr2e-4"
+"logs/cpt_vitl16-256px-32f_cooldown_lr4e-4"
+"logs/cpt_vitl16-256px-32f_cooldown_lr5e-4"
 # "logs/cpt_vitl16-256px-32f_cooldown_lr5e-5"
 # "logs/cpt_vitl16-256px-32f_cooldown_mask_large"
 # "logs/cpt_vitl16-256px-32f_cooldown_mask_small"

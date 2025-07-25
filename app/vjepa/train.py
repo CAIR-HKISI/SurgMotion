@@ -120,8 +120,7 @@ def main(args, resume_preempt=False):
     use_silu = cfgs_model.get("use_silu", False)
     use_pred_silu = cfgs_model.get("use_pred_silu", False)
     wide_silu = cfgs_model.get("wide_silu", True)
-    load_pretrained = cfgs_model.get("load_pretrained", False)
-    pretrained_path = cfgs_model.get("pretrained_path", None)
+    cpt_path = cfgs_model.get("cpt_path", None)
 
     # -- DATA
     cfgs_data = args.get("data")
@@ -237,11 +236,11 @@ def main(args, resume_preempt=False):
     target_encoder = copy.deepcopy(encoder)
     
     ## load pretrained
-    if load_pretrained and pretrained_path is not None:
+    if cpt_path is not None:
         # import pdb; pdb.set_trace()
-        encoder = load_pretrained_ckpt(encoder, pretrained_path, checkpoint_key="encoder")
-        predictor = load_pretrained_ckpt(predictor, pretrained_path, checkpoint_key="predictor")
-        target_encoder = load_pretrained_ckpt(target_encoder, pretrained_path, checkpoint_key="target_encoder")
+        encoder = load_pretrained_ckpt(encoder, cpt_path, checkpoint_key="encoder")
+        predictor = load_pretrained_ckpt(predictor, cpt_path, checkpoint_key="predictor")
+        target_encoder = load_pretrained_ckpt(target_encoder, cpt_path, checkpoint_key="target_encoder")
         
     
     if compile_model:
@@ -325,6 +324,7 @@ def main(args, resume_preempt=False):
 
     start_epoch = 0
     # -- load training checkpoint and resume training
+    import pdb; pdb.set_trace()
     if load_model or os.path.exists(latest_path):
         (
             encoder,
@@ -334,7 +334,7 @@ def main(args, resume_preempt=False):
             scaler,
             start_epoch,
         ) = load_checkpoint(
-            r_path=load_path,
+            r_path=latest_path,
             encoder=encoder,
             predictor=predictor,
             target_encoder=target_encoder,

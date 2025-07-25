@@ -35,13 +35,14 @@ ckpt_dirs=(
 # "logs/cpt_vitl16-256px-32f_cooldown"
 # "logs/cpt_vitl16-256px-32f_cooldown_complement_masking"
 # "logs/cpt_vitl16-256px-32f_cooldown_lr4e-4"
-"/data/wjl/vjepa2/configs/pitvis_eval/vitg_mae_origin"
+# "logs/cpt_vitl16-256px-32f_cooldown_lr5e-4"
 # "logs/cpt_vitl16-256px-32f_cooldown_lr2e-5"
 # "logs/cpt_vitl16-256px-32f_cooldown_lr5e-5"
 # "logs/cpt_vitl16-256px-32f_cooldown_mask_large"
 # "logs/cpt_vitl16-256px-32f_cooldown_mask_small"
 # "logs/cpt_vitl16-256px-32f_cooldown_resolution_384"
 # "logs/cpt_vitl16-256px-32f_cooldown_resolution_448" 
+
 )
 
 for ckpt_dir in "${ckpt_dirs[@]}"; do
@@ -74,7 +75,7 @@ for ckpt_dir in "${ckpt_dirs[@]}"; do
         --frames_per_clip 32 \
         --batch_size 16 \
         --epochs 1 \
-        --devices cuda:5 \
+        --devices cuda:6 \
         --resolution ${resolution} \
         > "${folder}/probing_eval.log" 2>&1 
 done
