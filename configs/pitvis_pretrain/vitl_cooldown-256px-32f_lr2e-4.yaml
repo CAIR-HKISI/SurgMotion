@@ -1,6 +1,6 @@
 app: vjepa
 cpus_per_task: 32
-folder: logs/cpt_vitl16-256px-32f_cooldown_lr2e-4
+folder: logs/cpt_vitl16-256px-32f_cooldown_lr2e-4_run2
 mem_per_gpu: 220G
 nodes: 32
 tasks_per_node: 8
@@ -10,7 +10,7 @@ data:
   - /data/wjl/vjepa2/data_process/pitvis_clips/train_dense_64f.csv
   datasets_weights:
   - 1.0
-  batch_size: 64
+  batch_size: 8
   crop_size: 256
   dataset_fpcs:
   - 32
@@ -55,7 +55,7 @@ mask:
   num_blocks: 2
   spatial_scale:
   - 0.7
-  - 0.7
+  - 0.7a
   temporal_scale:
   - 1.0
   - 1.0
@@ -77,8 +77,7 @@ model:
   use_mask_tokens: true
   use_rope: true
   zero_init_mask_tokens: true
-  load_pretrained: true
-  pretrained_path: /data/wjl/vjepa2/ckpts/vitl.pt
+  cpt_path: /data/wjl/vjepa2/ckpts/vitl.pt
 optimization:
   anneal_ckpt: /your_folder/pretrain/16.8.vitl.256px.16f/e0.pt
   ema:

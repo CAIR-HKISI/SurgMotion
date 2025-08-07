@@ -8,12 +8,12 @@ configs=(
 
 for config in "${configs[@]}"; do
     MASTER_PORT=$((RANDOM % 55536 + 10000))
-    folder="logs/cpt_${config}"
+    folder="logs/cpt_${config}_test"
     mkdir -p "${folder}"
-    MASTER_PORT=${MASTER_PORT} nohup python -m app.main \
+    MASTER_PORT=12344  python -m app.main \
                                 --fname configs/pitvis_pretrain/${config}.yaml \
-                                --devices cuda:0 cuda:1 \
-                                > "${folder}/cpt_train.log" 2>&1 
+                                --devices cuda:6  \
+                                # > "${folder}/cpt_train.log" 2>&1 
 done
 
 

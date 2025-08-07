@@ -175,7 +175,7 @@ def process_train_and_val(base_data_path="/data/wjl/vjepa2/data/pitvis",
     # 处理训练集
     print("=== 处理训练集 ===")
     train_df = process_video_csv_dense_sampling(
-        input_csv_path=os.path.join(base_data_path, "train_metadata.csv"),
+        input_csv_path=os.path.join(base_data_path, "train_metadata_clean.csv"),
         output_csv_path=os.path.join(output_base_path, "train_dense_64f.csv"),
         clip_info_dir=os.path.join(output_base_path, "clip_dense_64f_info/train"),
         window_size=64,  # 16秒窗口
@@ -187,7 +187,7 @@ def process_train_and_val(base_data_path="/data/wjl/vjepa2/data/pitvis",
     # 处理验证集
     print("\n\n=== 处理验证集 ===")
     val_df = process_video_csv_dense_sampling(
-        input_csv_path=os.path.join(base_data_path, "val_metadata.csv"),
+        input_csv_path=os.path.join(base_data_path, "val_metadata_clean.csv"),
         output_csv_path=os.path.join(output_base_path, "val_dense_64f.csv"),
         clip_info_dir=os.path.join(output_base_path, "clip_dense_64f_info/val"),
         window_size=64,  # 16秒窗口
@@ -219,6 +219,6 @@ def process_train_and_val(base_data_path="/data/wjl/vjepa2/data/pitvis",
 if __name__ == "__main__":
     process_train_and_val(
         base_data_path="/data/wjl/vjepa2/data/pitvis",
-        output_base_path="/data/wjl/vjepa2/data_process/pitvis_clips/"
+        output_base_path="/data/wjl/vjepa2/data_process/pitvis_clips_clean/"
     )
 

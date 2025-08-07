@@ -324,7 +324,7 @@ def main(args, resume_preempt=False):
 
     start_epoch = 0
     # -- load training checkpoint and resume training
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     if load_model or os.path.exists(latest_path):
         (
             encoder,

@@ -53,7 +53,7 @@ class MaskCollator(object):
 
     def __call__(self, batch):
 
-        # Batch: [buffer, label, clip_indices]
+        # Batch: [buffer, label, clip_indices, case_id]
         filtered_batches = {fpc: [] for fpc in self.mask_generators}
         for sample in batch:
             fpc = len(sample[-1][-1])
