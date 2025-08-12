@@ -669,31 +669,6 @@ def load_checkpoint(device, r_path, classifiers, opt, scaler, val_only=False):
     return classifiers, opt, scaler, epoch
 
 
-def load_pretrained(encoder, pretrained, checkpoint_key="target_encoder"):
-    logger.info(f"Loading pretrained model from {pretrained}")
-    checkpoint = robust_checkpoint_loader(pretrained, map_location="cpu")
-    try:
-        pretrained_dict = checkpoint[checkpoint_key]
-    except Exception:
-        pretrained_dict = checkpoint["encoder"]
-
-    pretrained_dict = {k.replace("module.", ""): v for k, v in pretrained_dict.items()}
-    pretrained_dict = {k.replace("backbone.", ""): v for k, v in pretrained_dict.items()}
-    for k, v in encoder.state_dict().items():
-        if k not in pretrained_dict:
-            logger.info(f"key '{k}' could not be found in loaded state dict")
-        elif pretrained_dict[k].shape != v.shape:
-            logger.info(f"{pretrained_dict[k].shape} | {v.shape}")
-            logger.info(f"key '{k}' is of different shape in model and loaded state dict")
-            exit(1)
-            pretrained_dict[k] = v
-    msg = encoder.load_state_dict(pretrained_dict, strict=False)
-    print(encoder)
-    logger.info(f"loaded pretrained model with msg: {msg}")
-    logger.info(f"loaded pretrained encoder from epoch: {checkpoint['epoch']}\n path: {pretrained}")
-    del checkpoint
-    return encoder
-
 
 DEFAULT_NORMALIZATION = ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
 

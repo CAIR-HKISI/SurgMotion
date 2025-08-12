@@ -167,7 +167,8 @@ def process_video_csv_dense_sampling(
 
 
 def process_train_and_val(base_data_path="/data/wjl/vjepa2/data/pitvis",
-                         output_base_path="/data/wjl/vjepa2/data_process"):
+                         output_base_path="/data/wjl/vjepa2/data_process",
+                         window_size=16):
     """
     对train和val数据集都进行dense采样处理
     """
@@ -176,9 +177,9 @@ def process_train_and_val(base_data_path="/data/wjl/vjepa2/data/pitvis",
     print("=== 处理训练集 ===")
     train_df = process_video_csv_dense_sampling(
         input_csv_path=os.path.join(base_data_path, "train_metadata_clean.csv"),
-        output_csv_path=os.path.join(output_base_path, "train_dense_64f.csv"),
-        clip_info_dir=os.path.join(output_base_path, "clip_dense_64f_info/train"),
-        window_size=64,  # 16秒窗口
+        output_csv_path=os.path.join(output_base_path, f"train_dense_{window_size}f.csv"),
+        clip_info_dir=os.path.join(output_base_path, f"clip_dense_{window_size}f_info/train"),
+        window_size=window_size,  # 16秒窗口
         stride=1,        # 1秒步长
         fps=1,
         base_video_path=base_data_path
@@ -188,9 +189,9 @@ def process_train_and_val(base_data_path="/data/wjl/vjepa2/data/pitvis",
     print("\n\n=== 处理验证集 ===")
     val_df = process_video_csv_dense_sampling(
         input_csv_path=os.path.join(base_data_path, "val_metadata_clean.csv"),
-        output_csv_path=os.path.join(output_base_path, "val_dense_64f.csv"),
-        clip_info_dir=os.path.join(output_base_path, "clip_dense_64f_info/val"),
-        window_size=64,  # 16秒窗口
+        output_csv_path=os.path.join(output_base_path, f"val_dense_{window_size}f.csv"),
+        clip_info_dir=os.path.join(output_base_path, f"clip_dense_{window_size}f_info/val"),
+        window_size=window_size,  # 16秒窗口
         stride=1,        # 1秒步长
         fps=1,
         base_video_path=base_data_path
@@ -217,8 +218,10 @@ def process_train_and_val(base_data_path="/data/wjl/vjepa2/data/pitvis",
 
 # 使用示例
 if __name__ == "__main__":
+    window_size = 128
     process_train_and_val(
         base_data_path="/data/wjl/vjepa2/data/pitvis",
-        output_base_path="/data/wjl/vjepa2/data_process/pitvis_clips_clean/"
+        output_base_path=f"/data/wjl/vjepa2/data_process/pitvis_clips_clean/pitvis_clips_clean_{window_size}f",
+        window_size=window_size
     )
 

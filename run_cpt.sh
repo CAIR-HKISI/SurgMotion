@@ -1,64 +1,23 @@
 #! /bin/bash
 
-configs=(
-    "vitl_cooldown-256px-32f_lr2e-4.yaml"
-    "vitl_cooldown-256px-32f_lr4e-4.yaml"
-    "vitl_cooldown-256px-32f_lr5e-4.yaml"
-)
+# 1. 预定义变量
+FNAME="pitvis_cpt_vith-256px-64f_lr1e-4_epoch-10.yaml"   # 你的配置文件
+TASK="cpt"                            # probing / tuning / pre-training 等
+DEVICES="cuda:0 cuda:1"
 
-for config in "${configs[@]}"; do
-    MASTER_PORT=$((RANDOM % 55536 + 10000))
-    folder="logs/cpt_${config}"
-    mkdir -p "${folder}"
-    MASTER_PORT=${MASTER_PORT} nohup python -m app.main \
-                                --fname configs/pitvis_pretrain/${config}.yaml \
-                                --devices cuda:0 cuda:1 \
-                                > "${folder}/cpt_train.log" 2>&1 
-done
+# 2. 生成时间戳
+TIME=$(date +"%Y%m%d_%H%M")
+
+# 3. 去掉 .yaml 后缀, 构造日志文件名
+CFG_NAME=${FNAME%.yaml}
+LOG_FILE="logs3/${TIME}_${TASK}_${CFG_NAME}.log"
 
 
-### eval pretrained vitl 
-ckpt_dirs=(
-"logs/cpt_vitl16-256px-32f_cooldown_lr2e-4"
-"logs/cpt_vitl16-256px-32f_cooldown_lr4e-4"
-"logs/cpt_vitl16-256px-32f_cooldown_lr5e-4"
-# "logs/cpt_vitl16-256px-32f_cooldown_lr5e-5"
-# "logs/cpt_vitl16-256px-32f_cooldown_mask_large"
-# "logs/cpt_vitl16-256px-32f_cooldown_mask_small"
-# "logs/cpt_vitl16-256px-32f_cooldown_resolution_384"
-# "logs/cpt_vitl16-256px-32f_cooldown_resolution_448" 
-)
-for ckpt_dir in "${ckpt_dirs[@]}"; do
-    # 每次循环随机生成新的端口号
-    MASTER_PORT=$((RANDOM % 55536 + 10000))
+# 4. 运行（把 nohup 的输出直接写进 LOG_FILE）
+MASTER_PORT=1238 \
+nohup \
+python -m app.main \
+  --fname "configs/${TASK}/${FNAME}" \
+  --devices ${DEVICES} \
+  > "${LOG_FILE}" 2>&1 &
 
-    # 根据目录名判断需要使用的分辨率
-    if [[ "$ckpt_dir" == *"384"* ]]; then
-        resolution=384
-    elif [[ "$ckpt_dir" == *"448"* ]]; then
-        resolution=448
-    else
-        resolution=256
-    fi
-
-    # 定义日志目录
-    folder="${ckpt_dir}/probing_eval"
-    
-    # 创建日志目录（如果不存在）
-    mkdir -p "${folder}"
-    
-    echo "Running evaluation for checkpoint ${ckpt_dir} with resolution ${resolution}, on port ${MASTER_PORT}"
-
-    # 后台运行并保存日志
-    MASTER_PORT=${MASTER_PORT} nohup python -m evals.main \
-        --fname configs/pitvis_eval/vitl_pretrain_pitvis.yaml \
-        --checkpoint ${ckpt_dir}/latest.pt \
-        --folder ${folder} \
-        --override_config_folder \
-        --frames_per_clip 32 \
-        --batch_size 16 \
-        --epochs 1 \
-        --devices cuda:1 \
-        --resolution ${resolution} \
-        > "${folder}/probing_eval.log" 2>&1 
-done
