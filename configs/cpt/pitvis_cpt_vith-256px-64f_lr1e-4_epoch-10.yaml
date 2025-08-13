@@ -1,9 +1,9 @@
 app: vjepa_cpt
-cpus_per_task: 32
+cpus_per_task: 8
 folder: logs3/pitvis_cpt_epoch-10_vith16-256px-64f_lr1e-4
 mem_per_gpu: 220G
-nodes: 32
-tasks_per_node: 8
+nodes: 1
+tasks_per_node: 1
 data:
   dataset_type: surgical_videodataset
   datasets:

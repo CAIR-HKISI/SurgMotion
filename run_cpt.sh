@@ -3,7 +3,7 @@
 # 1. 预定义变量
 FNAME="pitvis_cpt_vith-256px-64f_lr1e-4_epoch-10.yaml"   # 你的配置文件
 TASK="cpt"                            # probing / tuning / pre-training 等
-DEVICES="cuda:0 cuda:1"
+DEVICES="cuda:1 cuda:2"
 
 # 2. 生成时间戳
 TIME=$(date +"%Y%m%d_%H%M")

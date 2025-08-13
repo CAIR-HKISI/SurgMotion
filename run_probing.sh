@@ -1,46 +1,40 @@
 #! /bin/bash
 
-############################################## Run Single ###############################################
+
 # 1. 预定义变量
-# FNAME="pitvis_vith_origin_attentive_64f.yaml"   # 你的配置文件
-# TASK="probing"                            # probing / tuning / pre-training 等
+# FNAME="pitvis_cpt_epoch-2_vith16-256px-64f_lr1e-4.yaml"   # 你的配置文件
 # DEVICES="cuda:0"
+# MASTER_PORT=1233
+# TASK="probing_cpt"  
 
-# # 2. 生成时间戳
-# TIME=$(date +"%Y%m%d_%H%M")
+# FNAME="pitvis_cpt_epoch-2_vitl16-256px-64f_lr1e-4.yaml"   # 你的配置文件
+# DEVICES="cuda:1"
+# MASTER_PORT=1234
+# TASK="probing_cpt"  
 
-# # 3. 去掉 .yaml 后缀, 构造日志文件名
-# CFG_NAME=${FNAME%.yaml}
-# LOG_FILE="logs2/${TIME}_${TASK}_${CFG_NAME}.log"
+FNAME="pitvis_cpt_epoch-2_vitl16-384px-64f_lr1e-4.yaml"   # 你的配置文件
+DEVICES="cuda:3"
+MASTER_PORT=1239
+TASK="probing_cpt"                            # probing / tuning / pre-training 等
+
+# FNAME="pitvis_cpt_epoch-10_vitl16-256px-64f_lr1e-4.yaml"   # 你的配置文件
+# DEVICES="cuda:3"
+# MASTER_PORT=1236
+# TASK="probing_cpt"                            # probing / tuning / pre-training 等
 
 
-# # 4. 运行（把 nohup 的输出直接写进 LOG_FILE）
-# MASTER_PORT=1233 \
-# nohup python -m evals.main \
-#   --fname "configs/${TASK}/${FNAME}" \
-#   --devices ${DEVICES} \
-#   > "${LOG_FILE}" 2>&1 &
-
-
-############################################## Run Batch ###############################################
-# 1. 预定义变量
-FNAME="pitvis_vith_origin_attentive_64f.yaml"   # 你的配置文件
-TASK="probing"                            # probing / tuning / pre-training 等
-DEVICES="cuda:0"
-CKPTS={
-  ""
-}
 # 2. 生成时间戳
 TIME=$(date +"%Y%m%d_%H%M")
 
 # 3. 去掉 .yaml 后缀, 构造日志文件名
 CFG_NAME=${FNAME%.yaml}
-LOG_FILE="logs2/${TIME}_${TASK}_${CFG_NAME}.log"
+LOG_FILE="logs3/${TIME}_${TASK}_${CFG_NAME}.log"
 
 
 # 4. 运行（把 nohup 的输出直接写进 LOG_FILE）
-MASTER_PORT=1233 \
-nohup python -m evals.main \
+MASTER_PORT=${MASTER_PORT} \
+nohup \
+python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \
   --devices ${DEVICES} \
   > "${LOG_FILE}" 2>&1 &
