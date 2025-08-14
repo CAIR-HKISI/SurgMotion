@@ -238,3 +238,38 @@ def init_videomae_module(
     del checkpoint
     return model
 
+
+# 在evals/video_classification_frozen/modelcustom.py中新增
+from transformers import AutoModel, AutoVideoProcessor
+import torch
+
+def hf_model_loader(model_name_or_path):
+    """加载HuggingFace模型和处理器"""
+    model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
+    model.eval()  # 冻结权重
+    return model
+
+def hf_videomae_feature_extractor(model, x):
+    """
+    适配VideoMAE的特征提取（HuggingFace格式）
+    x: 输入张量 [B, C, T, H, W]（需与模型输入格式一致）
+    返回: patch特征 [B, num_patches, embed_dim]
+    """
+    with torch.inference_mode():
+        # VideoMAE的输入是[B, T, C, H, W]，需转换维度
+        x = x.permute(0, 2, 1, 3, 4)  # [B, T, C, H, W]
+        outputs = model(x, output_hidden_states=True)
+        # 取最后一层隐藏状态，排除cls token（第0位）
+        patch_features = outputs.hidden_states[-1][:, :, 1:]  # [B, T, num_patches, embed_dim]
+        # 若需时序聚合，可在此添加（如取平均）
+        return patch_features.mean(dim=1)  # [B, num_patches, embed_dim]
+
+def hf_timesformer_feature_extractor(model, x):
+    """适配TimeSformer的特征提取"""
+    with torch.inference_mode():
+        x = x.permute(0, 2, 1, 3, 4)  # [B, T, C, H, W]
+        outputs = model(x, output_hidden_states=True)
+        # TimeSformer通常无cls token，直接取全部patch特征
+        patch_features = outputs.hidden_states[-1]  # [B, T, num_patches, embed_dim]
+        return patch_features.mean(dim=1)  # [B, num_patches, embed_dim]
+

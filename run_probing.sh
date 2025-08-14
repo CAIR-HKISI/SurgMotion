@@ -12,16 +12,20 @@
 # MASTER_PORT=1234
 # TASK="probing_cpt"  
 
-FNAME="pitvis_cpt_epoch-2_vitl16-384px-64f_lr1e-4.yaml"   # 你的配置文件
-DEVICES="cuda:3"
-MASTER_PORT=1239
-TASK="probing_cpt"                            # probing / tuning / pre-training 等
+# FNAME="pitvis_cpt_epoch-2_vitl16-384px-64f_lr1e-4.yaml"   # 你的配置文件
+# DEVICES="cuda:3"
+# MASTER_PORT=1239
+# TASK="probing_cpt"                            # probing / tuning / pre-training 等
 
 # FNAME="pitvis_cpt_epoch-10_vitl16-256px-64f_lr1e-4.yaml"   # 你的配置文件
 # DEVICES="cuda:3"
 # MASTER_PORT=1236
 # TASK="probing_cpt"                            # probing / tuning / pre-training 等
 
+FNAME="pitvis_cpt_vith-256px-64f_lr1e-4_epoch-10.yaml"
+DEVICES="cuda:4"
+MASTER_PORT=1231
+TASK="probing_cpt"                            # probing / tuning / pre-training 等
 
 # 2. 生成时间戳
 TIME=$(date +"%Y%m%d_%H%M")
