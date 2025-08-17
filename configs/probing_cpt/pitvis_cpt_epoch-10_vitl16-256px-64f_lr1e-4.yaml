@@ -1,4 +1,5 @@
 cpus_per_task: 4
+cpus_per_task: 4
 eval_name: surgical_video_classification_frozen
 folder:  logs3/pitvis_cpt_epoch-10_vitl16-256px-64f_lr1e-4
 mem_per_gpu: 220G

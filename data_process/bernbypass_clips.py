@@ -141,8 +141,8 @@ def process_video_csv_dense_sampling(
             
             # 获取最后一帧作为标签
             last_frame = clip_frames.iloc[-1]
-            clip_label = last_frame['Phase_GT']
-            clip_phase_name = last_frame['Phase_Name']
+            clip_label = last_frame['Step_GT']
+            clip_phase_name = last_frame['Step_Name']
             
             # 获取实际的帧ID范围
             clip_start_frame_id = int(clip_frames.iloc[0]['frame_id'])  # 转换为int

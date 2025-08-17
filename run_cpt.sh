@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # 1. 预定义变量
-FNAME="pitvis_cpt_vitl-256px-64f_lr1e-4_epoch-50.yaml"   # 你的配置文件
+FNAME="pitvis_cpt_vitl-256px-128f_lr1e-4_epoch-10.yaml"   # 你的配置文件
 TASK="cpt"                            # probing / tuning / pre-training 等
 DEVICES="cuda:2 cuda:3"
 MASTER_PORT=1239

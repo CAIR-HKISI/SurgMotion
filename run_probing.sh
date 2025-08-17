@@ -27,17 +27,17 @@
 # MASTER_PORT=1231
 # TASK="probing_cpt"                            # probing / tuning / pre-training 等
 
-FNAME="pitvis_vitl_origin_attentive_128f.yaml"
-DEVICES="cuda:4"
-MASTER_PORT=1233
-TASK="probing"                            # probing / tuning / pre-training 等
+FNAME="autolaparo_vitl_origin_attentive_64f.yaml"
+DEVICES="cuda:1"
+MASTER_PORT=1234
+TASK="probing_autolaparo"                            # probing / tuning / pre-training 等
 
 # 2. 生成时间戳
 TIME=$(date +"%Y%m%d_%H%M")
 
 # 3. 去掉 .yaml 后缀, 构造日志文件名
 CFG_NAME=${FNAME%.yaml}
-LOG_FILE="logs5/${TIME}_${TASK}_${CFG_NAME}.log"
+LOG_FILE="logs6/${TIME}_${TASK}_${CFG_NAME}.log"
 
 
 # 4. 运行（把 nohup 的输出直接写进 LOG_FILE）
