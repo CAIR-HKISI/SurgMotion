@@ -797,3 +797,5 @@ class CosineWDSchedule(object):
             else:
                 new_wd = min(final_wd, new_wd)
             group["weight_decay"] = new_wd
+    
+    

@@ -81,8 +81,11 @@ def process_video_csv_dense_sampling(
             
             # 获取最后一帧作为标签
             last_frame = clip_frames.iloc[-1]
-            clip_label = last_frame['Phase_GT']
-            clip_phase_name = last_frame['Phase_Name']
+            # clip_label = last_frame['Phase_GT']
+            # clip_phase_name = last_frame['Phase_Name']
+            clip_label = last_frame['Step_GT']
+            clip_phase_name = last_frame['Step_Name']
+            
             
             # 获取实际的帧ID范围
             clip_start_frame_id = int(clip_frames.iloc[0]['frame_id'])  # 转换为int
@@ -432,13 +435,13 @@ def process_bernbypass_train_val_test(
 # 使用示例
 if __name__ == "__main__":
     # 配置参数
-    window_size =128  # 窗口大小（帧数，每帧=1秒）
+    window_size =32  # 窗口大小（帧数，每帧=1秒）
     
     # # 处理bernbypass数据集
     results = process_bernbypass_train_val_test(
         base_data_path="data/MultiBypass140/BernBypass70",  # 图片数据路径
         metadata_dir="data/MultiBypass140/BernBypass70",  # CSV元数据文件目录（train_data.csv, val_data.csv, test_data.csv）
-        output_base_path=f"data/Surge_Frames/bernbypass_clips_{window_size}f",  # 输出目录
+        output_base_path=f"data/Surge_Frames/bernbypass_step_clips_{window_size}f",  # 输出目录
         window_size=window_size
     )
     

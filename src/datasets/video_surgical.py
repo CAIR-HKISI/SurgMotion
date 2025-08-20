@@ -107,6 +107,7 @@ def make_surgical_videodataset(
 
     return dataset, data_loader, dist_sampler
 
+from collections import Counter
 
 class SurgicalVideoDataset(torch.utils.data.Dataset):
     """Video classification dataset for pre-extracted frames."""
@@ -199,6 +200,21 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
                                  for _ in range(ns)]
         self.samples = samples
         self.labels = labels
+
+        # 统计类别分布
+        label_only = [lbl[0] for lbl in self.labels]  # 只统计label，不管case_id
+        self.class_counts = Counter(label_only)
+        total = sum(self.class_counts.values())
+        # 类别权重: 总样本数/每类样本数
+        self.class_weights = {cls: total/count for cls, count in self.class_counts.items()}
+        # 或者归一化到和为1
+        self.class_weights_norm = {cls: (total/count)/sum(total/c for c in self.class_counts.values())
+                                   for cls, count in self.class_counts.items()}
+
+        # 打印类别统计信息
+        print(f"[VideoDataset] Class counts: {self.class_counts}")
+        print(f"[VideoDataset] Class weights: {self.class_weights}")
+        print(f"[VideoDataset] Class weights (norm): {self.class_weights_norm}")
 
     def __getitem__(self, index):
         sample = self.samples[index]
@@ -325,13 +341,13 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
             idx = min(idx, len(frame_paths)-1)
             frame_path = frame_paths[idx]
             if not os.path.exists(frame_path):
-                buffer.append(np.zeros((224, 224, 3), dtype=np.uint8))
-                continue
+                raise ValueError(f"图像不存在: {frame_path}")
             try:
                 img = Image.open(frame_path).convert('RGB')
                 buffer.append(np.array(img))
             except Exception:
-                buffer.append(np.zeros((224, 224, 3), dtype=np.uint8))
+                # buffer.append(np.zeros((224, 224, 3), dtype=np.uint8))
+                raise ValueError(f"读取图像失败: {frame_path}")
         return np.array(buffer), clip_indices
 
     def __len__(self):
@@ -340,14 +356,17 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
     # 示例用法，确保frame_step被正确传递
+    bypass="/data/wjl/vjepa2/data/Surge_Frames/bernbypass_clips_64f/train_dense_64f_detailed.csv"
+    autolaparo="/data/wjl/vjepa2/data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv"
+    pitvis="/data/wjl/vjepa2/data_process/pitvis_clips_clean/pitvis_clips_clean_64f/train_dense_64f_detailed.csv"
     data = SurgicalVideoDataset(
-        data_paths=["/data/wjl/vjepa2/data_process/pitvis_clips/val_dense_64f_detailed.csv"],
+        data_paths=[pitvis],
         datasets_weights=[1.0],
-        frames_per_clip=16,
+        frames_per_clip=64,
         fps=None,
         dataset_fpcs=None,
         frame_step=1,  # 显式指定frame_step
-        num_clips=2,
+        num_clips=1,
         transform=None,
         shared_transform=None,
         random_clip_sampling=True,
@@ -359,8 +378,9 @@ if __name__ == "__main__":
     print(f"数据集长度: {len(data)}")
     
     # 查看前几个样本的标签格式
-    for i in range(min(5, len(data))):
+    for i in range(min(1, len(data))):
         item = data[i]
         buffer, label, clip_indices = item
         print(f"样本 {i} 的标签: {label} (格式: [label, case_id])")
         print(f"标签类型: {type(label)}, 元素类型: {type(label[0])}, {type(label[1])}")
+    print(f"标签分布: {data.class_counts}")
