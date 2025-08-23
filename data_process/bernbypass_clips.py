@@ -10,7 +10,8 @@ def process_video_csv_dense_sampling(
     clip_info_dir,
     window_size=16,  # 窗口大小（帧数，每帧=1秒）
     stride=1,        # 步长（帧数，每帧=1秒）
-    base_video_path="/path/to/your/video/frames"
+    base_video_path="/path/to/your/video/frames",
+    keyword="Phase"
 ):
     """
     使用滑动窗口进行dense采样
@@ -81,10 +82,14 @@ def process_video_csv_dense_sampling(
             
             # 获取最后一帧作为标签
             last_frame = clip_frames.iloc[-1]
-            # clip_label = last_frame['Phase_GT']
-            # clip_phase_name = last_frame['Phase_Name']
-            clip_label = last_frame['Step_GT']
-            clip_phase_name = last_frame['Step_Name']
+            if keyword == "Phase":
+                clip_label = last_frame['Phase_GT']
+                clip_phase_name = last_frame['Phase_Name']
+            elif keyword == "Step":
+                clip_label = last_frame['Step_GT']
+                clip_phase_name = last_frame['Step_Name']
+            # clip_label = last_frame['Step_GT']
+            # clip_phase_name = last_frame['Step_Name']
             
             
             # 获取实际的帧ID范围
@@ -144,8 +149,14 @@ def process_video_csv_dense_sampling(
             
             # 获取最后一帧作为标签
             last_frame = clip_frames.iloc[-1]
-            clip_label = last_frame['Step_GT']
-            clip_phase_name = last_frame['Step_Name']
+            # clip_label = last_frame['Step_GT']
+            # clip_phase_name = last_frame['Step_Name']
+            if keyword == "Phase":
+                clip_label = last_frame['Phase_GT']
+                clip_phase_name = last_frame['Phase_Name']
+            elif keyword == "Step":
+                clip_label = last_frame['Step_GT']
+                clip_phase_name = last_frame['Step_Name']
             
             # 获取实际的帧ID范围
             clip_start_frame_id = int(clip_frames.iloc[0]['frame_id'])  # 转换为int
@@ -171,10 +182,10 @@ def process_video_csv_dense_sampling(
                 for _, row in clip_frames.iterrows():
                     # 使用相对路径或绝对路径
                     frame_path = row['Frame_Path']
-                    if not os.path.isabs(frame_path):
-                        full_path = os.path.join(base_video_path, frame_path)
-                    else:
-                        full_path = frame_path
+                    # if not os.path.isabs(frame_path):
+                    #     full_path = os.path.join(base_video_path, frame_path)
+                    # else:
+                    full_path = frame_path
                     f.write(f"{full_path}\n")
             
             # 保存片段信息
@@ -348,7 +359,8 @@ def process_bernbypass_train_val_test(
     base_data_path="data/MultiBypass140/BernBypass70",
     metadata_dir="./",  # CSV元数据文件目录
     output_base_path="./bernbypass_clips",
-    window_size=16  # 窗口大小（帧数，每帧=1秒）
+    window_size=16,  # 窗口大小（帧数，每帧=1秒）
+    keyword="Phase"
 ):
     """
     对bernbypass的train、val和test数据集都进行dense采样处理
@@ -358,7 +370,7 @@ def process_bernbypass_train_val_test(
     datasets = ['train', 'val', 'test']
     results = {}
     
-    print(f"配置信息:")
+    print(f"{keyword} 配置信息:")
     print(f"  - 窗口大小: {window_size} 帧 ({window_size} 秒)")
     print(f"  - 滑动步长: 1 帧 (1 秒)")
     print(f"  - 帧率关系: 1帧 = 1秒")
@@ -386,7 +398,8 @@ def process_bernbypass_train_val_test(
             clip_info_dir=clip_info_dir,
             window_size=window_size,  # 窗口大小（帧数）
             stride=1,        # 1帧步长
-            base_video_path=base_data_path
+            base_video_path=base_data_path,
+            keyword=keyword
         )
         
         results[dataset] = result_df
@@ -435,14 +448,15 @@ def process_bernbypass_train_val_test(
 # 使用示例
 if __name__ == "__main__":
     # 配置参数
-    window_size =32  # 窗口大小（帧数，每帧=1秒）
+    window_size=64  # 窗口大小（帧数，每帧=1秒）
     
     # # 处理bernbypass数据集
     results = process_bernbypass_train_val_test(
         base_data_path="data/MultiBypass140/BernBypass70",  # 图片数据路径
         metadata_dir="data/MultiBypass140/BernBypass70",  # CSV元数据文件目录（train_data.csv, val_data.csv, test_data.csv）
-        output_base_path=f"data/Surge_Frames/bernbypass_step_clips_{window_size}f",  # 输出目录
-        window_size=window_size
+        output_base_path=f"data/Surge_Frames/bernbypass_phase_clips_{window_size}f",  # 输出目录
+        window_size=window_size,
+        keyword="Phase"
     )
     
     # 也可以单独分析某个数据集的阶段持续时间

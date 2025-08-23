@@ -98,7 +98,7 @@ def read_pkl_data_to_csv(pkl_path, img_path, csv_output_path, hospital="Bern", y
         case_id = int(vid_name[-2:])
         
         for item in data[vid_name]:
-            frame_path = os.path.join(root_dir, vid_name, f"{item['Frame_id']}.jpg")
+            frame_path = os.path.join(root_dir, 'frames', vid_name, f"{item['Frame_id']}.jpg")
             phase_gt = item['Phase_gt']
             step_gt = item['Step_gt']
             phase_name = phase_name_map.get(phase_gt, f"unknown_phase_{phase_gt}")
