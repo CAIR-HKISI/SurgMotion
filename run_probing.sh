@@ -80,11 +80,15 @@
 # MASTER_PORT="1254"
 # DEVICES="cuda:2"
 
-FNAME="autolaparo_vith_origin_attentive_64f_10epoch.yaml"
-TASK="probing_autolaparo"
-MASTER_PORT="1255"
-DEVICES="cuda:3"
+# FNAME="autolaparo_vith_origin_attentive_64f_10epoch.yaml"
+# TASK="probing_autolaparo"
+# MASTER_PORT="1255"
+# DEVICES="cuda:3"
 
+FNAME="autolaparo_vitl_cpt_attentive_64f_10epoch.yaml"
+TASK="probing_autolaparo"
+MASTER_PORT="1256"
+DEVICES="cuda:5"
 
 
 # 2. 生成时间戳

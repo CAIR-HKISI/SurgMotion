@@ -1,10 +1,16 @@
 #! /bin/bash
 
 # 1. 预定义变量
-FNAME="autolapro_cpt_vith-256px-64f_lr1e-4_epoch-20.yaml"   # 你的配置文件
-TASK="cpt_autolaparo"                            # probing / tuning / pre-training 等
+# FNAME="autolapro_cpt_vith-256px-64f_lr1e-4_epoch-20.yaml"   # 你的配置文件
+# TASK="cpt_autolaparo"                            # probing / tuning / pre-training 等
+# DEVICES="cuda:1 cuda:4"
+# MASTER_PORT=1261
+
+FNAME="bypass_cpt_vitl-256px-64f_lr1e-4_epoch-20.yaml"
+TASK="cpt_bypass"                            # probing / tuning / pre-training 等
 DEVICES="cuda:1 cuda:4"
 MASTER_PORT=1261
+
 
 # 2. 生成时间戳
 TIME=$(date +"%Y%m%d_%H%M")

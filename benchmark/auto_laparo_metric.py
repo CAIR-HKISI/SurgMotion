@@ -334,11 +334,16 @@ if __name__ == "__main__":
     
     # 评估
     # csv_file = "/data/wjl/vjepa2/logs5/autolaparo_vith16_16x2x3_64f_orgin_probing/video_classification_frozen/autolaparo-vith16-16x2x3-64f/all_predictions_epoch_1.csv"  # 替换为你的CSV文件路径
+    # csv_file = "/data/wjl/vjepa2/logs5/autolaparo_vith16_16x2x3_64f_orgin_probing_10epoch/video_classification_frozen/autolaparo-vith16-16x2x3-64f/all_predictions_epoch_10.csv"
+    # csv_file = "/data/wjl/vjepa2/logs5/autolaparo_vith16_16x2x3_64f_orgin_probing_wd-0.8/video_classification_frozen/autolaparo-vith16-16x2x3-64f/all_predictions_epoch_1.csv"
+    # csv_file = "/data/wjl/vjepa2/logs5/autolaparo_vitl16_16x2x3_64f_pitvis-cpt_probing_4epoch/video_classification_frozen/autolaparo-vitl16-16x2x3-64f/all_predictions_epoch_4.csv"
 #     csv_file = "/data/wjl/vjepa2/logs5/autolaparo_vith16_16x2x3_64f_orgin_probing_wd-0.8/video_classification_frozen/autolaparo-vith16-16x2x3-64f/all_predictions_epoch_1.csv"
     # csv_file = "/data/wjl/vjepa2/logs5/autolaparo_vith16_16x2x3_64f_orgin_probing_wd-0.8/video_classification_frozen/autolaparo-vith16-16x2x3-64f/all_predictions_epoch_1.csv"
     # csv_file = "/data/wjl/vjepa2/logs5/autolaparo_vith16_16x2x3_64f_orgin_probing_4epoch/video_classification_frozen/autolaparo-vith16-16x2x3-64f/all_predictions_epoch_4.csv"
     # csv_file = "/data/wjl/vjepa2/logs5/autolaparo_vitl16_16x2x3_64f_pitvis-cpt_probing_4epoch/video_classification_frozen/autolaparo-vitl16-16x2x3-64f/all_predictions_epoch_4.csv"
-    csv_file="/data/wjl/vjepa2/logs5/autolaparo_vith16_16x2x3_64f_orgin_probing_10epoch/video_classification_frozen/autolaparo-vith16-16x2x3-64f/all_predictions_epoch_6.csv"
+    # csv_file="/data/wjl/vjepa2/logs5/autolaparo_vith16_16x2x3_64f_orgin_probing_10epoch/video_classification_frozen/autolaparo-vith16-16x2x3-64f/all_predictions_epoch_10.csv"
+    # csv_file = "/data/wjl/vjepa2/logs6/autolaparo_cpt_epoch-20_vitl16-256px-64f_lr1e-4/epoch-10/video_classification_frozen/autolaparo-vitl16-16x2x3-64f/all_predictions_epoch_1.csv"
+    csv_file = "/data/wjl/vjepa2/logs6/autolaparo_cpt_epoch-20_vitl16-256px-64f_lr1e-4/video_classification_frozen/autolaparo-vitl16-16x2x3-64f/all_predictions_epoch_2.csv"
     try:
         results = evaluate_from_csv(csv_file, phases)
         
