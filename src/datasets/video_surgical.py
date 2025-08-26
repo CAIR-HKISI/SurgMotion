@@ -10,7 +10,7 @@ import torchvision
 from PIL import Image
 
 import sys
-sys.path.append('/data/wjl/vjepa2')
+sys.path.append('.')
 
 from src.datasets.utils.dataloader import ConcatIndices, MonitoredDataset, NondeterministicDataLoader
 from src.datasets.utils.weighted_sampler import DistributedWeightedSampler

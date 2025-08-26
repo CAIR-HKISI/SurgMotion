@@ -237,10 +237,17 @@ def process_train_and_val(base_data_path="/data/wjl/vjepa2/data/pitvis",
 
 # 使用示例
 if __name__ == "__main__":
-    window_size = 64
+    # window_size = 128
+    # process_train_and_val(
+    #     base_data_path="data/Surge_Frames/MultiBypass140/StrasBypass70",
+    #     output_base_path=f"data/Surge_Frames/MultiBypass140/StrasBypass70/clips_{window_size}f",
+    #     window_size=window_size
+    # )
+    
+    window_size = 128
     process_train_and_val(
-        base_data_path="data/Surge_Frames/AutoLaparo/",
-        output_base_path=f"data/Surge_Frames/AutoLaparo/clips_{window_size}f",
+        base_data_path="data/Surge_Frames/MultiBypass140/BernBypass70",
+        output_base_path=f"data/Surge_Frames/MultiBypass140/BernBypass70/clips_{window_size}f",
         window_size=window_size
     )
 
