@@ -13,7 +13,7 @@ def evaluate_per_video(csv_file, phases=None):
         classes = list(range(len(phases)))
 
     per_video = []
-    for vid, subdf in df.groupby('vid'):
+    for vid, subdf in df.groupby('index'):
         gt = subdf['label'].values
         pred = subdf['prediction'].values
 
@@ -147,8 +147,8 @@ if __name__ == "__main__":
     # csv_path="/scratch/esg8sdce/wjl/NSJepa/logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/video_classification_frozen/ssv2-vitl16-16x2x3-64f/all_predictions_epoch_1.csv"
     # csv_path="/scratch/esg8sdce/wjl/NSJepa/logs/cpt_cholec80/cpt_vith16-256px-64f_lr1e-4_epoch-20/video_classification_frozen/ssv2-vih16-16x2x3-16f/all_predictions_epoch_1.csv"
     # csv_path="logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/epoch4/video_classification_frozen/ssv2-vitl16-16x2x3-64f/all_predictions_epoch_1.csv"
-    # csv_path = "logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/epoch10/video_classification_frozen/ssv2-vitl16-16x2x3-64f/all_predictions_epoch_3.csv"
-    csv_path = "logs/cpt_cholec80/cpt_vith16-256px-64f_lr1e-4_epoch-20/video_classification_frozen/ssv2-vih16-16x2x3-16f/all_predictions_epoch_1.csv"
+    csv_path = "logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/epoch10/video_classification_frozen/ssv2-vitl16-16x2x3-64f/all_predictions_epoch_5.csv"
+    # csv_path = "logs/cpt_cholec80/cpt_vith16-256px-64f_lr1e-4_epoch-20/video_classification_frozen/ssv2-vih16-16x2x3-16f/all_predictions_epoch_5.csv"
     
     per_video, stats, phases = evaluate_per_video(csv_path)
     print_video_metrics(per_video, stats)
