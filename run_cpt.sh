@@ -13,10 +13,20 @@
 # MASTER_PORT=1269
 
 
-FNAME="bernbypass_cpt_vith-256px-64f_lr1e-4_epoch-20.yaml"
+# FNAME="bernbypass_cpt_vith-256px-64f_lr1e-4_epoch-20.yaml"
+# TASK="cpt_bypass"                            # probing / tuning / pre-training 等
+# DEVICES="cuda:4 cuda:5"
+# MASTER_PORT=1293
+
+FNAME="bernbypass_cpt_vitl-256px-128f_lr1e-4_epoch-20.yaml"
 TASK="cpt_bypass"                            # probing / tuning / pre-training 等
-DEVICES="cuda:4 cuda:5"
-MASTER_PORT=1293
+DEVICES="cuda:6 cuda:7"
+MASTER_PORT=1219
+
+# FNAME="cholec80_cpt_vith-256px-64f_lr1e-4_epoch-50.yaml"
+# TASK="cpt_cholec80"
+# DEVICES="cuda:0 cuda:1"
+# MASTER_PORT=1299
 
 # 2. 生成时间戳
 TIME=$(date +"%Y%m%d_%H%M")

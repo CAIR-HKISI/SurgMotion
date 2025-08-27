@@ -390,7 +390,7 @@ def run_one_epoch(
     # Store predictions and labels for each classifier, grouped by video ID
     if not training:
         # 每个分类器都有一个字典，键是视频ID，值是(预测列表, 标签列表)
-        video_predictions = [defaultdict(lambda: {'preds': [], 'labels': []}) for _ in classifiers]
+        video_predictions = [defaultdict(lambda: {'preds': [], 'labels': [], 'data_idx': []}) for _ in classifiers]
         
         # 存储详细预测结果 [index, vid, prediction, label]
         detailed_predictions = [[] for _ in classifiers]
@@ -415,7 +415,8 @@ def run_one_epoch(
             labels = data[1][0].to(device)
             batch_size = len(labels)
             
-            vid_ids = data[1][1]  # 获取视频ID列表
+            vid_ids  = data[1][1]  # 获取视频ID列表
+            data_idxs = data[1][2]  # 获取视频序号
 
             # Forward and prediction
             with torch.no_grad():
@@ -443,18 +444,21 @@ def run_one_epoch(
                 # 按视频ID存储预测和标签
                 if not training:
                     # 保存详细预测结果 [index, vid, prediction, label]
-                    for pred, label, vid in zip(preds.cpu().numpy(), labels.cpu().numpy(), vid_ids.numpy()):
+                    for pred, label, vid, data_idx in zip(preds.cpu().numpy(), labels.cpu().numpy(), vid_ids.numpy(), data_idxs.numpy()):
                         detailed_predictions[c_idx].append([
                             global_index,  # 全局索引
                             vid,           # 视频ID
+                            data_idx,      # 帧的序号
                             pred,          # 预测结果
                             label          # 真实标签
                         ])
                         global_index += 1  # 增加全局索引
                         
+                        # import pdb; pdb.set_trace()
                         # 同时更新视频级别的预测集合
                         video_predictions[c_idx][vid]['preds'].append(pred)
                         video_predictions[c_idx][vid]['labels'].append(label)
+                        video_predictions[c_idx][vid]['data_idx'].append(data_idx)
 
         if training:
             if use_bfloat16:
@@ -513,11 +517,12 @@ def run_one_epoch(
                 torch.distributed.all_gather_object(gathered_videos, video_predictions[c_idx])
                 
                 # 合并所有进程的视频预测结果
-                merged_videos = defaultdict(lambda: {'preds': [], 'labels': []})
+                merged_videos = defaultdict(lambda: {'preds': [], 'labels': [], 'data_idx': []})
                 for proc_videos in gathered_videos:
                     for vid, data in proc_videos.items():
                         merged_videos[vid]['preds'].extend(data['preds'])
                         merged_videos[vid]['labels'].extend(data['labels'])
+                        merged_videos[vid]['data_idx'].extend(data['data_idx'])
                 video_predictions[c_idx] = merged_videos
                 
                 # 收集所有进程的详细预测结果
@@ -537,9 +542,11 @@ def run_one_epoch(
             # 计算整个数据集的总体指标
             all_preds = []
             all_labels = []
+            all_data_idxs = []
             for vid_data in video_predictions[c_idx].values():
                 all_preds.extend(vid_data['preds'])
                 all_labels.extend(vid_data['labels'])
+                all_data_idxs.extend(vid_data['data_idx'])
             
             precision, recall, f1, _ = precision_recall_fscore_support(
                 all_labels, 

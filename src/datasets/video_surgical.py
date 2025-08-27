@@ -168,7 +168,7 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
                     data = pd.read_csv(data_path)
                     
                     # 检查必要的列是否存在
-                    required_columns = ['clip_path', 'label', 'case_id']
+                    required_columns = ['clip_path', 'label', 'case_id', "Index"]
                     missing_columns = [col for col in required_columns if col not in data.columns]
                     if missing_columns:
                         raise ValueError(f"CSV文件缺少必要的列: {missing_columns}")
@@ -178,7 +178,7 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
                     
                     # 转换label和case_id为int，并拼接成[label, case_id]格式
                     combined_labels = [
-                        [int(row['label']), int(row['case_id'])] 
+                        [int(row['label']), int(row['case_id']), int(row['Index'])] 
                         for _, row in data.iterrows()
                     ]
                     labels += combined_labels
@@ -356,9 +356,9 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
     # 示例用法，确保frame_step被正确传递
-    bypass="/data/wjl/vjepa2/data/Surge_Frames/bernbypass_clips_64f/train_dense_64f_detailed.csv"
-    autolaparo="/data/wjl/vjepa2/data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv"
-    pitvis="/data/wjl/vjepa2/data_process/pitvis_clips_clean/pitvis_clips_clean_64f/train_dense_64f_detailed.csv"
+    bypass="data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv"
+    autolaparo="data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv"
+    pitvis="data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv"
     data = SurgicalVideoDataset(
         data_paths=[pitvis],
         datasets_weights=[1.0],
@@ -378,9 +378,9 @@ if __name__ == "__main__":
     print(f"数据集长度: {len(data)}")
     
     # 查看前几个样本的标签格式
-    for i in range(min(1, len(data))):
+    for i in range(min(20, len(data))):
         item = data[i]
         buffer, label, clip_indices = item
-        print(f"样本 {i} 的标签: {label} (格式: [label, case_id])")
+        print(f"样本 {i} 的标签: {label} (格式: [label, case_id, idx])")
         print(f"标签类型: {type(label)}, 元素类型: {type(label[0])}, {type(label[1])}")
     print(f"标签分布: {data.class_counts}")

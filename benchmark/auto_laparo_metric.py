@@ -144,7 +144,12 @@ if __name__ == "__main__":
     # csv_path = "your_prediction.csv"  # 修改为你的文件名
     # csv_path = "/scratch/esg8sdce/wjl/NSJepa/logs/probing_cholec80/vitl16_16x2x3_64f_orgin_probing_1epochs/video_classification_frozen/ssv2-vitl16-16x2x3-64f/all_predictions_epoch_1.csv"  # 修改为你的文件名
     # csv_path = "/scratch/esg8sdce/wjl/NSJepa/logs/probing_cholec80/vith_origin_attentive_64f_probing_1epochs/video_classification_frozen/ssv2-vih16-16x2x3-16f/all_predictions_epoch_1.csv"
-    csv_path="/scratch/esg8sdce/wjl/NSJepa/logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/video_classification_frozen/ssv2-vitl16-16x2x3-64f/all_predictions_epoch_1.csv"
+    # csv_path="/scratch/esg8sdce/wjl/NSJepa/logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/video_classification_frozen/ssv2-vitl16-16x2x3-64f/all_predictions_epoch_1.csv"
+    # csv_path="/scratch/esg8sdce/wjl/NSJepa/logs/cpt_cholec80/cpt_vith16-256px-64f_lr1e-4_epoch-20/video_classification_frozen/ssv2-vih16-16x2x3-16f/all_predictions_epoch_1.csv"
+    # csv_path="logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/epoch4/video_classification_frozen/ssv2-vitl16-16x2x3-64f/all_predictions_epoch_1.csv"
+    # csv_path = "logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/epoch10/video_classification_frozen/ssv2-vitl16-16x2x3-64f/all_predictions_epoch_3.csv"
+    csv_path = "logs/cpt_cholec80/cpt_vith16-256px-64f_lr1e-4_epoch-20/video_classification_frozen/ssv2-vih16-16x2x3-16f/all_predictions_epoch_1.csv"
+    
     per_video, stats, phases = evaluate_per_video(csv_path)
     print_video_metrics(per_video, stats)
     save_video_metrics_csv(per_video, stats, csv_path)
@@ -152,7 +157,8 @@ if __name__ == "__main__":
     per_phase, macro_mean, phases = evaluate_per_phase(csv_path)
     print_phase_metrics(per_phase, macro_mean)
     save_phase_metrics_csv(per_phase, macro_mean, csv_path)
-
+    
+    
 
 
 

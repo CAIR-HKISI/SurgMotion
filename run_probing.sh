@@ -3,10 +3,10 @@
 
 # 1. 预定义变量
 
-# FNAME="cholec80_vitl_origin_attentive_64f.yaml"
+# FNAME="cholec80_vitl_cpt_attentive_64f_debug.yaml"
 # TASK="probing_cholec80"
 # MASTER_PORT="1256"
-# DEVICES="cuda:0"
+# DEVICES="cuda:2"
 
 # FNAME="cholec80_vith_cpt_attentive_64f.yaml"
 # TASK="probing_cholec80"
@@ -14,15 +14,15 @@
 # DEVICES="cuda:2"
 
 
-# FNAME="cholec80_vitl_cpt_attentive_64f_epoch10.yaml"
-# TASK="probing_cholec80"
-# MASTER_PORT="1259"
-# DEVICES="cuda:3"
+FNAME="cholec80_vitl_cpt_attentive_64f_epoch10.yaml"
+TASK="probing_cholec80"
+MASTER_PORT="1249"
+DEVICES="cuda:2"
 
-FNAME="bernbypass_vitl_origin_attentive_64f.yaml"
-TASK="probing_bypass"
-MASTER_PORT="1260"
-DEVICES="cuda:6"
+# FNAME="bernbypass_vitl_origin_attentive_64f.yaml"
+# TASK="probing_bypass"
+# MASTER_PORT="1260"
+# DEVICES="cuda:6"
 
 
 # 2. 生成时间戳
