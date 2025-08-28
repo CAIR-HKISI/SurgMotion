@@ -1,8 +1,0 @@
-usage: main.py [-h] [--val_only] [--fname FNAME]
-               [--devices DEVICES [DEVICES ...]] [--debugmode DEBUGMODE]
-               [--folder FOLDER] [--override_config_folder]
-               [--checkpoint CHECKPOINT] [--model_name MODEL_NAME]
-               [--batch_size BATCH_SIZE] [--resolution RESOLUTION]
-               [--frames_per_clip FRAMES_PER_CLIP] [--epochs EPOCHS]
-               [--use_fsdp]
-main.py: error: unrecognized arguments: True

@@ -1,6 +1,6 @@
 cpus_per_task: 2
-eval_name: surgical_video_classification_frozen
-folder:  logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/cls-mid-weight_epoch-1_batch-64
+eval_name: surgical_video_classification
+folder:  logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/sft_epoch_10
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
@@ -21,7 +21,7 @@ experiment:
     num_views_per_segment: 1
     resolution: 256
   optimization:
-    batch_size: 64
+    batch_size: 8
     multihead_kwargs:
     - final_lr: 0.0
       final_weight_decay: 0.8

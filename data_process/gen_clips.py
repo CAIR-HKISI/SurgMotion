@@ -244,17 +244,17 @@ if __name__ == "__main__":
     #     window_size=window_size
     # )
     
-    window_size = 128
-    process_train_and_val(
-        base_data_path="data/Surge_Frames/MultiBypass140/BernBypass70",
-        output_base_path=f"data/Surge_Frames/MultiBypass140/BernBypass70/clips_{window_size}f",
-        window_size=window_size
-    )
-    
-    # window_size = 64
+    # window_size = 128
     # process_train_and_val(
-    #     base_data_path="data/Surge_Frames/Cholec80",
-    #     output_base_path=f"data/Surge_Frames/Cholec80/clips_{window_size}f",
+    #     base_data_path="data/Surge_Frames/MultiBypass140/BernBypass70",
+    #     output_base_path=f"data/Surge_Frames/MultiBypass140/BernBypass70/clips_{window_size}f",
     #     window_size=window_size
     # )
+    
+    window_size = 128
+    process_train_and_val(
+        base_data_path="data/Surge_Frames/Cholec80",
+        output_base_path=f"data/Surge_Frames/Cholec80/clips_{window_size}f",
+        window_size=window_size
+    )
 

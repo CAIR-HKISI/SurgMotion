@@ -43,10 +43,10 @@
 # TASK="probing_autolaparo"                            # probing / tuning / pre-training 等
 
 
-FNAME="autolaparo_vitl_origin_attentive_8f_lr-1e-5_7-class.yaml"
-DEVICES="cuda:1"
+FNAME="cholec80_vitl_cpt_attentive_64f_sft.yaml"
+DEVICES="cuda:3 cuda:4"
 MASTER_PORT=1270
-TASK="fl_autolaparo"                            # probing / tuning / pre-training 等
+TASK="probing_cholec80_v2"                            # probing / tuning / pre-training 等
 
 # 2. 生成时间戳
 TIME=$(date +"%Y%m%d_%H%M")
@@ -58,8 +58,8 @@ LOG_FILE="logs7/${TIME}_${TASK}_${CFG_NAME}.log"
 
 # 4. 运行（把 nohup 的输出直接写进 LOG_FILE）
 MASTER_PORT=${MASTER_PORT} \
-# nohup \
+nohup \
 python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \
   --devices ${DEVICES} \
-  # > "${LOG_FILE}" 2>&1 &
+  > "${LOG_FILE}" 2>&1 &

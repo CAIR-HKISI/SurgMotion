@@ -1,7 +1,25 @@
 #! /bin/bash
 
 
-MASTER_PORT=1256 python -m evals.main \
-                --fname configs/probing_cholec80/cholec80_vitl_cpt_attentive_64f_debug.yaml \
-                --devices "cuda:2"  --val_only  \
-                --checkpoint "logs/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20/latest.pt" 
+
+
+FNAME="cholec80_vitl_cpt_attentive_64f.yaml"
+TASK="probing_cholec80"
+MASTER_PORT="1309"
+DEVICES="cuda:6"
+
+# 2. 生成时间戳
+TIME=$(date +"%Y%m%d_%H%M")
+
+# 3. 去掉 .yaml 后缀, 构造日志文件名
+CFG_NAME=${FNAME%.yaml}
+LOG_FILE="logs/${TASK}/${TIME}_${CFG_NAME}.log"
+
+# 4. 运行（把 nohup 的输出直接写进 LOG_FILE）
+MASTER_PORT=${MASTER_PORT} \
+nohup \
+python -m evals.main \
+  --fname "configs/${TASK}/${FNAME}" \
+  --devices ${DEVICES} \
+  --val_only \
+  > "${LOG_FILE}" 2>&1 &

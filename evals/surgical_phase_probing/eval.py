@@ -1,0 +1,481 @@
+import os
+import logging
+import math
+import pprint
+import numpy as np
+import pandas as pd
+import torch
+import torch.multiprocessing as mp
+import torch.nn.functional as F
+from torch.nn.parallel import DistributedDataParallel
+from sklearn.metrics import precision_score, recall_score, jaccard_score, f1_score, accuracy_score
+
+from evals.surgical_video_classification_frozen.models import init_module
+from evals.video_classification_frozen.utils import make_transforms
+from src.datasets.data_manager import init_data
+from src.models.attentive_pooler import AttentiveClassifier
+from src.utils.checkpoint_loader import robust_checkpoint_loader
+from src.utils.distributed import AllReduce, init_distributed
+from src.utils.logging import AverageMeter
+
+logging.basicConfig()
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+_GLOBAL_SEED = 0
+np.random.seed(_GLOBAL_SEED)
+torch.manual_seed(_GLOBAL_SEED)
+torch.backends.cudnn.benchmark = True
+
+
+# ----------------------
+# 视频级评估函数
+# ----------------------
+def evaluate_per_video(predictions_df, phases=None):
+    if phases is None:
+        all_labels = np.concatenate([predictions_df['label'].values, predictions_df['prediction'].values])
+        classes = np.unique(all_labels)
+        phases = [str(c) for c in classes]
+
+    per_video = []
+    for vid, subdf in predictions_df.groupby('vid'):
+        gt = subdf['label'].values
+        pred = subdf['prediction'].values
+
+        acc = accuracy_score(gt, pred) * 100
+        macro_prec = precision_score(gt, pred, average='macro', zero_division=0) * 100
+        macro_rec = recall_score(gt, pred, average='macro', zero_division=0) * 100
+        macro_iou = jaccard_score(gt, pred, average='macro', zero_division=0) * 100
+        macro_f1 = f1_score(gt, pred, average='macro', zero_division=0) * 100
+        n_samples = len(gt)
+
+        per_video.append({
+            "Video": vid,
+            "Num_Samples": n_samples,
+            "Accuracy": acc,
+            "Macro_Precision": macro_prec,
+            "Macro_Recall": macro_rec,
+            "Macro_IoU": macro_iou,
+            "Macro_F1": macro_f1
+        })
+
+    metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1"]
+    stats = {}
+    for m in metrics:
+        vals = [v[m] for v in per_video]
+        stats[f"{m}_Mean"] = np.mean(vals)
+        stats[f"{m}_Std"] = np.std(vals)
+
+    return per_video, stats, phases
+
+
+# ----------------------
+# 主入口
+# ----------------------
+def main(args_eval, resume_preempt=False):
+
+    val_only = args_eval.get("val_only", False)
+    pretrain_folder = args_eval.get("folder", None)
+    resume_checkpoint = args_eval.get("resume_checkpoint", False) or resume_preempt
+    eval_tag = args_eval.get("tag", None)
+    num_workers = args_eval.get("num_workers", 12)
+
+    args_pretrain = args_eval.get("model_kwargs")
+    checkpoint = args_pretrain.get("checkpoint")
+    module_name = args_pretrain.get("module_name")
+    args_model = args_pretrain.get("pretrain_kwargs")
+    args_wrapper = args_pretrain.get("wrapper_kwargs")
+
+    args_exp = args_eval.get("experiment")
+    args_classifier = args_exp.get("classifier")
+    num_probe_blocks = args_classifier.get("num_probe_blocks", 1)
+    num_heads = args_classifier.get("num_heads", 16)
+
+    args_data = args_exp.get("data")
+    dataset_type = args_data.get("dataset_type", "VideoDataset")
+    num_classes = args_data.get("num_classes")
+    train_data_path = [args_data.get("dataset_train")]
+    val_data_path = [args_data.get("dataset_val")]
+    resolution = args_data.get("resolution", 224)
+    num_segments = args_data.get("num_segments", 1)
+    frames_per_clip = args_data.get("frames_per_clip", 16)
+    frame_step = args_data.get("frame_step", 1)
+    duration = args_data.get("clip_duration", None)
+    num_views_per_segment = args_data.get("num_views_per_segment", 1)
+    normalization = args_data.get("normalization", None)
+
+    args_opt = args_exp.get("optimization")
+    batch_size = args_opt.get("batch_size")
+    num_epochs = args_opt.get("num_epochs")
+    use_bfloat16 = args_opt.get("use_bfloat16")
+    opt_kwargs = args_opt.get("multihead_kwargs")  # list，每个分类头一个 kwargs
+
+    try:
+        mp.set_start_method("spawn")
+    except Exception:
+        pass
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    world_size, rank = init_distributed()
+
+    # checkpoint 路径
+    folder = os.path.join(pretrain_folder, "video_classification_frozen/")
+    if eval_tag is not None:
+        folder = os.path.join(folder, eval_tag)
+    os.makedirs(folder, exist_ok=True)
+    latest_path = os.path.join(folder, "latest.pt")
+
+    # 构建 encoder
+    encoder = init_module(
+        module_name=module_name,
+        frames_per_clip=frames_per_clip,
+        resolution=resolution,
+        checkpoint=checkpoint,
+        model_kwargs=args_model,
+        wrapper_kwargs=args_wrapper,
+        device=device,
+    )
+
+    # 构建多个分类头
+    classifiers = [
+        AttentiveClassifier(
+            embed_dim=encoder.embed_dim,
+            num_heads=num_heads,
+            depth=num_probe_blocks,
+            num_classes=num_classes,
+            use_activation_checkpointing=True,
+        ).to(device)
+        for _ in opt_kwargs
+    ]
+    classifiers = [DistributedDataParallel(c, static_graph=True) for c in classifiers]
+
+    train_loader, train_sampler = make_dataloader(
+        dataset_type=dataset_type,
+        root_path=train_data_path,
+        img_size=resolution,
+        frames_per_clip=frames_per_clip,
+        frame_step=frame_step,
+        eval_duration=duration,
+        num_segments=num_segments,
+        num_views_per_segment=1,
+        allow_segment_overlap=True,
+        batch_size=batch_size,
+        world_size=world_size,
+        rank=rank,
+        training=True,
+        num_workers=num_workers,
+        normalization=normalization,
+    )
+    val_loader, _ = make_dataloader(
+        dataset_type=dataset_type,
+        root_path=val_data_path,
+        img_size=resolution,
+        frames_per_clip=frames_per_clip,
+        frame_step=frame_step,
+        num_segments=num_segments,
+        eval_duration=duration,
+        num_views_per_segment=num_views_per_segment,
+        allow_segment_overlap=True,
+        batch_size=batch_size,
+        world_size=world_size,
+        rank=rank,
+        training=False,
+        num_workers=num_workers,
+        normalization=normalization,
+    )
+    ipe = len(train_loader)
+
+    # 多头优化器
+    optimizer, scaler, scheduler, wd_scheduler = init_opt(
+        classifiers=classifiers,
+        opt_kwargs=opt_kwargs,
+        iterations_per_epoch=ipe,
+        num_epochs=num_epochs,
+        use_bfloat16=use_bfloat16,
+    )
+
+    # 断点恢复
+    start_epoch = 0
+    if resume_checkpoint and os.path.exists(latest_path):
+        encoder, classifiers, optimizer, scaler, start_epoch = load_checkpoint(
+            device=device,
+            r_path=latest_path,
+            encoder=encoder,
+            classifiers=classifiers,
+            opt=optimizer,
+            scaler=scaler,
+            val_only=val_only,
+        )
+        for _ in range(start_epoch * ipe):
+            [s.step() for s in scheduler]
+            [wds.step() for wds in wd_scheduler]
+
+    def save_checkpoint(epoch):
+        save_dict = {
+            "encoder": encoder.state_dict(),
+            "classifiers": [c.module.state_dict() for c in classifiers],
+            "opt": [o.state_dict() for o in optimizer],
+            "scaler": [None if s is None else s.state_dict() for s in scaler],
+            "epoch": epoch,
+        }
+        if rank == 0:
+            torch.save(save_dict, latest_path)
+
+    # ----------------
+    # 训练循环
+    # ----------------
+    for epoch in range(start_epoch, num_epochs):
+        train_sampler.set_epoch(epoch)
+
+        if not val_only:
+            train_metrics = run_one_epoch(
+                device=device,
+                training=True,
+                encoder=encoder,
+                classifiers=classifiers,
+                scaler=scaler,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                wd_scheduler=wd_scheduler,
+                data_loader=train_loader,
+                use_bfloat16=use_bfloat16,
+                num_classes=num_classes,
+            )
+        else:
+            train_metrics = None
+
+        val_metrics = run_one_epoch(
+            device=device,
+            training=False,
+            encoder=encoder,
+            classifiers=classifiers,
+            scaler=scaler,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            wd_scheduler=wd_scheduler,
+            data_loader=val_loader,
+            use_bfloat16=use_bfloat16,
+            num_classes=num_classes,
+        )
+
+        logger.info(f"Epoch {epoch+1}: train={train_metrics} val={val_metrics}")
+
+        if val_only:
+            return
+        save_checkpoint(epoch + 1)
+
+
+# ----------------------
+# 单个 epoch 训练/验证
+# ----------------------
+def run_one_epoch(
+    device,
+    training,
+    encoder,
+    classifiers,
+    scaler,
+    optimizer,
+    scheduler,
+    wd_scheduler,
+    data_loader,
+    use_bfloat16,
+    num_classes,
+):
+    for c in classifiers:
+        c.train(mode=training)
+
+    criterion = torch.nn.CrossEntropyLoss()
+    acc_meters = [AverageMeter() for _ in classifiers]
+
+    for itr, data in enumerate(data_loader):
+        if training:
+            [s.step() for s in scheduler]
+            [wds.step() for wds in wd_scheduler]
+
+        with torch.cuda.amp.autocast(dtype=torch.float16, enabled=use_bfloat16):
+            clips = [[dij.to(device) for dij in di] for di in data[0]]
+            clip_indices = [d.to(device) for d in data[2]]
+            labels = data[1][0].to(device)
+            batch_size = len(labels)
+
+            with torch.no_grad():
+                features = encoder(clips, clip_indices)
+
+            outputs = [[c(f) for f in features] for c in classifiers]
+
+            # loss 聚合
+            losses = []
+            for coutputs in outputs:
+                head_loss = torch.stack([criterion(o, labels) for o in coutputs]).mean()
+                losses.append(head_loss)
+            total_loss = torch.stack(losses).mean()
+
+        if training:
+            if use_bfloat16:
+                for s in scaler:
+                    s.scale(total_loss).backward()
+                for s, o in zip(scaler, optimizer):
+                    s.step(o)
+                    s.update()
+            else:
+                total_loss.backward()
+                [o.step() for o in optimizer]
+            [o.zero_grad() for o in optimizer]
+
+        with torch.no_grad():
+            for idx, coutputs in enumerate(outputs):
+                avg_output = torch.stack([F.softmax(o, dim=1) for o in coutputs]).mean(0)
+                preds = avg_output.max(dim=1).indices
+                acc = 100.0 * preds.eq(labels).sum() / batch_size
+                acc = float(AllReduce.apply(acc))
+                acc_meters[idx].update(acc)
+
+    return {f"head_{i}": m.avg for i, m in enumerate(acc_meters)}
+
+
+# ----------------------
+# checkpoint 加载
+# ----------------------
+def load_checkpoint(device, r_path, encoder, classifiers, opt, scaler, val_only=False):
+    checkpoint = robust_checkpoint_loader(r_path, map_location="cpu")
+
+    encoder.load_state_dict(checkpoint["encoder"])
+    for c, state in zip(classifiers, checkpoint["classifiers"]):
+        c.module.load_state_dict(state)
+
+    if val_only:
+        return encoder, classifiers, opt, scaler, 0
+
+    epoch = checkpoint["epoch"]
+    for o, state in zip(opt, checkpoint["opt"]):
+        o.load_state_dict(state)
+    for s, state in zip(scaler, checkpoint["scaler"]):
+        if s is not None and state is not None:
+            s.load_state_dict(state)
+    return encoder, classifiers, opt, scaler, epoch
+
+
+# ----------------------
+# dataloader
+# ----------------------
+DEFAULT_NORMALIZATION = ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+
+def make_dataloader(
+    root_path,
+    batch_size,
+    world_size,
+    rank,
+    dataset_type="VideoDataset",
+    img_size=224,
+    frames_per_clip=16,
+    frame_step=4,
+    num_segments=8,
+    eval_duration=None,
+    num_views_per_segment=1,
+    allow_segment_overlap=True,
+    training=False,
+    num_workers=12,
+    subset_file=None,
+    normalization=None,
+):
+    if normalization is None:
+        normalization = DEFAULT_NORMALIZATION
+
+    transform = make_transforms(
+        training=training,
+        num_views_per_clip=num_views_per_segment,
+        random_horizontal_flip=False,
+        random_resize_aspect_ratio=(0.75, 4 / 3),
+        random_resize_scale=(0.08, 1.0),
+        reprob=0.25,
+        auto_augment=True,
+        motion_shift=False,
+        crop_size=img_size,
+        normalize=normalization,
+    )
+
+    data_loader, data_sampler = init_data(
+        data=dataset_type,
+        root_path=root_path,
+        transform=transform,
+        batch_size=batch_size,
+        world_size=world_size,
+        rank=rank,
+        clip_len=frames_per_clip,
+        frame_sample_rate=frame_step,
+        duration=eval_duration,
+        num_clips=num_segments,
+        allow_clip_overlap=allow_segment_overlap,
+        num_workers=num_workers,
+        drop_last=False,
+        subset_file=subset_file,
+    )
+    return data_loader, data_sampler
+
+
+# ----------------------
+# optimizer + scheduler
+# ----------------------
+def init_opt(classifiers, opt_kwargs, iterations_per_epoch, num_epochs, use_bfloat16=False):
+    optimizers, schedulers, wd_schedulers, scalers = [], [], [], []
+    for c, kwargs in zip(classifiers, opt_kwargs):
+        param_groups = [{
+            "params": c.parameters(),
+            "mc_warmup_steps": int(kwargs.get("warmup") * iterations_per_epoch),
+            "mc_start_lr": kwargs.get("start_lr"),
+            "mc_ref_lr": kwargs.get("lr"),
+            "mc_final_lr": kwargs.get("final_lr"),
+            "mc_ref_wd": kwargs.get("weight_decay"),
+            "mc_final_wd": kwargs.get("final_weight_decay"),
+        }]
+        optim = torch.optim.AdamW(param_groups)
+        schedulers.append(WarmupCosineLRSchedule(optim, T_max=int(num_epochs * iterations_per_epoch)))
+        wd_schedulers.append(CosineWDSchedule(optim, T_max=int(num_epochs * iterations_per_epoch)))
+        optimizers.append(optim)
+        scalers.append(torch.cuda.amp.GradScaler() if use_bfloat16 else None)
+    return optimizers, scalers, schedulers, wd_schedulers
+
+
+class WarmupCosineLRSchedule:
+    def __init__(self, optimizer, T_max, last_epoch=-1):
+        self.optimizer = optimizer
+        self.T_max = T_max
+        self._step = 0
+
+    def step(self):
+        self._step += 1
+        for group in self.optimizer.param_groups:
+            ref_lr = group.get("mc_ref_lr")
+            final_lr = group.get("mc_final_lr")
+            start_lr = group.get("mc_start_lr")
+            warmup_steps = group.get("mc_warmup_steps")
+            T_max = self.T_max - warmup_steps
+            if self._step < warmup_steps:
+                progress = self._step / max(1, warmup_steps)
+                new_lr = start_lr + progress * (ref_lr - start_lr)
+            else:
+                progress = (self._step - warmup_steps) / max(1, T_max)
+                new_lr = max(
+                    final_lr, final_lr + (ref_lr - final_lr) * 0.5 * (1.0 + math.cos(math.pi * progress))
+                )
+            group["lr"] = new_lr
+
+
+class CosineWDSchedule:
+    def __init__(self, optimizer, T_max):
+        self.optimizer = optimizer
+        self.T_max = T_max
+        self._step = 0
+
+    def step(self):
+        self._step += 1
+        progress = self._step / self.T_max
+        for group in self.optimizer.param_groups:
+            ref_wd = group.get("mc_ref_wd")
+            final_wd = group.get("mc_final_wd")
+            new_wd = final_wd + (ref_wd - final_wd) * 0.5 * (1.0 + math.cos(math.pi * progress))
+            if final_wd <= ref_wd:
+                new_wd = max(final_wd, new_wd)
+            else:
+                new_wd = min(final_wd, new_wd)
+            group["weight_decay"] = new_wd

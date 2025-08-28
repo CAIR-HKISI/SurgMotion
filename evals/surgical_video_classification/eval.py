@@ -2,15 +2,15 @@ import os
 import logging
 import math
 import pprint
-import csv
 from collections import defaultdict
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, accuracy_score, precision_score, recall_score, jaccard_score, f1_score
 
 from evals.surgical_video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
@@ -18,7 +18,7 @@ from src.datasets.data_manager import init_data
 from src.models.attentive_pooler import AttentiveClassifier
 from src.utils.checkpoint_loader import robust_checkpoint_loader
 from src.utils.distributed import AllReduce, init_distributed
-from src.utils.logging import AverageMeter, CSVLogger
+from src.utils.logging import AverageMeter
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -31,8 +31,64 @@ torch.backends.cudnn.benchmark = True
 
 pp = pprint.PrettyPrinter(indent=4)
 
+
+def evaluate_per_video(predictions_df, phases=None):
+    """
+    评估每个视频的指标
+    Args:
+        predictions_df: DataFrame，包含['data_idx', 'vid', 'prediction', 'label']列
+        phases: 类别名称列表
+    """
+    if phases is None:
+        all_labels = np.concatenate([predictions_df['label'].values, predictions_df['prediction'].values])
+        classes = np.unique(all_labels)
+        phases = [str(c) for c in classes]
+
+    per_video = []
+    for vid, subdf in predictions_df.groupby('vid'):
+        gt = subdf['label'].values
+        pred = subdf['prediction'].values
+
+        acc = accuracy_score(gt, pred) * 100
+        macro_prec = precision_score(gt, pred, average='macro', zero_division=0) * 100
+        macro_rec = recall_score(gt, pred, average='macro', zero_division=0) * 100
+        macro_iou = jaccard_score(gt, pred, average='macro', zero_division=0) * 100
+        macro_f1 = f1_score(gt, pred, average='macro', zero_division=0) * 100
+        n_samples = len(gt)
+
+        per_video.append({
+            "Video": vid,
+            "Num_Samples": n_samples,
+            "Accuracy": acc,
+            "Macro_Precision": macro_prec,
+            "Macro_Recall": macro_rec,
+            "Macro_IoU": macro_iou,
+            "Macro_F1": macro_f1
+        })
+
+    metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1"]
+    stats = {}
+    for m in metrics:
+        vals = [v[m] for v in per_video]
+        stats[f"{m}_Mean"] = np.mean(vals)
+        stats[f"{m}_Std"] = np.std(vals)
+
+    stats["Num_Samples_Mean"] = np.mean([v["Num_Samples"] for v in per_video])
+    stats["Num_Samples_Std"] = np.std([v["Num_Samples"] for v in per_video])
+
+    return per_video, stats, phases
+
+
 def main(args_eval, resume_preempt=False):
+    
+    # ----------------------------------------------------------------------- #
+    #  PASSED IN PARAMS FROM CONFIG FILE
+    # ----------------------------------------------------------------------- #
+    
     val_only = args_eval.get("val_only", False)
+    if val_only:
+        logger.info("VAL ONLY")
+
     pretrain_folder = args_eval.get("folder", None)
     resume_checkpoint = args_eval.get("resume_checkpoint", False) or resume_preempt
     eval_tag = args_eval.get("tag", None)
@@ -68,6 +124,8 @@ def main(args_eval, resume_preempt=False):
     use_bfloat16 = args_opt.get("use_bfloat16")
     opt_kwargs = args_opt.get("multihead_kwargs")[0]  # 只用第一个
 
+    # ----------------------------------------------------------------------- #
+
     try:
         mp.set_start_method("spawn")
     except Exception:
@@ -82,31 +140,16 @@ def main(args_eval, resume_preempt=False):
     world_size, rank = init_distributed()
     logger.info(f"Initialized (rank/world-size) {rank}/{world_size}")
 
+    # -- log/checkpointing paths
     folder = os.path.join(pretrain_folder, "video_classification_frozen/")
     if eval_tag is not None:
         folder = os.path.join(folder, eval_tag)
     if not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
-    log_file = os.path.join(folder, f"log_r{rank}.csv")
     latest_path = os.path.join(folder, "latest.pt")
 
-    # -- CSVLogger
-    if rank == 0:
-        csv_logger = CSVLogger(
-            log_file, 
-            ("%d", "epoch"), 
-            ("%.5f", "acc"), 
-            ("%.5f", "precision"), 
-            ("%.5f", "recall"), 
-            ("%.5f", "f1_score"),
-            ("%.5f", "video_precision_mean"),
-            ("%.5f", "video_precision_var"),
-            ("%.5f", "video_recall_mean"),
-            ("%.5f", "video_recall_var"),
-            ("%.5f", "video_f1_mean"),
-            ("%.5f", "video_f1_var")
-        )
-
+    # Initialize model
+    
     # -- Build model
     encoder = init_module(
         module_name=module_name,
@@ -116,6 +159,7 @@ def main(args_eval, resume_preempt=False):
         model_kwargs=args_model,
         wrapper_kwargs=args_wrapper,
         device=device,
+        # use_activation_checkpointing=True,
     )
     classifier = AttentiveClassifier(
         embed_dim=encoder.embed_dim,
@@ -125,12 +169,15 @@ def main(args_eval, resume_preempt=False):
         use_activation_checkpointing=True,
     ).to(device)
 
+    # Enable full fine-tuning
     for p in encoder.parameters():
         p.requires_grad = True
 
     # DDP wrap
     encoder = DistributedDataParallel(encoder, static_graph=True)
     classifier = DistributedDataParallel(classifier, static_graph=True)
+    print(f"Encoder: {encoder}")
+    print(f"Classifier: {classifier}")
 
     train_loader, train_sampler = make_dataloader(
         dataset_type=dataset_type,
@@ -166,9 +213,19 @@ def main(args_eval, resume_preempt=False):
         num_workers=num_workers,
         normalization=normalization
     )
+    
+    cls_counts = [train_loader.dataset.class_counts[i] for i in range(len(train_loader.dataset.class_counts))]
+    median = np.median(cls_counts)
+    class_weights = median/cls_counts
+    # 转换为float32以避免混合精度训练中的类型不匹配问题
+    class_weights = class_weights.astype(np.float32)
+    logger.info(f"Class weights: {class_weights}")
+    assert len(class_weights) == num_classes
+    
     ipe = len(train_loader)
     logger.info(f"Dataloader created... iterations per epoch: {ipe}")
 
+    # -- optimizer and scheduler
     optimizer, scaler, scheduler, wd_scheduler = init_opt(
         encoder=encoder,
         classifier=classifier,
@@ -217,9 +274,8 @@ def main(args_eval, resume_preempt=False):
         if val_only:
             train_metrics = {
                 "acc": -1.0, "precision": -1.0, "recall": -1.0, "f1_score": -1.0,
-                "video_precision_mean": -1.0, "video_precision_var": -1.0,
-                "video_recall_mean": -1.0, "video_recall_var": -1.0,
-                "video_f1_mean": -1.0, "video_f1_var": -1.0
+                "precision_var": -1.0, "recall_var": -1.0, "f1_var": -1.0,
+                "iou_mean": -1.0, "iou_var": -1.0
             }
         else:
             logger.info(f"Training phase - Epoch {epoch + 1}/{num_epochs}")
@@ -235,6 +291,7 @@ def main(args_eval, resume_preempt=False):
                 data_loader=train_loader,
                 use_bfloat16=use_bfloat16,
                 num_classes=num_classes,
+                class_weights=class_weights,
                 epoch=epoch + 1,
                 num_epochs=num_epochs,
                 folder=folder,
@@ -254,12 +311,14 @@ def main(args_eval, resume_preempt=False):
             data_loader=val_loader,
             use_bfloat16=use_bfloat16,
             num_classes=num_classes,
+            class_weights=class_weights,
             epoch=epoch + 1,
             num_epochs=num_epochs,
             folder=folder,
             save_predictions=True,  # Save predictions during validation
         )
 
+        # Log results
         logger.info("\n" + "="*50)
         logger.info(f"Epoch {epoch + 1}/{num_epochs} Summary")
         logger.info("="*50)
@@ -272,31 +331,17 @@ def main(args_eval, resume_preempt=False):
             % (val_metrics["acc"], val_metrics["precision"], val_metrics["recall"], val_metrics["f1_score"])
         )
         logger.info(
-            "VAL Video Metrics - prec_mean=%.3f prec_var=%.3f rec_mean=%.3f rec_var=%.3f f1_mean=%.3f f1_var=%.3f"
-            % (val_metrics["video_precision_mean"], val_metrics["video_precision_var"], 
-               val_metrics["video_recall_mean"], val_metrics["video_recall_var"],
-               val_metrics["video_f1_mean"], val_metrics["video_f1_var"])
+            "VAL Variance - prec_var=%.3f rec_var=%.3f f1_var=%.3f iou_mean=%.3f iou_var=%.3f"
+            % (val_metrics["precision_var"], val_metrics["recall_var"], val_metrics["f1_var"],
+               val_metrics["iou_mean"], val_metrics["iou_var"])
         )
-        if rank == 0:
-            csv_logger.log(
-                epoch + 1,
-                val_metrics["acc"], 
-                val_metrics["precision"], 
-                val_metrics["recall"], 
-                val_metrics["f1_score"],
-                val_metrics["video_precision_mean"],
-                val_metrics["video_precision_var"],
-                val_metrics["video_recall_mean"],
-                val_metrics["video_recall_var"],
-                val_metrics["video_f1_mean"],
-                val_metrics["video_f1_var"]
-            )
         logger.info("="*50 + "\n")
 
         if val_only:
             return
 
         save_checkpoint(epoch + 1)
+
 
 def run_one_epoch(
     device,
@@ -310,6 +355,7 @@ def run_one_epoch(
     data_loader,
     use_bfloat16,
     num_classes,
+    class_weights,
     epoch,
     num_epochs,
     folder,
@@ -318,19 +364,25 @@ def run_one_epoch(
     encoder.train(mode=training)
     classifier.train(mode=training)
 
-    criterion = torch.nn.CrossEntropyLoss()
+    # 创建criterion
+    if use_bfloat16:
+        criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor(class_weights, dtype=torch.float16).to(device))
+    else:
+        criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor(class_weights, dtype=torch.float32).to(device))
+        
     acc_meter = AverageMeter()
 
+    # 预测存储
     if not training:
-        video_predictions = defaultdict(lambda: {'preds': [], 'labels': []})
-        detailed_predictions = []
-        global_index = 0
+        all_predictions = []
 
     total_iters = len(data_loader)
+    
     for itr, data in enumerate(data_loader):
         if training:
             scheduler.step()
             wd_scheduler.step()
+
         with torch.cuda.amp.autocast(dtype=torch.float16, enabled=use_bfloat16):
             clips = [
                 [dij.to(device, non_blocking=True) for dij in di]
@@ -339,14 +391,23 @@ def run_one_epoch(
             clip_indices = [d.to(device, non_blocking=True) for d in data[2]]
             labels = data[1][0].to(device)
             batch_size = len(labels)
+            
             vid_ids = data[1][1]
+            data_idxs = data[1][2]
 
-            features = encoder(clips, clip_indices)
-            outputs = [classifier(f) for f in features]
+            # Forward and prediction
+            with torch.no_grad():
+                features = encoder(clips, clip_indices)
+                if not training:
+                    outputs = [classifier(f) for f in features]
+            if training:
+                features = encoder(clips, clip_indices)
+                outputs = [classifier(f) for f in features]
+
             output = outputs[0]  # 只取一个
-
             loss = criterion(output, labels)
 
+        # 训练步骤
         if training:
             if use_bfloat16:
                 scaler.scale(loss).backward()
@@ -358,140 +419,99 @@ def run_one_epoch(
             optimizer.zero_grad()
 
         with torch.no_grad():
+            # Predictions
             preds = output.max(dim=1).indices
             acc = 100.0 * preds.eq(labels).sum() / batch_size
             acc = float(AllReduce.apply(acc))
             acc_meter.update(acc)
-
+            
+            # 存储预测结果
             if not training:
-                for pred, label, vid in zip(preds.cpu().numpy(), labels.cpu().numpy(), vid_ids.numpy()):
-                    detailed_predictions.append([
-                        global_index, vid, pred, label
-                    ])
-                    global_index += 1
-                    video_predictions[vid]['preds'].append(pred)
-                    video_predictions[vid]['labels'].append(label)
+                for pred, label, vid, data_idx in zip(
+                    preds.cpu().numpy(), 
+                    labels.cpu().numpy(), 
+                    vid_ids.numpy(), 
+                    data_idxs.numpy()
+                ):
+                    all_predictions.append([data_idx, vid, pred, label])
 
         if itr % 10 == 0:
             logger.info(
-                "[Epoch %d/%d, Iter %5d/%5d] accuracy: %.1f%% [mem: %.2e]"
+                "[Epoch %d/%d, Iter %5d/%5d] accuracy: %.1f%% [loss: %.2e] [mem: %.2e]"
                 % (
                     epoch, num_epochs, itr + 1, total_iters,
-                    acc_meter.avg, torch.cuda.max_memory_allocated() / 1024.0**2,
+                    acc_meter.avg, loss.item(), torch.cuda.max_memory_allocated() / 1024.0**2,
                 )
             )
 
-    metrics = {
-        "acc": acc_meter.avg,
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1_score": 0.0,
-        "video_precision_mean": 0.0,
-        "video_precision_var": 0.0,
-        "video_recall_mean": 0.0,
-        "video_recall_var": 0.0,
-        "video_f1_mean": 0.0,
-        "video_f1_var": 0.0
-    }
-
-    if not training and len(video_predictions) > 0:
+    # 处理验证结果
+    metrics = {"acc": acc_meter.avg}
+    
+    if not training and len(all_predictions) > 0:
         world_size = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+        
+        # 收集所有进程的预测结果
         if world_size > 1:
-            gathered_videos = [None for _ in range(world_size)]
-            torch.distributed.all_gather_object(gathered_videos, video_predictions)
-            merged_videos = defaultdict(lambda: {'preds': [], 'labels': []})
-            for proc_videos in gathered_videos:
-                for vid, data in proc_videos.items():
-                    merged_videos[vid]['preds'].extend(data['preds'])
-                    merged_videos[vid]['labels'].extend(data['labels'])
-            video_predictions = merged_videos
-
             gathered_predictions = [None for _ in range(world_size)]
-            torch.distributed.all_gather_object(gathered_predictions, detailed_predictions)
+            torch.distributed.all_gather_object(gathered_predictions, all_predictions)
+            
             merged_predictions = []
             for proc_preds in gathered_predictions:
                 merged_predictions.extend(proc_preds)
-            detailed_predictions = merged_predictions
-
-        all_preds = []
-        all_labels = []
-        for vid_data in video_predictions.values():
-            all_preds.extend(vid_data['preds'])
-            all_labels.extend(vid_data['labels'])
-
-        precision, recall, f1, _ = precision_recall_fscore_support(
-            all_labels, 
-            all_preds, 
-            average='macro',
-            zero_division=0
-        )
-
-        metrics["precision"] = precision * 100.0
-        metrics["recall"] = recall * 100.0
-        metrics["f1_score"] = f1 * 100.0
-
-        video_metrics = []
-        for vid, data in video_predictions.items():
-            vid_precision, vid_recall, vid_f1, _ = precision_recall_fscore_support(
-                data['labels'], 
-                data['preds'], 
-                average='macro',
-                zero_division=0
-            )
-            video_metrics.append({
-                'video_id': vid,
-                'precision': vid_precision * 100.0,
-                'recall': vid_recall * 100.0,
-                'f1_score': vid_f1 * 100.0,
-                'num_clips': len(data['preds'])
-            })
-            logger.info(f"####### Vid {vid}: precision {vid_precision}, recall {vid_recall}, f1 score {vid_f1}.")
-
-        if video_metrics:
-            precisions = [m['precision'] for m in video_metrics]
-            recalls = [m['recall'] for m in video_metrics]
-            f1_scores = [m['f1_score'] for m in video_metrics]
-            metrics["video_precision_mean"] = np.mean(precisions)
-            metrics["video_precision_var"] = np.std(precisions)
-            metrics["video_recall_mean"] = np.mean(recalls)
-            metrics["video_recall_var"] = np.std(recalls)
-            metrics["video_f1_mean"] = np.mean(f1_scores)
-            metrics["video_f1_var"] = np.std(f1_scores)
-
-        if save_predictions and (not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0):
-            video_metrics_file = os.path.join(folder, f"video_metrics_epoch_{epoch}.csv")
-            with open(video_metrics_file, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(['video_id', 'precision', 'recall', 'f1_score', 'num_clips'])
-                for m in video_metrics:
-                    writer.writerow([m['video_id'], m['precision'], m['recall'], m['f1_score'], m['num_clips']])
-            logger.info(f"Saved video metrics to {video_metrics_file}")
-
-            summary_file = os.path.join(folder, f"summary_metrics_epoch_{epoch}.csv")
-            with open(summary_file, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(['metric', 'value'])
-                writer.writerow(['overall_accuracy', metrics['acc']])
-                writer.writerow(['overall_precision', metrics['precision']])
-                writer.writerow(['overall_recall', metrics['recall']])
-                writer.writerow(['overall_f1_score', metrics['f1_score']])
-                writer.writerow(['video_precision_mean', metrics['video_precision_mean']])
-                writer.writerow(['video_precision_var', metrics['video_precision_var']])
-                writer.writerow(['video_recall_mean', metrics['video_recall_mean']])
-                writer.writerow(['video_recall_var', metrics['video_recall_var']])
-                writer.writerow(['video_f1_mean', metrics['video_f1_mean']])
-                writer.writerow(['video_f1_var', metrics['video_f1_var']])
-            logger.info(f"Saved summary metrics to {summary_file}")
-
-            predictions_file = os.path.join(folder, f"all_predictions_epoch_{epoch}.csv")
-            with open(predictions_file, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(['index', 'vid', 'prediction', 'label'])
-                for pred_data in detailed_predictions:
-                    writer.writerow(pred_data)
-            logger.info(f"Saved all predictions to {predictions_file}")
+            all_predictions = merged_predictions
+        
+        # 只在主进程处理
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            try:
+                # 创建DataFrame并计算指标
+                predictions_df = pd.DataFrame(
+                    all_predictions, 
+                    columns=['data_idx', 'vid', 'prediction', 'label']
+                )
+                
+                per_video_results, overall_stats, phases = evaluate_per_video(predictions_df)
+                
+                # 更新metrics
+                metrics.update({
+                    "precision": overall_stats.get("Macro_Precision_Mean", 0.0),
+                    "recall": overall_stats.get("Macro_Recall_Mean", 0.0),
+                    "f1_score": overall_stats.get("Macro_F1_Mean", 0.0),
+                    "precision_var": overall_stats.get("Macro_Precision_Std", 0.0),
+                    "recall_var": overall_stats.get("Macro_Recall_Std", 0.0),
+                    "f1_var": overall_stats.get("Macro_F1_Std", 0.0),
+                    "iou_mean": overall_stats.get("Macro_IoU_Mean", 0.0),
+                    "iou_var": overall_stats.get("Macro_IoU_Std", 0.0)
+                })
+                
+                # Logger输出测试结果
+                logger.info(f"\n=== Video-level Metrics ===")
+                for key, value in overall_stats.items():
+                    logger.info(f"  {key}: {value:.3f}")
+                
+                # 保存预测结果CSV
+                if save_predictions:
+                    predictions_file = os.path.join(folder, f"predictions_epoch_{epoch}.csv")
+                    predictions_df.to_csv(predictions_file, index=False)
+                    logger.info(f"Saved predictions to {predictions_file}")
+                    
+            except Exception as e:
+                logger.error(f"Error in evaluate_per_video: {e}")
+                # 设置默认值
+                metrics.update({
+                    "precision": 0.0, "recall": 0.0, "f1_score": 0.0,
+                    "precision_var": 0.0, "recall_var": 0.0, "f1_var": 0.0,
+                    "iou_mean": 0.0, "iou_var": 0.0
+                })
+    else:
+        # 训练模式默认值
+        metrics.update({
+            "precision": -1.0, "recall": -1.0, "f1_score": -1.0,
+            "precision_var": -1.0, "recall_var": -1.0, "f1_var": -1.0,
+            "iou_mean": -1.0, "iou_var": -1.0
+        })
 
     return metrics
+
 
 def load_checkpoint(device, r_path, encoder, classifier, opt, scaler, val_only=False):
     checkpoint = robust_checkpoint_loader(r_path, map_location=torch.device("cpu"))
@@ -513,7 +533,9 @@ def load_checkpoint(device, r_path, encoder, classifier, opt, scaler, val_only=F
     logger.info(f"loaded optimizers from epoch {epoch}")
     return encoder, classifier, opt, scaler, epoch
 
+
 DEFAULT_NORMALIZATION = ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+
 
 def make_dataloader(
     root_path,
@@ -567,6 +589,7 @@ def make_dataloader(
     )
     return data_loader, data_sampler
 
+
 def init_opt(encoder, classifier, opt_kwargs, iterations_per_epoch, num_epochs, use_bfloat16=False):
     # 设置不同学习率和weight_decay
     param_groups = [
@@ -594,11 +617,13 @@ def init_opt(encoder, classifier, opt_kwargs, iterations_per_epoch, num_epochs, 
     scaler = torch.cuda.amp.GradScaler() if use_bfloat16 else None
     return optimizer, scaler, scheduler, wd_scheduler
 
+
 class WarmupCosineLRSchedule(object):
     def __init__(self, optimizer, T_max, last_epoch=-1):
         self.optimizer = optimizer
         self.T_max = T_max
         self._step = 0.0
+
     def step(self):
         self._step += 1
         for i, group in enumerate(self.optimizer.param_groups):
@@ -621,11 +646,13 @@ class WarmupCosineLRSchedule(object):
                 )
             group["lr"] = new_lr
 
+
 class CosineWDSchedule(object):
     def __init__(self, optimizer, T_max):
         self.optimizer = optimizer
         self.T_max = T_max
         self._step = 0.0
+
     def step(self):
         self._step += 1
         progress = self._step / self.T_max
@@ -641,3 +668,4 @@ class CosineWDSchedule(object):
             else:
                 new_wd = min(final_wd, new_wd)
             group["weight_decay"] = new_wd
+

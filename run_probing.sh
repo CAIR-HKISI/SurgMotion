@@ -25,10 +25,26 @@
 # DEVICES="cuda:4"
 
 
-FNAME="cholec80_vitl_cpt_attentive_64f_cls-mid-weight_epoch-4.yaml"
-TASK="probing_cholec80"
-MASTER_PORT="1209"
+# FNAME="cholec80_vitl_cpt_attentive_64f_cls-mid-weight_epoch-4.yaml"
+# TASK="probing_cholec80"
+# MASTER_PORT="1209"
+# DEVICES="cuda:5"
+
+# FNAME="cholec80_vith_cpt_attentive_64f_cls-mid-weight_epoch-1.yaml"
+# TASK="probing_cholec80"
+# MASTER_PORT="1289"
+# DEVICES="cuda:6"
+
+# FNAME="cholec80_vith_cpt_attentive_64f_epoch-50.yaml"
+# TASK="probing_cholec80_v2"
+# MASTER_PORT="1279"
+# DEVICES="cuda:2"
+
+FNAME="cholec80_vith_cpt_attentive_64f_epoch-50_multi-head.yaml"
+TASK="probing_cholec80_v2"
+MASTER_PORT="1479"
 DEVICES="cuda:5"
+
 
 
 # FNAME="bernbypass_vitl_origin_attentive_64f.yaml"
