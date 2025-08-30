@@ -1,7 +1,6 @@
 import os
 import logging
 import math
-import pprint
 import numpy as np
 import pandas as pd
 import torch
@@ -17,6 +16,8 @@ from src.models.attentive_pooler import AttentiveClassifier
 from src.utils.checkpoint_loader import robust_checkpoint_loader
 from src.utils.distributed import AllReduce, init_distributed
 from src.utils.logging import AverageMeter
+
+import torch.distributed as dist
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -240,6 +241,7 @@ def main(args_eval, resume_preempt=False):
                 data_loader=train_loader,
                 use_bfloat16=use_bfloat16,
                 num_classes=num_classes,
+                epoch=epoch,
             )
         else:
             train_metrics = None
@@ -256,36 +258,41 @@ def main(args_eval, resume_preempt=False):
             data_loader=val_loader,
             use_bfloat16=use_bfloat16,
             num_classes=num_classes,
+            epoch=epoch,
+            save_predictions=True,
+            folder=folder,
         )
 
         logger.info(f"Epoch {epoch+1}: train={train_metrics} val={val_metrics}")
 
         if val_only:
+            if dist.is_initialized():
+                dist.destroy_process_group()
             return
+
         save_checkpoint(epoch + 1)
+
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
 
 # ----------------------
 # 单个 epoch 训练/验证
 # ----------------------
 def run_one_epoch(
-    device,
-    training,
-    encoder,
-    classifiers,
-    scaler,
-    optimizer,
-    scheduler,
-    wd_scheduler,
-    data_loader,
-    use_bfloat16,
-    num_classes,
+    device, training, encoder, classifiers, scaler, optimizer,
+    scheduler, wd_scheduler, data_loader, use_bfloat16, num_classes,
+    epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20
 ):
     for c in classifiers:
         c.train(mode=training)
 
     criterion = torch.nn.CrossEntropyLoss()
     acc_meters = [AverageMeter() for _ in classifiers]
+    loss_meters = [AverageMeter() for _ in classifiers]
+
+    if not training:
+        all_predictions = []
 
     for itr, data in enumerate(data_loader):
         if training:
@@ -301,36 +308,84 @@ def run_one_epoch(
             with torch.no_grad():
                 features = encoder(clips, clip_indices)
 
+            # 每个分类器独立输出
             outputs = [[c(f) for f in features] for c in classifiers]
 
-            # loss 聚合
-            losses = []
-            for coutputs in outputs:
-                head_loss = torch.stack([criterion(o, labels) for o in coutputs]).mean()
-                losses.append(head_loss)
-            total_loss = torch.stack(losses).mean()
+            # 每个分类器独立 loss
+            losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
 
         if training:
             if use_bfloat16:
-                for s in scaler:
-                    s.scale(total_loss).backward()
-                for s, o in zip(scaler, optimizer):
+                for s, li, o in zip(scaler, losses, optimizer):
+                    for lij in li:
+                        s.scale(lij).backward(retain_graph=True)
                     s.step(o)
                     s.update()
+                    o.zero_grad()
             else:
-                total_loss.backward()
-                [o.step() for o in optimizer]
-            [o.zero_grad() for o in optimizer]
+                for li, o in zip(losses, optimizer):
+                    for lij in li:
+                        lij.backward(retain_graph=True)
+                    o.step()
+                    o.zero_grad()
 
         with torch.no_grad():
             for idx, coutputs in enumerate(outputs):
                 avg_output = torch.stack([F.softmax(o, dim=1) for o in coutputs]).mean(0)
-                preds = avg_output.max(dim=1).indices
+                preds = avg_output.argmax(dim=1)
                 acc = 100.0 * preds.eq(labels).sum() / batch_size
                 acc = float(AllReduce.apply(acc))
                 acc_meters[idx].update(acc)
 
-    return {f"head_{i}": m.avg for i, m in enumerate(acc_meters)}
+                loss_val = torch.stack([lij.detach() for lij in losses[idx]]).mean().item()
+                loss_meters[idx].update(loss_val, batch_size)
+
+                if not training:
+                    vid_ids, data_idxs = data[1][1], data[1][2]
+                    for pred, label, vid, did in zip(
+                        preds.cpu(), labels.cpu(), vid_ids.cpu(), data_idxs.cpu()
+                    ):
+                        all_predictions.append([idx, did.item(), vid.item(), pred.item(), label.item()])
+
+        if itr % log_interval == 0:
+            if training:
+                logger.info(
+                    f"[Train][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
+                    + " ".join([f"Head{h}: Acc={am.avg:.2f}%, Loss={lm.avg:.4f}"
+                                for h, (am, lm) in enumerate(zip(acc_meters, loss_meters))])
+                )
+            else:
+                logger.info(
+                    f"[Val][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
+                    + " ".join([f"Head{h}: Acc={am.avg:.2f}%" for h, am in enumerate(acc_meters)])
+                )
+
+    metrics = {f"head_{i}": {"Acc": acc_meters[i].avg, "Loss": loss_meters[i].avg} for i in range(len(classifiers))}
+
+    if not training and len(all_predictions) > 0:
+        df = pd.DataFrame(all_predictions, columns=["head","data_idx","vid","prediction","label"])
+        results = {}
+        for head_id, g in df.groupby("head"):
+            per_video, stats, phases = evaluate_per_video(g)
+            results[f"head_{head_id}"] = stats
+
+        logger.info("=== Evaluation per head ===")
+        for k, v in results.items():
+            logger.info(
+                f"{k}: "
+                f"Acc={v['Accuracy_Mean']:.2f}±{v['Accuracy_Std']:.2f}, "
+                f"F1={v['Macro_F1_Mean']:.2f}±{v['Macro_F1_Std']:.2f}, "
+                f"IoU={v['Macro_IoU_Mean']:.2f}±{v['Macro_IoU_Std']:.2f}, "
+                f"Prec={v['Macro_Precision_Mean']:.2f}±{v['Macro_Precision_Std']:.2f}, "
+                f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}"
+            )
+
+        if save_predictions and folder is not None:
+            pred_file = os.path.join(folder, f"predictions_epoch_{epoch}.csv")
+            df.to_csv(pred_file, index=False)
+            logger.info(f"Saved predictions to {pred_file}")
+
+    return metrics
 
 
 # ----------------------

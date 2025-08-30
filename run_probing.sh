@@ -42,9 +42,18 @@
 
 FNAME="cholec80_vith_cpt_attentive_64f_epoch-50_multi-head.yaml"
 TASK="probing_cholec80_v2"
-MASTER_PORT="1479"
+MASTER_PORT="1399"
 DEVICES="cuda:5"
 
+# FNAME="cholec80_vitl_cpt_attentive_64f_small-mask.yaml"
+# TASK="probing_cholec80_v2"
+# MASTER_PORT="1381"
+# DEVICES="cuda:1"
+
+# FNAME="cholec80_vith_cpt_attentive_64f_epoch-50_multi-head_v2.yaml"
+# TASK="probing_cholec80_v2"
+# MASTER_PORT="1382"
+# DEVICES="cuda:2"
 
 
 # FNAME="bernbypass_vitl_origin_attentive_64f.yaml"
@@ -66,4 +75,5 @@ nohup \
 python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \
   --devices ${DEVICES} \
+  --val_only \
   > "${LOG_FILE}" 2>&1 &

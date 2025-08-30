@@ -94,10 +94,41 @@ def process_video_csv_dense_sampling(
         clip_count = 0
         start_idx = 0
         
-        while start_idx + frames_per_window <= total_frames:
+        while start_idx < total_frames:  # 修改条件，允许处理边界情况
+            # 计算当前窗口的结束索引
+            end_idx = min(start_idx + frames_per_window, total_frames)
+            
             # 获取当前窗口的帧
-            end_idx = start_idx + frames_per_window
             clip_frames = video_df.iloc[start_idx:end_idx]
+            actual_frames = len(clip_frames)
+            
+            # 如果帧数不足窗口大小，需要填充
+            if actual_frames < frames_per_window:
+                print(f"  - 片段 {clip_count}: 实际帧数 {actual_frames} < 窗口大小 {frames_per_window}，进行填充")
+                
+                # 获取最后一帧用于填充
+                last_frame_row = clip_frames.iloc[-1]
+                last_frame_path = last_frame_row['Frame_Path']
+                
+                # 计算需要填充的帧数
+                padding_frames = frames_per_window - actual_frames
+                
+                # 创建填充的DataFrame
+                padding_data = []
+                for i in range(padding_frames):
+                    padding_data.append({
+                        'Frame_Path': last_frame_path,
+                        'Phase_GT': last_frame_row['Phase_GT'],
+                        'Phase_Name': last_frame_row['Phase_Name'],
+                        'Case_ID': last_frame_row['Case_ID']
+                    })
+                
+                padding_df = pd.DataFrame(padding_data)
+                
+                # 将原始帧和填充帧合并
+                clip_frames = pd.concat([clip_frames, padding_df], ignore_index=True)
+                
+                print(f"    - 填充了 {padding_frames} 帧，使用最后一帧路径: {last_frame_path}")
             
             # 获取最后一帧作为标签
             last_frame = clip_frames.iloc[-1]
@@ -112,6 +143,8 @@ def process_video_csv_dense_sampling(
             
             # 生成片段标识符
             clip_identifier = f"case{case_id}_c{clip_count:03d}_f{start_idx:06d}-{end_idx:06d}"
+            if actual_frames < frames_per_window:
+                clip_identifier += "_padded"  # 标记为填充片段
             
             # 创建片段信息目录
             os.makedirs(clip_info_dir, exist_ok=True)
@@ -132,9 +165,12 @@ def process_video_csv_dense_sampling(
                 'clip_idx': clip_count,
                 'start_frame': start_idx,
                 'end_frame': end_idx,
+                'actual_frames': actual_frames,  # 记录实际帧数
+                'padded_frames': frames_per_window - actual_frames if actual_frames < frames_per_window else 0,  # 记录填充帧数
                 'start_time': clip_start_time_str,
                 'end_time': clip_end_time_str,
-                'duration_seconds': frames_per_window / fps
+                'duration_seconds': frames_per_window / fps,
+                'is_padded': actual_frames < frames_per_window  # 标记是否为填充片段
             }
             
             all_clips_data.append(clip_info)
@@ -142,6 +178,10 @@ def process_video_csv_dense_sampling(
             # 移动到下一个位置
             start_idx += frames_per_stride
             clip_count += 1
+            
+            # 如果下一个起始位置已经超出视频范围，退出循环
+            if start_idx >= total_frames:
+                break
         
         print(f"  - 生成 {clip_count} 个片段")
     
@@ -215,6 +255,16 @@ def process_train_and_val(base_data_path="/data/wjl/vjepa2/data/pitvis",
     print(f"验证集片段数: {len(val_df)}")
     print(f"测试集片段数: {len(test_df)}")
     
+    # 统计填充片段
+    if 'is_padded' in train_df.columns:
+        train_padded = train_df['is_padded'].sum()
+        val_padded = val_df['is_padded'].sum()
+        test_padded = test_df['is_padded'].sum()
+        print(f"\n填充片段统计:")
+        print(f"  训练集填充片段: {train_padded}/{len(train_df)} ({train_padded/len(train_df)*100:.1f}%)")
+        print(f"  验证集填充片段: {val_padded}/{len(val_df)} ({val_padded/len(val_df)*100:.1f}%)")
+        print(f"  测试集填充片段: {test_padded}/{len(test_df)} ({test_padded/len(test_df)*100:.1f}%)")
+    
     # 统计每个类别的片段数
     print("\n训练集各类别分布:")
     train_label_counts = train_df['label'].value_counts().sort_index()
@@ -237,24 +287,54 @@ def process_train_and_val(base_data_path="/data/wjl/vjepa2/data/pitvis",
 
 # 使用示例
 if __name__ == "__main__":
-    # window_size = 64
-    # process_train_and_val(
-    #     base_data_path="data/Surge_Frames/MultiBypass140/StrasBypass70",
-    #     output_base_path=f"data/Surge_Frames/MultiBypass140/StrasBypass70/clips_{window_size}f",
-    #     window_size=window_size
-    # )
     
-    # window_size = 128
-    # process_train_and_val(
-    #     base_data_path="data/Surge_Frames/MultiBypass140/BernBypass70",
-    #     output_base_path=f"data/Surge_Frames/MultiBypass140/BernBypass70/clips_{window_size}f",
-    #     window_size=window_size
-    # )
+    # for window_size in [16, 32, 64, 128]:
+    #     print(f"###### 处理StrasBypass70数据集，窗口大小: {window_size}f ######")
+    #     process_train_and_val(
+    #             base_data_path="data/Surge_Frames/MultiBypass140/StrasBypass70",
+    #             output_base_path=f"data/Surge_Frames/MultiBypass140/StrasBypass70/clips_{window_size}f",
+    #             window_size=window_size
+    #         )
     
-    window_size = 128
-    process_train_and_val(
-        base_data_path="data/Surge_Frames/Cholec80",
-        output_base_path=f"data/Surge_Frames/Cholec80/clips_{window_size}f",
-        window_size=window_size
-    )
+    
+    # for window_size in [16, 32, 64, 128]:
+    #     print(f"###### 处理BernBypass70数据集，窗口大小: {window_size}f ######")
+    #     process_train_and_val(
+    #         base_data_path="data/Surge_Frames/MultiBypass140/BernBypass70",
+    #         output_base_path=f"data/Surge_Frames/MultiBypass140/BernBypass70/clips_{window_size}f",
+    #         window_size=window_size
+    #     )
+
+    # for window_size in [16, 32, 64, 128]:
+    #     print(f"###### 处理Cholec80数据集，窗口大小: {window_size}f ######")
+    #     process_train_and_val(
+    #         base_data_path="data/Surge_Frames/Cholec80",
+    #         output_base_path=f"data/Surge_Frames/Cholec80/clips_{window_size}f",
+    #         window_size=window_size
+    #     )
+
+
+    # for window_size in [16, 32, 64, 128]:
+    #     print(f"###### 处理AutoLaparo数据集，窗口大小: {window_size}f ######")
+    #     process_train_and_val(
+    #         base_data_path="data/Surge_Frames/AutoLaparo",
+    #         output_base_path=f"data/Surge_Frames/AutoLaparo/clips_{window_size}f",
+    #         window_size=window_size
+    #     )
+
+    # for window_size in [16, 32, 64, 128]:
+    #     print(f"###### 处理M2CAI2016数据集，窗口大小: {window_size}f ######")
+    #     process_train_and_val(
+    #         base_data_path="data/Surge_Frames/M2CAI2016",
+    #         output_base_path=f"data/Surge_Frames/M2CAI2016/clips_{window_size}f",
+    #         window_size=window_size
+    #     )
+
+    for window_size in [16, 32, 64, 128]:
+        print(f"###### 处理PitVis数据集，窗口大小: {window_size}f ######")
+        process_train_and_val(
+                base_data_path="data/Surge_Frames/Pitvis",
+                output_base_path=f"data/Surge_Frames/Pitvis/clips_{window_size}f",
+                window_size=window_size
+            )
 

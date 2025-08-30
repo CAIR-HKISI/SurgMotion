@@ -15,9 +15,9 @@ import pickle
 import pandas as pd
 import os
 
-test_label = "/data/wjl/vjepa2/data/Surge_Frames/AutoLaparo/labels_pkl/test/1fpstest.pickle"
-train_label = "/data/wjl/vjepa2/data/Surge_Frames/AutoLaparo/labels_pkl/train/1fpstrain.pickle"
-val_label = "/data/wjl/vjepa2/data/Surge_Frames/AutoLaparo/labels_pkl/val/1fpsval.pickle"
+test_label = "/scratch/esg8sdce/wjl/Surgformer/data/autolaparo/task1/labels_pkl/test/1fpstest.pickle"
+train_label = "/scratch/esg8sdce/wjl/Surgformer/data/autolaparo/task1/labels_pkl/train/1fpstrain.pickle"
+val_label = "/scratch/esg8sdce/wjl/Surgformer/data/autolaparo/task1/labels_pkl/val/1fpsval.pickle"
 
 path_dict = {
     'test': test_label,
