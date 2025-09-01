@@ -7,7 +7,7 @@ from pathlib import Path
 def videos_to_imgs(input_path="/Videos/input",
                    output_path="/Videos/output",
                    fps=1,
-                   pattern="*.mp4"):
+                   pattern="*/*.mp4"):
     
     output_path = Path(output_path)
     input_path = Path(input_path)
