@@ -28,10 +28,28 @@
 # DEVICES="cuda:6 cuda:7"
 # MASTER_PORT=1322
 
-FNAME="cholec80_cpt_vith-256px-16-64f_stage-2.yaml"
-TASK="cpt_cholec80_v2"
-DEVICES="cuda:6 cuda:7"
-MASTER_PORT=1323
+# FNAME="cholec80_cpt_vith-256px-16-64f_stage-2.yaml"
+# TASK="cpt_cholec80_v2"
+# DEVICES="cuda:6 cuda:7"
+# MASTER_PORT=1323
+
+FNAME="autolapro_cpt_vitl-256px-64f_lr1e-4_epoch-50_mask-ratio-0.9.yaml"
+TASK="cpt_autolaparo"
+DEVICES="cuda:4 cuda:5"
+MASTER_PORT=1328
+
+
+# FNAME="cholec80_cpt_vitl-256px-64f_lr1e-4_epoch-20_mask-ratio-0.9.yaml"
+# TASK="cpt_cholec80"
+# DEVICES="cuda:6 cuda:7"
+# MASTER_PORT=1271
+
+
+# FNAME="autolapro_cpt_vitl-256px-128f_lr1e-4_epoch-50.yaml"
+# TASK="cpt_autolaparo"
+# DEVICES="cuda:4 cuda:5"
+# MASTER_PORT=1324
+
 
 
 # FNAME="cholec80_cpt_vith-256px-64f_stage-2.yaml"

@@ -40,10 +40,22 @@
 # MASTER_PORT="1279"
 # DEVICES="cuda:2"
 
-FNAME="cholec80_vith_cpt_attentive_64f_epoch-50_multi-head.yaml"
+# FNAME="cholec80_vith_cpt_attentive_64f_epoch-50_multi-head.yaml"
+# TASK="probing_cholec80_v2"
+# MASTER_PORT="1399"
+# DEVICES="cuda:5"
+
+# FNAME="cholec80_vith_cpt_attentive_64f_epoch-50_multi-head_stage2.yaml"
+# TASK="probing_cholec80_v2"
+# MASTER_PORT="1399"
+# DEVICES="cuda:3"
+
+
+FNAME="cholec80_vith_cpt_attentive_64f_epoch-50_multi-head_stage1.yaml"
 TASK="probing_cholec80_v2"
-MASTER_PORT="1399"
-DEVICES="cuda:5"
+MASTER_PORT="1341"
+DEVICES="cuda:2"
+
 
 # FNAME="cholec80_vitl_cpt_attentive_64f_small-mask.yaml"
 # TASK="probing_cholec80_v2"

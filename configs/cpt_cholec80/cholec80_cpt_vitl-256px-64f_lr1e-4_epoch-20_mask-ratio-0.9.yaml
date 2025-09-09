@@ -1,16 +1,16 @@
 app: vjepa_cpt
 cpus_per_task: 4
-folder: logs6/autolaparo_cpt_epoch-20_vith16-256px-64f_lr1e-4
+folder: logs6/cpt_cholec80/cpt_vitl16-256px-64f_lr1e-4_epoch-20_mask-ratio-0.9
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
 data:
   dataset_type: surgical_videodataset
   datasets:
-  - /data/wjl/vjepa2/data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
+  - data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv
   datasets_weights:
   - 1.0
-  batch_size: 32
+  batch_size: 64
   crop_size: 256
   dataset_fpcs:
   - 64
@@ -18,7 +18,7 @@ data:
   num_workers: 4
   patch_size: 16
   persistent_workers: true
-  pin_mem: false
+  pin_mem: true
   tubelet_size: 2
 data_aug:
   auto_augment: false
@@ -39,23 +39,10 @@ mask:
   full_complement: false
   max_keep: null
   max_temporal_keep: 1.0
-  num_blocks: 8
-  spatial_scale:
-  - 0.15
-  - 0.15
-  temporal_scale:
-  - 1.0
-  - 1.0
-- aspect_ratio:
-  - 0.75
-  - 1.5
-  full_complement: false
-  max_keep: null
-  max_temporal_keep: 1.0
   num_blocks: 2
   spatial_scale:
-  - 0.7
-  - 0.7
+  - 0.9
+  - 0.9
   temporal_scale:
   - 1.0
   - 1.0
@@ -68,7 +55,7 @@ meta:
   seed: 239
   use_sdpa: true
 model:
-  model_name: vit_huge
+  model_name: vit_large
   pred_depth: 12
   pred_embed_dim: 384
   pred_num_heads: 12
@@ -77,7 +64,7 @@ model:
   use_mask_tokens: true
   use_rope: true
   zero_init_mask_tokens: true
-  cpt_ckeckpoint: ckpts/vith.pt 
+  cpt_ckeckpoint: ckpts/vitl.pt 
 optimization:
   anneal_ckpt: None
   ema:

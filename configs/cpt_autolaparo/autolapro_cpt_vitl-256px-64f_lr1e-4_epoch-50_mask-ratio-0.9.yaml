@@ -1,13 +1,13 @@
 app: vjepa_cpt
 cpus_per_task: 4
-folder: logs6/autolaparo_cpt_epoch-20_vitl16-256px-64f_lr1e-4
+folder: logs6/autolaparo_cpt_epoch-50_vitl16-256px-64f_lr1e-4_mask-ratio-0.9
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
 data:
   dataset_type: surgical_videodataset
   datasets:
-  - /data/wjl/vjepa2/data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
+  - data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
   datasets_weights:
   - 1.0
   batch_size: 64
@@ -21,15 +21,15 @@ data:
   pin_mem: false
   tubelet_size: 2
 data_aug:
-  auto_augment: false
-  motion_shift: false
+  auto_augment: true
+  motion_shift: true
   random_resize_aspect_ratio:
   - 0.75
   - 1.35
   random_resize_scale:
   - 0.3
   - 1.0
-  reprob: 0.0
+  reprob: 0.25
 loss:
   loss_exp: 1.0
 mask:
@@ -39,23 +39,10 @@ mask:
   full_complement: false
   max_keep: null
   max_temporal_keep: 1.0
-  num_blocks: 8
-  spatial_scale:
-  - 0.15
-  - 0.15
-  temporal_scale:
-  - 1.0
-  - 1.0
-- aspect_ratio:
-  - 0.75
-  - 1.5
-  full_complement: false
-  max_keep: null
-  max_temporal_keep: 1.0
   num_blocks: 2
   spatial_scale:
-  - 0.7
-  - 0.7
+  - 0.9
+  - 0.9
   temporal_scale:
   - 1.0
   - 1.0
@@ -83,11 +70,11 @@ optimization:
   ema:
   - 0.99925
   - 0.99925
-  epochs: 20
+  epochs: 50
   final_lr: 1.0e-07
   final_weight_decay: 0.04
-  ipe: 300
-  ipe_scale: 1.25
+  ipe: 400
+  ipe_scale: 1.0
   is_anneal: true
   lr: 1.0e-04
   resume_anneal: true

@@ -1,16 +1,16 @@
 app: vjepa_cpt
 cpus_per_task: 4
-folder: logs6/autolaparo_cpt_epoch-20_vitl16-256px-64f_lr1e-4
+folder: logs6/autolaparo_cpt_epoch-50_vitl16-256px-128f_lr1e-4
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
 data:
   dataset_type: surgical_videodataset
   datasets:
-  - /data/wjl/vjepa2/data/Surge_Frames/AutoLaparo/clips_128f/train_dense_128f_detailed.csv
+  - data/Surge_Frames/AutoLaparo/clips_128f/train_dense_128f_detailed.csv
   datasets_weights:
   - 1.0
-  batch_size: 64
+  batch_size: 32
   crop_size: 256
   dataset_fpcs:
   - 128
@@ -18,7 +18,7 @@ data:
   num_workers: 4
   patch_size: 16
   persistent_workers: true
-  pin_mem: false
+  pin_mem: true
   tubelet_size: 2
 data_aug:
   auto_augment: false
@@ -83,7 +83,7 @@ optimization:
   ema:
   - 0.99925
   - 0.99925
-  epochs: 20
+  epochs: 50
   final_lr: 1.0e-07
   final_weight_decay: 0.04
   ipe: 300
