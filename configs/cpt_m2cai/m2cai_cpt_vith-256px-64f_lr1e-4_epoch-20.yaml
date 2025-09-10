@@ -1,19 +1,19 @@
 app: vjepa_cpt
 cpus_per_task: 4
-folder: logs8/cpt_cholec80/cpt_vitl16-256px-16f_stage1
+folder: logs6/cpt_m2cai/cpt_vith16-256px-64f_lr1e-4_epoch-20
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
 data:
   dataset_type: surgical_videodataset
   datasets:
-  - data/Surge_Frames/Cholec80/clips_16f/train_dense_16f_detailed.csv
+  - data/Surge_Frames/M2CAI2016/clips_64f/train_dense_64f_detailed.csv
   datasets_weights:
   - 1.0
   batch_size: 32
   crop_size: 256
   dataset_fpcs:
-  - 16
+  - 64
   fps: 1
   num_workers: 4
   patch_size: 16
@@ -61,14 +61,14 @@ mask:
   - 1.0
 meta:
   dtype: bfloat16
-  eval_freq: 1000
+  eval_freq: 100
   load_checkpoint: false
   read_checkpoint: None
   save_every_freq: 50
   seed: 239
   use_sdpa: true
 model:
-  model_name: vit_large 
+  model_name: vit_huge
   pred_depth: 12
   pred_embed_dim: 384
   pred_num_heads: 12
@@ -77,17 +77,20 @@ model:
   use_mask_tokens: true
   use_rope: true
   zero_init_mask_tokens: true
-  cpt_ckeckpoint: ckpts/vitl.pt 
+  cpt_ckeckpoint: ckpts/vith.pt 
 optimization:
+  anneal_ckpt: None
   ema:
   - 0.99925
   - 0.99925
-  epochs: 10
-  final_lr: 0.000525
+  epochs: 20
+  final_lr: 1.0e-07
   final_weight_decay: 0.04
   ipe: 300
   ipe_scale: 1.25
-  lr: 0.000525
+  is_anneal: true
+  lr: 1.0e-04
+  resume_anneal: true
   start_lr: 0.0001
-  warmup: 40
+  warmup: 0
   weight_decay: 0.04

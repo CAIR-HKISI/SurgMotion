@@ -7,7 +7,7 @@ from pathlib import Path
 def videos_to_imgs(input_path="/Videos/input",
                    output_path="/Videos/output",
                    fps=1,
-                   pattern="*/*.mp4"):
+                   pattern="*.mp4"):
     
     output_path = Path(output_path)
     input_path = Path(input_path)
@@ -23,7 +23,8 @@ def videos_to_imgs(input_path="/Videos/input",
         out_folder.mkdir(exist_ok=True)
 
         # os.system(command) method executes the command (a string) in a subshell; here, the command converts each video into images, by filtering
-        os.system(f'ffmpeg -i {vid_path} -vf "fps={fps}" {out_folder/file_name}_%08d.jpg') 
+        # os.system(f'ffmpeg -i {vid_path} -vf "fps={fps}" {out_folder/file_name}_%08d.jpg') 
+        os.system(f'ffmpeg -i "{vid_path}" -vf "fps={fps},scale=\'if(gte(iw,ih),512,-1)\':\'if(gte(ih,iw),512,-1)\':force_original_aspect_ratio=decrease" "{out_folder/file_name}_%08d.jpg"')
         print("Done extracting: {}".format(i + 1))
 
 if __name__ == "__main__":

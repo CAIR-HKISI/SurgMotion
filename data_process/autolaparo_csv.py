@@ -45,8 +45,8 @@ for split, path in path_dict.items():
             continue
 
         for value in values:
-            frame_id = value["frame_id"]
-            frame_path = f'data/Surge_Frames/AutoLaparo/frames/{case_name}/{frame_id:05d}.png'
+            frame_id = value["frame_id"] + 1
+            frame_path = f'data/Surge_Frames/AutoLaparo_v2/frames/{case_name}/{case_name}_{frame_id:08d}.jpg'
             if not os.path.exists(frame_path):
                 print(f"Warning: Frame {frame_path} does not exist")
                 continue
@@ -67,7 +67,7 @@ for split, path in path_dict.items():
 
     if all_data:
         df = pd.DataFrame(all_data)
-        out_csv = f'data/Surge_Frames/AutoLaparo/{split}_metadata.csv'
+        out_csv = f'data/Surge_Frames/AutoLaparo_v2/{split}_metadata.csv'
         df.to_csv(out_csv, index=False)
         print(f"Saved {len(df)} items to {out_csv}")
     else:

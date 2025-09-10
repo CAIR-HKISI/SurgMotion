@@ -7,7 +7,7 @@ tasks_per_node: 1
 data:
   dataset_type: surgical_videodataset
   datasets:
-  - data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
+  - data/Surge_Frames/AutoLaparo_v2/clips_64f/train_dense_64f_detailed.csv
   datasets_weights:
   - 1.0
   batch_size: 64
@@ -15,7 +15,7 @@ data:
   dataset_fpcs:
   - 64
   fps: 1
-  num_workers: 4
+  num_workers: 8
   patch_size: 16
   persistent_workers: true
   pin_mem: false
@@ -70,7 +70,7 @@ optimization:
   ema:
   - 0.99925
   - 0.99925
-  epochs: 50
+  epochs: 20
   final_lr: 1.0e-07
   final_weight_decay: 0.04
   ipe: 400
