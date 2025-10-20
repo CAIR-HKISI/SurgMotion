@@ -94,9 +94,29 @@ def main(args_eval, resume_preempt=False):
 
     args_data = args_exp.get("data")
     dataset_type = args_data.get("dataset_type", "VideoDataset")
+
+    # Support both single and multiple datasets
+    train_data_path = args_data.get("dataset_train")
+    if isinstance(train_data_path, str):
+        train_data_path = [train_data_path]
+
+    val_data_path = args_data.get("dataset_val")
+    if isinstance(val_data_path, str):
+        val_data_path = [val_data_path]
+
+    # Support datasets_weights for sampling from multiple datasets
+    datasets_weights = args_data.get("datasets_weights", None)
+
+    # Support per-dataset num_classes or single num_classes for all datasets
     num_classes = args_data.get("num_classes")
-    train_data_path = [args_data.get("dataset_train")]
-    val_data_path = [args_data.get("dataset_val")]
+    if isinstance(num_classes, int):
+        num_classes_list = [num_classes] * len(train_data_path)
+    else:
+        num_classes_list = num_classes
+
+    # Support head-to-dataset mapping (which dataset each head trains on)
+    head_to_dataset_map = args_data.get("head_to_dataset_map", None)
+
     resolution = args_data.get("resolution", 224)
     num_segments = args_data.get("num_segments", 1)
     frames_per_clip = args_data.get("frames_per_clip", 16)
@@ -138,16 +158,30 @@ def main(args_eval, resume_preempt=False):
     )
 
     # 构建多个分类头
-    classifiers = [
-        AttentiveClassifier(
-            embed_dim=encoder.embed_dim,
-            num_heads=num_heads,
-            depth=num_probe_blocks,
-            num_classes=num_classes,
-            use_activation_checkpointing=True,
-        ).to(device)
-        for _ in opt_kwargs
-    ]
+    # If head_to_dataset_map is provided, use per-dataset num_classes
+    if head_to_dataset_map is not None:
+        classifiers = [
+            AttentiveClassifier(
+                embed_dim=encoder.embed_dim,
+                num_heads=num_heads,
+                depth=num_probe_blocks,
+                num_classes=num_classes_list[head_to_dataset_map[idx]],
+                use_activation_checkpointing=True,
+            ).to(device)
+            for idx in range(len(opt_kwargs))
+        ]
+    else:
+        # Default: all heads use the first dataset's num_classes
+        classifiers = [
+            AttentiveClassifier(
+                embed_dim=encoder.embed_dim,
+                num_heads=num_heads,
+                depth=num_probe_blocks,
+                num_classes=num_classes_list[0],
+                use_activation_checkpointing=True,
+            ).to(device)
+            for _ in opt_kwargs
+        ]
     classifiers = [DistributedDataParallel(c, static_graph=True) for c in classifiers]
 
     train_loader, train_sampler = make_dataloader(
@@ -166,6 +200,7 @@ def main(args_eval, resume_preempt=False):
         training=True,
         num_workers=num_workers,
         normalization=normalization,
+        datasets_weights=datasets_weights,
     )
     val_loader, _ = make_dataloader(
         dataset_type=dataset_type,
@@ -242,6 +277,7 @@ def main(args_eval, resume_preempt=False):
                 use_bfloat16=use_bfloat16,
                 num_classes=num_classes,
                 epoch=epoch,
+                head_to_dataset_map=head_to_dataset_map,
             )
         else:
             train_metrics = None
@@ -261,6 +297,7 @@ def main(args_eval, resume_preempt=False):
             epoch=epoch,
             save_predictions=True,
             folder=folder,
+            head_to_dataset_map=head_to_dataset_map,
         )
 
         logger.info(f"Epoch {epoch+1}: train={train_metrics} val={val_metrics}")
@@ -282,7 +319,8 @@ def main(args_eval, resume_preempt=False):
 def run_one_epoch(
     device, training, encoder, classifiers, scaler, optimizer,
     scheduler, wd_scheduler, data_loader, use_bfloat16, num_classes,
-    epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20
+    epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20,
+    head_to_dataset_map=None
 ):
     for c in classifiers:
         c.train(mode=training)
@@ -305,47 +343,104 @@ def run_one_epoch(
             labels = data[1][0].to(device)
             batch_size = len(labels)
 
+            # Extract dataset_idx if available (for multi-dataset training)
+            if len(data[1]) > 3:
+                dataset_indices = data[1][3].to(device)
+            else:
+                dataset_indices = None
+
             with torch.no_grad():
                 features = encoder(clips, clip_indices)
 
             # 每个分类器独立输出
             outputs = [[c(f) for f in features] for c in classifiers]
 
-            # 每个分类器独立 loss
-            losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
+            # 每个分类器独立 loss with optional masking for multi-dataset training
+            losses = []
+            has_samples = []  # Track which heads have actual samples in this batch
+            if head_to_dataset_map is not None and dataset_indices is not None:
+                # Multi-dataset training: mask loss by dataset
+                for head_idx, coutputs in enumerate(outputs):
+                    assigned_dataset = head_to_dataset_map[head_idx]
+                    head_losses = []
+                    head_has_samples = False
+                    for o in coutputs:
+                        mask = (dataset_indices == assigned_dataset)
+                        if mask.sum() > 0:
+                            loss = criterion(o[mask], labels[mask])
+                            head_has_samples = True
+                        else:
+                            # No samples from this dataset in batch, create dummy loss
+                            loss = torch.tensor(0.0, device=device, requires_grad=True)
+                        head_losses.append(loss)
+                    losses.append(head_losses)
+                    has_samples.append(head_has_samples)
+            else:
+                # Single dataset or no masking: standard loss calculation
+                losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
+                has_samples = [True] * len(losses)
 
         if training:
             if use_bfloat16:
-                for s, li, o in zip(scaler, losses, optimizer):
-                    for lij in li:
-                        s.scale(lij).backward(retain_graph=True)
-                    s.step(o)
-                    s.update()
-                    o.zero_grad()
+                for s, li, o, has_sample in zip(scaler, losses, optimizer, has_samples):
+                    if has_sample:
+                        for lij in li:
+                            s.scale(lij).backward(retain_graph=True)
+                        s.step(o)
+                        s.update()
+                        o.zero_grad()
+                    else:
+                        # Skip optimizer step if no samples for this head in batch
+                        o.zero_grad()
             else:
-                for li, o in zip(losses, optimizer):
-                    for lij in li:
-                        lij.backward(retain_graph=True)
-                    o.step()
-                    o.zero_grad()
+                for li, o, has_sample in zip(losses, optimizer, has_samples):
+                    if has_sample:
+                        for lij in li:
+                            lij.backward(retain_graph=True)
+                        o.step()
+                        o.zero_grad()
+                    else:
+                        # Skip optimizer step if no samples for this head in batch
+                        o.zero_grad()
 
         with torch.no_grad():
             for idx, coutputs in enumerate(outputs):
                 avg_output = torch.stack([F.softmax(o, dim=1) for o in coutputs]).mean(0)
                 preds = avg_output.argmax(dim=1)
-                acc = 100.0 * preds.eq(labels).sum() / batch_size
-                acc = float(AllReduce.apply(acc))
-                acc_meters[idx].update(acc)
+
+                # Calculate metrics: if masking, only for assigned dataset samples
+                if head_to_dataset_map is not None and dataset_indices is not None:
+                    assigned_dataset = head_to_dataset_map[idx]
+                    mask = (dataset_indices == assigned_dataset)
+                    if mask.sum() > 0:
+                        masked_preds = preds[mask]
+                        masked_labels = labels[mask]
+                        acc = 100.0 * masked_preds.eq(masked_labels).sum() / mask.sum()
+                        acc = float(AllReduce.apply(acc))
+                        acc_meters[idx].update(acc, mask.sum().item())
+                    # else: no samples from this dataset in batch, skip update
+                else:
+                    # No masking: standard accuracy calculation
+                    acc = 100.0 * preds.eq(labels).sum() / batch_size
+                    acc = float(AllReduce.apply(acc))
+                    acc_meters[idx].update(acc)
 
                 loss_val = torch.stack([lij.detach() for lij in losses[idx]]).mean().item()
                 loss_meters[idx].update(loss_val, batch_size)
 
                 if not training:
                     vid_ids, data_idxs = data[1][1], data[1][2]
-                    for pred, label, vid, did in zip(
-                        preds.cpu(), labels.cpu(), vid_ids.cpu(), data_idxs.cpu()
-                    ):
-                        all_predictions.append([idx, did.item(), vid.item(), pred.item(), label.item()])
+                    # Save predictions with dataset_idx for per-dataset analysis
+                    if dataset_indices is not None:
+                        for pred, label, vid, did, ds_idx in zip(
+                            preds.cpu(), labels.cpu(), vid_ids.cpu(), data_idxs.cpu(), dataset_indices.cpu()
+                        ):
+                            all_predictions.append([idx, did.item(), vid.item(), pred.item(), label.item(), ds_idx.item()])
+                    else:
+                        for pred, label, vid, did in zip(
+                            preds.cpu(), labels.cpu(), vid_ids.cpu(), data_idxs.cpu()
+                        ):
+                            all_predictions.append([idx, did.item(), vid.item(), pred.item(), label.item(), 0])
 
         if itr % log_interval == 0:
             if training:
@@ -363,8 +458,10 @@ def run_one_epoch(
     metrics = {f"head_{i}": {"Acc": acc_meters[i].avg, "Loss": loss_meters[i].avg} for i in range(len(classifiers))}
 
     if not training and len(all_predictions) > 0:
-        df = pd.DataFrame(all_predictions, columns=["head","data_idx","vid","prediction","label"])
+        df = pd.DataFrame(all_predictions, columns=["head","data_idx","vid","prediction","label","dataset_idx"])
         results = {}
+
+        # Evaluate per head
         for head_id, g in df.groupby("head"):
             per_video, stats, phases = evaluate_per_video(g)
             results[f"head_{head_id}"] = stats
@@ -379,6 +476,29 @@ def run_one_epoch(
                 f"Prec={v['Macro_Precision_Mean']:.2f}±{v['Macro_Precision_Std']:.2f}, "
                 f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}"
             )
+
+        # Per-dataset evaluation if we have multi-dataset setup
+        if head_to_dataset_map is not None:
+            logger.info("\n=== Evaluation per dataset ===")
+            dataset_results = {}
+            for ds_idx in df['dataset_idx'].unique():
+                ds_df = df[df['dataset_idx'] == ds_idx]
+                # Find heads assigned to this dataset
+                assigned_heads = [h for h, d in enumerate(head_to_dataset_map) if d == ds_idx]
+
+                logger.info(f"\nDataset {ds_idx} (Heads: {assigned_heads}):")
+                for head_id in assigned_heads:
+                    head_df = ds_df[ds_df['head'] == head_id]
+                    if len(head_df) > 0:
+                        per_video, stats, phases = evaluate_per_video(head_df)
+                        dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
+                        logger.info(
+                            f"  Head {head_id}: "
+                            f"Acc={stats['Accuracy_Mean']:.2f}±{stats['Accuracy_Std']:.2f}, "
+                            f"F1={stats['Macro_F1_Mean']:.2f}±{stats['Macro_F1_Std']:.2f}, "
+                            f"IoU={stats['Macro_IoU_Mean']:.2f}±{stats['Macro_IoU_Std']:.2f}"
+                        )
+            metrics.update(dataset_results)
 
         if save_predictions and folder is not None:
             pred_file = os.path.join(folder, f"predictions_epoch_{epoch}.csv")
@@ -432,6 +552,7 @@ def make_dataloader(
     num_workers=12,
     subset_file=None,
     normalization=None,
+    datasets_weights=None,
 ):
     if normalization is None:
         normalization = DEFAULT_NORMALIZATION
@@ -464,6 +585,7 @@ def make_dataloader(
         num_workers=num_workers,
         drop_last=False,
         subset_file=subset_file,
+        datasets_weights=datasets_weights,
     )
     return data_loader, data_sampler
 
