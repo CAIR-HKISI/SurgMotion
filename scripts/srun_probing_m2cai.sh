@@ -26,7 +26,7 @@ conda deactivate
 conda activate jepa_torch
 
 # FNAME="cholec80-m2cai_vitl_cpt_multi-dataset_example.yaml"
-FNAME="m2cai_vitl_cpt_attentive_64f_updated.yaml"
+FNAME="m2cai_vitl_cpt_attentive_64f.yaml"
 TASK="probing_m2cai"
 python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \

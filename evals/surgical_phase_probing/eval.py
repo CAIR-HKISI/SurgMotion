@@ -8,6 +8,7 @@ import torch.multiprocessing as mp
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import precision_score, recall_score, jaccard_score, f1_score, accuracy_score
+import wandb
 
 from evals.surgical_video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
@@ -213,6 +214,20 @@ def main(args_eval, resume_preempt=False):
     eval_tag = args_eval.get("tag", None)
     num_workers = args_eval.get("num_workers", 12)
 
+    # Bootstrap configuration (default: enabled)
+    use_bootstrap = args_eval.get("use_bootstrap", True)
+    n_bootstrap = args_eval.get("n_bootstrap", 1000)
+    bootstrap_seed = args_eval.get("bootstrap_seed", None)
+
+    # wandb configuration
+    wandb_config = args_eval.get("wandb", {})
+    wandb_project = wandb_config.get("project", "nsjepa-surgical-probing")
+    wandb_entity = wandb_config.get("entity", None)
+    wandb_name = wandb_config.get("name", None)
+    wandb_tags = wandb_config.get("tags", [])
+    wandb_group = wandb_config.get("group", None)
+    wandb_notes = wandb_config.get("notes", None)
+
     args_pretrain = args_eval.get("model_kwargs")
     checkpoint = args_pretrain.get("checkpoint")
     module_name = args_pretrain.get("module_name")
@@ -270,6 +285,37 @@ def main(args_eval, resume_preempt=False):
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     world_size, rank = init_distributed()
+
+    # Initialize wandb (only on rank 0)
+    if rank == 0:
+        # Prepare config dict for wandb
+        wandb_run_config = {
+            "eval_name": args_eval.get("eval_name"),
+            "tag": eval_tag,
+            "num_workers": num_workers,
+            "batch_size": batch_size,
+            "num_epochs": num_epochs,
+            "use_bfloat16": use_bfloat16,
+            "num_probe_blocks": num_probe_blocks,
+            "num_heads": num_heads,
+            "frames_per_clip": frames_per_clip,
+            "resolution": resolution,
+            "num_classes": num_classes_list,
+            "use_bootstrap": use_bootstrap,
+            "n_bootstrap": n_bootstrap if use_bootstrap else None,
+        }
+
+        wandb.init(
+            project=wandb_project,
+            entity=wandb_entity,
+            name=wandb_name,
+            config=wandb_run_config,
+            tags=wandb_tags,
+            group=wandb_group,
+            notes=wandb_notes,
+            resume="allow"
+        )
+        logger.info(f"wandb initialized: {wandb.run.url}")
 
     # checkpoint 路径
     folder = os.path.join(pretrain_folder, "video_classification_frozen/")
@@ -410,6 +456,7 @@ def main(args_eval, resume_preempt=False):
                 num_classes=num_classes,
                 epoch=epoch,
                 head_to_dataset_map=head_to_dataset_map,
+                rank=rank,
             )
         else:
             train_metrics = None
@@ -430,6 +477,10 @@ def main(args_eval, resume_preempt=False):
             save_predictions=True,
             folder=folder,
             head_to_dataset_map=head_to_dataset_map,
+            use_bootstrap=use_bootstrap,
+            n_bootstrap=n_bootstrap,
+            bootstrap_seed=bootstrap_seed,
+            rank=rank,
         )
 
         logger.info(f"Epoch {epoch+1}: train={train_metrics} val={val_metrics}")
@@ -440,6 +491,10 @@ def main(args_eval, resume_preempt=False):
             return
 
         save_checkpoint(epoch + 1)
+
+    # Finish wandb run (only on rank 0)
+    if rank == 0:
+        wandb.finish()
 
     if dist.is_initialized():
         dist.destroy_process_group()
@@ -452,7 +507,8 @@ def run_one_epoch(
     device, training, encoder, classifiers, scaler, optimizer,
     scheduler, wd_scheduler, data_loader, use_bfloat16, num_classes,
     epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20,
-    head_to_dataset_map=None
+    head_to_dataset_map=None, use_bootstrap=False, n_bootstrap=1000, bootstrap_seed=None,
+    rank=0
 ):
     for c in classifiers:
         c.train(mode=training)
@@ -581,6 +637,15 @@ def run_one_epoch(
                     + " ".join([f"Head{h}: Acc={am.avg:.2f}%, Loss={lm.avg:.4f}"
                                 for h, (am, lm) in enumerate(zip(acc_meters, loss_meters))])
                 )
+
+                # Log training metrics to wandb at log_interval (only on rank 0)
+                if rank == 0:
+                    global_step = epoch * len(data_loader) + itr
+                    wandb_metrics = {}
+                    for h, (am, lm) in enumerate(zip(acc_meters, loss_meters)):
+                        wandb_metrics[f"train/head_{h}/Acc"] = am.avg
+                        wandb_metrics[f"train/head_{h}/Loss"] = lm.avg
+                    wandb.log(wandb_metrics, step=global_step)
             else:
                 logger.info(
                     f"[Val][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
@@ -595,8 +660,36 @@ def run_one_epoch(
 
         # Evaluate per head
         for head_id, g in df.groupby("head"):
-            per_video, stats, phases = evaluate_per_video(g)
+            per_video, stats, phases = evaluate_per_video(
+                g,
+                use_bootstrap=use_bootstrap,
+                n_bootstrap=n_bootstrap,
+                random_seed=bootstrap_seed
+            )
             results[f"head_{head_id}"] = stats
+
+            # Log to wandb (only on rank 0)
+            if rank == 0:
+                wandb_metrics = {
+                    f"val/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
+                    f"val/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
+                    f"val/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
+                    f"val/head_{head_id}/Macro_Precision": stats['Macro_Precision_Mean'],
+                    f"val/head_{head_id}/Macro_Recall": stats['Macro_Recall_Mean'],
+                    f"val/head_{head_id}/Edit_Distance": stats['Edit_Distance_Mean'],
+                }
+
+                # Add uncertainty metrics if bootstrap was used
+                if use_bootstrap:
+                    wandb_metrics.update({
+                        f"val/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
+                        f"val/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
+                        f"val/head_{head_id}/Macro_IoU_Std": stats['Macro_IoU_Std'],
+                        f"val/head_{head_id}/Accuracy_CI_Width": stats['Accuracy_CI_Upper'] - stats['Accuracy_CI_Lower'],
+                        f"val/head_{head_id}/Macro_F1_CI_Width": stats['Macro_F1_CI_Upper'] - stats['Macro_F1_CI_Lower'],
+                    })
+
+                wandb.log(wandb_metrics, step=epoch)
 
         logger.info("=== Evaluation per head ===")
         for k, v in results.items():
@@ -635,8 +728,29 @@ def run_one_epoch(
                 for head_id in assigned_heads:
                     head_df = ds_df[ds_df['head'] == head_id]
                     if len(head_df) > 0:
-                        per_video, stats, phases = evaluate_per_video(head_df)
+                        per_video, stats, phases = evaluate_per_video(
+                            head_df,
+                            use_bootstrap=use_bootstrap,
+                            n_bootstrap=n_bootstrap,
+                            random_seed=bootstrap_seed
+                        )
                         dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
+
+                        # Log to wandb (only on rank 0)
+                        if rank == 0:
+                            wandb_metrics = {
+                                f"val/dataset_{ds_idx}/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
+                                f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
+                                f"val/dataset_{ds_idx}/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
+                                f"val/dataset_{ds_idx}/head_{head_id}/Edit_Distance": stats['Edit_Distance_Mean'],
+                            }
+                            if use_bootstrap:
+                                wandb_metrics.update({
+                                    f"val/dataset_{ds_idx}/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
+                                    f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
+                                })
+                            wandb.log(wandb_metrics, step=epoch)
+
                         logger.info(
                             f"  Head {head_id}: "
                             f"Acc={stats['Accuracy_Mean']:.2f}±{stats['Accuracy_Std']:.2f}, "
