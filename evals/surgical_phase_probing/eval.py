@@ -30,6 +30,38 @@ torch.backends.cudnn.benchmark = True
 
 
 # ----------------------
+# Edit Distance Calculation
+# ----------------------
+def levenshtein_distance(seq1, seq2):
+    """Calculate Levenshtein (edit) distance between two sequences."""
+    m, n = len(seq1), len(seq2)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+
+    for i in range(m + 1):
+        dp[i][0] = i
+    for j in range(n + 1):
+        dp[0][j] = j
+
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if seq1[i-1] == seq2[j-1]:
+                dp[i][j] = dp[i-1][j-1]
+            else:
+                dp[i][j] = 1 + min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
+
+    return dp[m][n]
+
+
+def normalized_levenshtein_distance(seq1, seq2):
+    """Calculate normalized Levenshtein distance (0-100 scale)."""
+    edit_dist = levenshtein_distance(seq1, seq2)
+    max_len = max(len(seq1), len(seq2))
+    if max_len == 0:
+        return 0.0
+    return (edit_dist / max_len) * 100
+
+
+# ----------------------
 # 视频级评估函数
 # ----------------------
 def evaluate_per_video(predictions_df, phases=None):
@@ -38,8 +70,27 @@ def evaluate_per_video(predictions_df, phases=None):
         classes = np.unique(all_labels)
         phases = [str(c) for c in classes]
 
+    # Sort predictions by video and temporal index to ensure correct ordering
+    predictions_df = predictions_df.sort_values(['vid', 'data_idx'])
+
+    # Compute overall (across all videos) per-class metrics
+    all_gt = predictions_df['label'].values
+    all_pred = predictions_df['prediction'].values
+
+    # Get unique classes present in the data
+    unique_classes = np.unique(np.concatenate([all_gt, all_pred]))
+
+    # Per-class metrics (using None for labels to get per-class results)
+    per_class_precision = precision_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_recall = recall_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_f1 = f1_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_iou = jaccard_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+
+    # Per-video metrics
     per_video = []
     for vid, subdf in predictions_df.groupby('vid'):
+        # Ensure temporal ordering within each video
+        subdf = subdf.sort_values('data_idx')
         gt = subdf['label'].values
         pred = subdf['prediction'].values
 
@@ -50,6 +101,9 @@ def evaluate_per_video(predictions_df, phases=None):
         macro_f1 = f1_score(gt, pred, average='macro', zero_division=0) * 100
         n_samples = len(gt)
 
+        # Calculate edit distance (temporal segmentation metric)
+        edit_dist = normalized_levenshtein_distance(gt.tolist(), pred.tolist())
+
         per_video.append({
             "Video": vid,
             "Num_Samples": n_samples,
@@ -57,15 +111,28 @@ def evaluate_per_video(predictions_df, phases=None):
             "Macro_Precision": macro_prec,
             "Macro_Recall": macro_rec,
             "Macro_IoU": macro_iou,
-            "Macro_F1": macro_f1
+            "Macro_F1": macro_f1,
+            "Edit_Distance": edit_dist
         })
 
-    metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1"]
+    # Aggregate stats across videos
+    metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1", "Edit_Distance"]
     stats = {}
     for m in metrics:
         vals = [v[m] for v in per_video]
         stats[f"{m}_Mean"] = np.mean(vals)
         stats[f"{m}_Std"] = np.std(vals)
+
+    # Add per-class metrics to stats
+    per_class_metrics = {}
+    for i, cls in enumerate(unique_classes):
+        per_class_metrics[f"Phase_{cls}"] = {
+            "Precision": per_class_precision[i],
+            "Recall": per_class_recall[i],
+            "F1": per_class_f1[i],
+            "IoU": per_class_iou[i]
+        }
+    stats["per_class"] = per_class_metrics
 
     return per_video, stats, phases
 
@@ -474,8 +541,21 @@ def run_one_epoch(
                 f"F1={v['Macro_F1_Mean']:.2f}±{v['Macro_F1_Std']:.2f}, "
                 f"IoU={v['Macro_IoU_Mean']:.2f}±{v['Macro_IoU_Std']:.2f}, "
                 f"Prec={v['Macro_Precision_Mean']:.2f}±{v['Macro_Precision_Std']:.2f}, "
-                f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}"
+                f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}, "
+                f"Edit={v['Edit_Distance_Mean']:.2f}±{v['Edit_Distance_Std']:.2f}"
             )
+
+            # Log per-class metrics
+            if "per_class" in v:
+                logger.info(f"  Per-class metrics for {k}:")
+                for phase_name, phase_metrics in v["per_class"].items():
+                    logger.info(
+                        f"    {phase_name}: "
+                        f"Prec={phase_metrics['Precision']:.2f}%, "
+                        f"Rec={phase_metrics['Recall']:.2f}%, "
+                        f"F1={phase_metrics['F1']:.2f}%, "
+                        f"IoU={phase_metrics['IoU']:.2f}%"
+                    )
 
         # Per-dataset evaluation if we have multi-dataset setup
         if head_to_dataset_map is not None:
@@ -496,8 +576,21 @@ def run_one_epoch(
                             f"  Head {head_id}: "
                             f"Acc={stats['Accuracy_Mean']:.2f}±{stats['Accuracy_Std']:.2f}, "
                             f"F1={stats['Macro_F1_Mean']:.2f}±{stats['Macro_F1_Std']:.2f}, "
-                            f"IoU={stats['Macro_IoU_Mean']:.2f}±{stats['Macro_IoU_Std']:.2f}"
+                            f"IoU={stats['Macro_IoU_Mean']:.2f}±{stats['Macro_IoU_Std']:.2f}, "
+                            f"Edit={stats['Edit_Distance_Mean']:.2f}±{stats['Edit_Distance_Std']:.2f}"
                         )
+
+                        # Log per-class metrics for this dataset
+                        if "per_class" in stats:
+                            logger.info(f"    Per-class metrics (Dataset {ds_idx}, Head {head_id}):")
+                            for phase_name, phase_metrics in stats["per_class"].items():
+                                logger.info(
+                                    f"      {phase_name}: "
+                                    f"Prec={phase_metrics['Precision']:.2f}%, "
+                                    f"Rec={phase_metrics['Recall']:.2f}%, "
+                                    f"F1={phase_metrics['F1']:.2f}%, "
+                                    f"IoU={phase_metrics['IoU']:.2f}%"
+                                )
             metrics.update(dataset_results)
 
         if save_predictions and folder is not None:
