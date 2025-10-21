@@ -214,6 +214,10 @@ def main(args_eval, resume_preempt=False):
     eval_tag = args_eval.get("tag", None)
     num_workers = args_eval.get("num_workers", 12)
 
+    # Quick run / debug mode configuration
+    quick_run = args_eval.get("quick_run", False)
+    quick_run_num_videos = args_eval.get("quick_run_num_videos", 2)
+
     # Bootstrap configuration (default: enabled)
     use_bootstrap = args_eval.get("use_bootstrap", True)
     n_bootstrap = args_eval.get("n_bootstrap", 1000)
@@ -286,6 +290,38 @@ def main(args_eval, resume_preempt=False):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     world_size, rank = init_distributed()
 
+    # Quick run mode: create subset CSV files (only on rank 0)
+    if quick_run and rank == 0:
+        logger.info(f"Quick run mode enabled: using {quick_run_num_videos} video(s)")
+
+        # Create subset for training data
+        train_data_path_subset = []
+        for path in train_data_path:
+            if path.endswith('.csv'):
+                subset_path = create_quick_run_subset(path, num_videos=quick_run_num_videos)
+                train_data_path_subset.append(subset_path)
+            else:
+                logger.warning(f"Quick run mode only supports CSV files, skipping: {path}")
+                train_data_path_subset.append(path)
+
+        # Create subset for validation data
+        val_data_path_subset = []
+        for path in val_data_path:
+            if path.endswith('.csv'):
+                subset_path = create_quick_run_subset(path, num_videos=quick_run_num_videos)
+                val_data_path_subset.append(subset_path)
+            else:
+                logger.warning(f"Quick run mode only supports CSV files, skipping: {path}")
+                val_data_path_subset.append(path)
+
+        # Use subset paths
+        train_data_path = train_data_path_subset
+        val_data_path = val_data_path_subset
+
+    # Sync across ranks if using distributed training
+    if dist.is_initialized():
+        dist.barrier()
+
     # Initialize wandb (only on rank 0)
     if rank == 0:
         # Prepare config dict for wandb
@@ -303,6 +339,8 @@ def main(args_eval, resume_preempt=False):
             "num_classes": num_classes_list,
             "use_bootstrap": use_bootstrap,
             "n_bootstrap": n_bootstrap if use_bootstrap else None,
+            "quick_run": quick_run,
+            "quick_run_num_videos": quick_run_num_videos if quick_run else None,
         }
 
         wandb.init(
@@ -481,6 +519,7 @@ def main(args_eval, resume_preempt=False):
             n_bootstrap=n_bootstrap,
             bootstrap_seed=bootstrap_seed,
             rank=rank,
+            train_loader_len=len(train_loader),
         )
 
         logger.info(f"Epoch {epoch+1}: train={train_metrics} val={val_metrics}")
@@ -508,7 +547,7 @@ def run_one_epoch(
     scheduler, wd_scheduler, data_loader, use_bfloat16, num_classes,
     epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20,
     head_to_dataset_map=None, use_bootstrap=False, n_bootstrap=1000, bootstrap_seed=None,
-    rank=0
+    rank=0, train_loader_len=None
 ):
     for c in classifiers:
         c.train(mode=training)
@@ -658,6 +697,10 @@ def run_one_epoch(
         df = pd.DataFrame(all_predictions, columns=["head","data_idx","vid","prediction","label","dataset_idx"])
         results = {}
 
+        # Calculate global step for validation logging
+        # Use the step at the END of the epoch (after all training steps)
+        global_step = (epoch + 1) * train_loader_len
+
         # Evaluate per head
         for head_id, g in df.groupby("head"):
             per_video, stats, phases = evaluate_per_video(
@@ -689,7 +732,7 @@ def run_one_epoch(
                         f"val/head_{head_id}/Macro_F1_CI_Width": stats['Macro_F1_CI_Upper'] - stats['Macro_F1_CI_Lower'],
                     })
 
-                wandb.log(wandb_metrics, step=epoch)
+                wandb.log(wandb_metrics, step=global_step)
 
         logger.info("=== Evaluation per head ===")
         for k, v in results.items():
@@ -749,7 +792,7 @@ def run_one_epoch(
                                     f"val/dataset_{ds_idx}/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
                                     f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
                                 })
-                            wandb.log(wandb_metrics, step=epoch)
+                            wandb.log(wandb_metrics, step=global_step)
 
                         logger.info(
                             f"  Head {head_id}: "
@@ -800,6 +843,58 @@ def load_checkpoint(device, r_path, encoder, classifiers, opt, scaler, val_only=
         if s is not None and state is not None:
             s.load_state_dict(state)
     return encoder, classifiers, opt, scaler, epoch
+
+
+# ----------------------
+# Quick run / debug utilities
+# ----------------------
+def create_quick_run_subset(csv_path, num_videos=1, output_dir=None):
+    """
+    Create a subset CSV file with only N videos for quick debugging runs.
+
+    Args:
+        csv_path: Path to original CSV file
+        num_videos: Number of videos to include in subset
+        output_dir: Directory to save subset CSV (default: same as original)
+
+    Returns:
+        Path to subset CSV file
+    """
+    import pandas as pd
+    import os
+
+    df = pd.read_csv(csv_path)
+
+    # Get unique video IDs (case_id column)
+    unique_videos = df['case_id'].unique()
+
+    if len(unique_videos) < num_videos:
+        logger.warning(
+            f"Requested {num_videos} videos but only {len(unique_videos)} available. "
+            f"Using all {len(unique_videos)} videos."
+        )
+        num_videos = len(unique_videos)
+
+    # Select first N videos
+    selected_videos = unique_videos[:num_videos]
+    subset_df = df[df['case_id'].isin(selected_videos)]
+
+    # Create output path
+    if output_dir is None:
+        output_dir = os.path.dirname(csv_path)
+
+    basename = os.path.basename(csv_path)
+    name_without_ext = os.path.splitext(basename)[0]
+    subset_path = os.path.join(f"{name_without_ext}_quick_{num_videos}vid.csv")
+
+    # Save subset
+    subset_df.to_csv(subset_path, index=False)
+    logger.info(
+        f"Created quick run subset: {subset_path} "
+        f"({len(subset_df)} samples from {num_videos} video(s))"
+    )
+
+    return subset_path
 
 
 # ----------------------
