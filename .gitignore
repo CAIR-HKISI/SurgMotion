@@ -38,11 +38,7 @@ logs3
 data_process/pitvis_clips_clean
 logs4
 logs5
-run_probing.sh
-run_cpt.sh
-run_training.sh
 logs6
 logs8
-./run_*.sh
 logs7
 logs9
