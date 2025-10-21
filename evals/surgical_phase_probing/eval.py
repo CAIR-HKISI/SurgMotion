@@ -324,10 +324,20 @@ def main(args_eval, resume_preempt=False):
 
     # Initialize wandb (only on rank 0)
     if rank == 0:
+        # Extract model name (parent directory of checkpoint) for logging
+        if checkpoint:
+            checkpoint_dir = os.path.dirname(checkpoint)
+            model_name = os.path.basename(checkpoint_dir)
+        else:
+            model_name = "unknown"
+
         # Prepare config dict for wandb
         wandb_run_config = {
             "eval_name": args_eval.get("eval_name"),
             "tag": eval_tag,
+            "dataset": args_eval.get("dataset", "unknown"),  # Dataset name for easy identification
+            "model": model_name,  # Model/checkpoint directory name
+            "checkpoint_path": checkpoint,  # Full checkpoint path
             "num_workers": num_workers,
             "batch_size": batch_size,
             "num_epochs": num_epochs,
@@ -757,6 +767,50 @@ def run_one_epoch(
                         f"F1={phase_metrics['F1']:.2f}%, "
                         f"IoU={phase_metrics['IoU']:.2f}%"
                     )
+
+        # Find best head by Macro F1
+        best_head_name = max(results.items(), key=lambda x: x[1]['Macro_F1_Mean'])[0]
+        best_head_stats = results[best_head_name]
+
+        logger.info("\n" + "="*70)
+        logger.info(f"BEST HEAD: {best_head_name} (Macro_F1={best_head_stats['Macro_F1_Mean']:.2f})")
+        logger.info("="*70)
+        logger.info(
+            f"Acc={best_head_stats['Accuracy_Mean']:.2f}±{best_head_stats['Accuracy_Std']:.2f}, "
+            f"F1={best_head_stats['Macro_F1_Mean']:.2f}±{best_head_stats['Macro_F1_Std']:.2f}, "
+            f"IoU={best_head_stats['Macro_IoU_Mean']:.2f}±{best_head_stats['Macro_IoU_Std']:.2f}, "
+            f"Prec={best_head_stats['Macro_Precision_Mean']:.2f}±{best_head_stats['Macro_Precision_Std']:.2f}, "
+            f"Rec={best_head_stats['Macro_Recall_Mean']:.2f}±{best_head_stats['Macro_Recall_Std']:.2f}, "
+            f"Edit={best_head_stats['Edit_Distance_Mean']:.2f}±{best_head_stats['Edit_Distance_Std']:.2f}"
+        )
+        logger.info("="*70)
+
+        # Log best head to wandb (only on rank 0)
+        if rank == 0:
+            wandb_best_metrics = {
+                f"val/best_head/Accuracy": best_head_stats['Accuracy_Mean'],
+                f"val/best_head/Macro_F1": best_head_stats['Macro_F1_Mean'],
+                f"val/best_head/Macro_IoU": best_head_stats['Macro_IoU_Mean'],
+                f"val/best_head/Macro_Precision": best_head_stats['Macro_Precision_Mean'],
+                f"val/best_head/Macro_Recall": best_head_stats['Macro_Recall_Mean'],
+                f"val/best_head/Edit_Distance": best_head_stats['Edit_Distance_Mean'],
+            }
+
+            # Add uncertainty metrics if bootstrap was used
+            if use_bootstrap:
+                wandb_best_metrics.update({
+                    f"val/best_head/Accuracy_Std": best_head_stats['Accuracy_Std'],
+                    f"val/best_head/Macro_F1_Std": best_head_stats['Macro_F1_Std'],
+                    f"val/best_head/Macro_IoU_Std": best_head_stats['Macro_IoU_Std'],
+                    f"val/best_head/Accuracy_CI_Width": best_head_stats['Accuracy_CI_Upper'] - best_head_stats['Accuracy_CI_Lower'],
+                    f"val/best_head/Macro_F1_CI_Width": best_head_stats['Macro_F1_CI_Upper'] - best_head_stats['Macro_F1_CI_Lower'],
+                })
+
+            wandb.log(wandb_best_metrics, step=global_step)
+
+            # Also log which head was best (extract head number from name like "head_5")
+            best_head_id = int(best_head_name.split('_')[1])
+            wandb.log({"val/best_head_id": best_head_id}, step=global_step)
 
         # Per-dataset evaluation if we have multi-dataset setup
         if head_to_dataset_map is not None:

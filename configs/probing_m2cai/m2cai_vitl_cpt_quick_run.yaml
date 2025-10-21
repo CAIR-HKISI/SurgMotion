@@ -1,11 +1,12 @@
 cpus_per_task: 2
 eval_name: surgical_phase_probing
+dataset: m2cai16  # Dataset name for wandb logging
 folder: logs/cpt_m2cai/m2cai_vitl16-256px-64f_quick-debug
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
-num_workers: 4  # Reduced for quick run
-resume_checkpoint: false  # Don't resume for quick debugging
+num_workers: 8  
+resume_checkpoint: true
 tag: m2cai-probing-quick
 tasks_per_node: 1
 
@@ -21,7 +22,7 @@ bootstrap_seed: 42
 # wandb configuration
 wandb:
   project: nsjepa-surgical-probing-debug
-  entity: null
+  entity: nsjepa
   name: quick-debug-run
   tags:
     - m2cai
@@ -32,8 +33,8 @@ wandb:
 
 experiment:
   classifier:
-    num_heads: 4  # Reduced number of heads for quick testing
-    num_probe_blocks: 2  # Reduced probe blocks
+    num_heads: 16
+    num_probe_blocks: 4
   data:
     dataset_type: surgical_videodataset
 
@@ -54,7 +55,7 @@ experiment:
     resolution: 256
 
   optimization:
-    batch_size: 2  # Small batch size for quick runs
+    batch_size: 8 
     multihead_kwargs:
     # Only 4 heads for quick testing
     - final_lr: 0.0
@@ -81,7 +82,7 @@ experiment:
       start_lr: 0.0003
       warmup: 0.0
       weight_decay: 0.1
-    num_epochs: 1  # Just 1 epoch for quick testing
+    num_epochs: 1
     use_bfloat16: true
     use_pos_embed: false
 
