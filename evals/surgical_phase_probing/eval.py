@@ -11,6 +11,7 @@ from sklearn.metrics import precision_score, recall_score, jaccard_score, f1_sco
 
 from evals.surgical_video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
+from evals.utils.bootstrap import bootstrap_per_video_metrics, print_bootstrap_results
 from src.datasets.data_manager import init_data
 from src.models.attentive_pooler import AttentiveClassifier
 from src.utils.checkpoint_loader import robust_checkpoint_loader
@@ -91,7 +92,22 @@ def segmental_edit_distance(seq1, seq2):
 # ----------------------
 # 视频级评估函数
 # ----------------------
-def evaluate_per_video(predictions_df, phases=None):
+def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None):
+    """
+    Evaluate per-video metrics with optional bootstrap uncertainty estimation.
+
+    Args:
+        predictions_df: DataFrame with columns [data_idx, vid, prediction, label]
+        phases: List of phase names (optional)
+        use_bootstrap: If True, perform bootstrap resampling for uncertainty estimation
+        n_bootstrap: Number of bootstrap iterations (default: 1000)
+        random_seed: Random seed for reproducibility (default: None)
+
+    Returns:
+        per_video: List of per-video metrics
+        stats: Aggregated statistics (with bootstrap uncertainty if use_bootstrap=True)
+        phases: List of phase names
+    """
     if phases is None:
         all_labels = np.concatenate([predictions_df['label'].values, predictions_df['prediction'].values])
         classes = np.unique(all_labels)
@@ -145,10 +161,32 @@ def evaluate_per_video(predictions_df, phases=None):
     # Aggregate stats across videos
     metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1", "Edit_Distance"]
     stats = {}
-    for m in metrics:
-        vals = [v[m] for v in per_video]
-        stats[f"{m}_Mean"] = np.mean(vals)
-        stats[f"{m}_Std"] = np.std(vals)
+
+    if use_bootstrap:
+        # Perform bootstrap resampling for uncertainty estimation
+        logger.info(f"Performing bootstrap with {n_bootstrap} iterations...")
+        bootstrap_results = bootstrap_per_video_metrics(
+            per_video_results=per_video,
+            metric_keys=metrics,
+            n_bootstrap=n_bootstrap,
+            random_seed=random_seed
+        )
+
+        # Store bootstrap results
+        for m in metrics:
+            stats[f"{m}_Mean"] = bootstrap_results['mean'][m]
+            stats[f"{m}_Std"] = bootstrap_results['std'][m]
+            stats[f"{m}_CI_Lower"] = bootstrap_results['ci_lower'][m]
+            stats[f"{m}_CI_Upper"] = bootstrap_results['ci_upper'][m]
+
+        # Print bootstrap results
+        print_bootstrap_results(bootstrap_results, metric_keys=metrics)
+    else:
+        # Standard aggregation (simple mean and std)
+        for m in metrics:
+            vals = [v[m] for v in per_video]
+            stats[f"{m}_Mean"] = np.mean(vals)
+            stats[f"{m}_Std"] = np.std(vals)
 
     # Add per-class metrics to stats
     per_class_metrics = {}

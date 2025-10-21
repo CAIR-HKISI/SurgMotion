@@ -42,3 +42,5 @@ logs6
 logs8
 logs7
 logs9
+
+SLURM_Logs/*
