@@ -32,6 +32,23 @@ torch.backends.cudnn.benchmark = True
 # ----------------------
 # Edit Distance Calculation
 # ----------------------
+def compress_segments(sequence):
+    """
+    Compress consecutive repeated labels into segments.
+    Example: [0, 0, 0, 1, 1, 1, 2] -> [0, 1, 2]
+             [0, 1, 0, 1, 0] -> [0, 1, 0, 1, 0]
+    """
+    if len(sequence) == 0:
+        return []
+
+    segments = [sequence[0]]
+    for i in range(1, len(sequence)):
+        if sequence[i] != sequence[i-1]:
+            segments.append(sequence[i])
+
+    return segments
+
+
 def levenshtein_distance(seq1, seq2):
     """Calculate Levenshtein (edit) distance between two sequences."""
     m, n = len(seq1), len(seq2)
@@ -52,12 +69,22 @@ def levenshtein_distance(seq1, seq2):
     return dp[m][n]
 
 
-def normalized_levenshtein_distance(seq1, seq2):
-    """Calculate normalized Levenshtein distance (0-100 scale)."""
-    edit_dist = levenshtein_distance(seq1, seq2)
-    max_len = max(len(seq1), len(seq2))
+def segmental_edit_distance(seq1, seq2):
+    """
+    Calculate edit distance on compressed segments (not frame-level).
+    Returns normalized edit score (0-100 scale).
+    """
+    # Compress sequences to segments
+    segments1 = compress_segments(seq1)
+    segments2 = compress_segments(seq2)
+
+    # Calculate edit distance on segments
+    edit_dist = levenshtein_distance(segments1, segments2)
+    max_len = max(len(segments1), len(segments2))
+
     if max_len == 0:
         return 0.0
+
     return (edit_dist / max_len) * 100
 
 
@@ -101,8 +128,8 @@ def evaluate_per_video(predictions_df, phases=None):
         macro_f1 = f1_score(gt, pred, average='macro', zero_division=0) * 100
         n_samples = len(gt)
 
-        # Calculate edit distance (temporal segmentation metric)
-        edit_dist = normalized_levenshtein_distance(gt.tolist(), pred.tolist())
+        # Calculate segmental edit distance (temporal segmentation metric)
+        edit_dist = segmental_edit_distance(gt.tolist(), pred.tolist())
 
         per_video.append({
             "Video": vid,
