@@ -408,7 +408,13 @@ def main(args_eval, resume_preempt=False):
             ).to(device)
             for _ in opt_kwargs
         ]
-    classifiers = [DistributedDataParallel(c, static_graph=True) for c in classifiers]
+
+    # Only use DistributedDataParallel if distributed is initialized
+    if dist.is_initialized():
+        classifiers = [DistributedDataParallel(c, static_graph=True) for c in classifiers]
+        logger.info("Wrapped classifiers with DistributedDataParallel")
+    else:
+        logger.info("Running in single-process mode (no DDP wrapping)")
 
     train_loader, train_sampler = make_dataloader(
         dataset_type=dataset_type,

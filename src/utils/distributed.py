@@ -79,14 +79,19 @@ def init_distributed(port=37129, rank_and_world_size=(None, None)):
             world_size, rank = 1, 0
             return world_size, rank
 
+    # Skip distributed initialization if world_size is 1 (single process)
+    if world_size == 1:
+        print(f"Single process mode (world_size=1), skipping distributed initialization")
+        return world_size, rank
+
     # ***关键：优先从环境变量读端口***
     master_port = os.environ.get("MASTER_PORT", str(port))
     os.environ["MASTER_PORT"] = str(master_port)
 
     try:
         dist.init_process_group(
-            backend="nccl", 
-            world_size=world_size, 
+            backend="nccl",
+            world_size=world_size,
             rank=rank
         )
     except Exception as e:
