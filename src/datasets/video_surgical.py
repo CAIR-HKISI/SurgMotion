@@ -168,10 +168,11 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
                     data = pd.read_csv(data_path)
                     
                     # 检查必要的列是否存在
+                    print(f"processing {data_path}")
                     required_columns = ['clip_path', 'label', 'case_id', "Index"]
                     missing_columns = [col for col in required_columns if col not in data.columns]
                     if missing_columns:
-                        raise ValueError(f"CSV文件缺少必要的列: {missing_columns}")
+                        raise ValueError(f"{data_path} CSV文件缺少必要的列: {missing_columns}")
                     
                     # 提取路径
                     samples += list(data['clip_path'].values)
@@ -337,17 +338,20 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
 
         # 加载图像并构建buffer [T, H, W, 3]
         buffer = []
+        target_size = (512, 512)  # 统一分辨率
         for idx in all_indices:
             idx = min(idx, len(frame_paths)-1)
             frame_path = frame_paths[idx]
-            if not os.path.exists(frame_path):
-                raise ValueError(f"图像不存在: {frame_path}")
+            # if not os.path.exists(frame_path):
+            #     raise ValueError(f"图像不存在: {frame_path}")
             try:
                 img = Image.open(frame_path).convert('RGB')
+                img = img.resize(target_size, Image.BICUBIC)
                 buffer.append(np.array(img))
             except Exception:
                 # buffer.append(np.zeros((224, 224, 3), dtype=np.uint8))
                 raise ValueError(f"读取图像失败: {frame_path}")
+        # print(f"loaded buffer shape: {np.array(buffer).shape}")
         return np.array(buffer), clip_indices
 
     def __len__(self):
@@ -355,13 +359,39 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
 
 
 if __name__ == "__main__":
-    # 示例用法，确保frame_step被正确传递
-    bypass="data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv"
-    autolaparo="data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv"
-    pitvis="data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv"
+    # # 示例用法，确保frame_step被正确传递
+    # bypass="data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv"
+    # autolaparo="data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv"
+    # pitvis="data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv"
+
+    alxutue="data/Surge_Frames/AIxsuture/clips_64f/train_dense_64f_detailed.csv"
+    jigasws="data/Surge_Frames/JIGSAWS/clips_64f/train_dense_64f_detailed.csv"
+    autolaparo="data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv"
+    cholec80="data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv"
+    bernbypass70="data/Surge_Frames/BernBypass70/clips_64f/train_dense_64f_detailed.csv"
+    strasbypass70="data/Surge_Frames/StrasBypass70/clips_64f/train_dense_64f_detailed.csv"
+    egosurgery="data/Surge_Frames/EgoSurgery/clips_64f/train_dense_64f_detailed.csv"
+    avos="data/Surge_Frames/AVOS/clips_64f/train_dense_64f_detailed.csv"
+    cataract="data/Surge_Frames/CATARACTS/clips_64f/train_dense_64f_detailed.csv"
+    ophnet2024="data/Surge_Frames/OphNet2024_phase/clips_64f/train_dense_64f_detailed.csv"
+    endofmprivate="data/Surge_Frames/EndoFM_Private/clips_64f/unlabeled_dense_64f_detailed.csv"
+    endofmcolonoscopic="data/Surge_Frames/EndoFM_Colonoscopic/clips_64f/unlabeled_dense_64f_detailed.csv"
+    privatekch="data/Surge_Frames/Private_KCH_Colonscopy_Cut/clips_64f/unlabeled_dense_64f_detailed.csv"
+    privatesysu="data/Surge_Frames/Private_SYSU_Brochiscopy_Cut/clips_64f/unlabeled_dense_64f_detailed.csv"
+    pitvis="data/Surge_Frames/PitVis/clips_64f/train_dense_64f_detailed.csv"
+
+    gynsurg="data/Surge_Frames/GynSurg_Action/clips_64f/train_dense_64f_detailed.csv"
+    pmr50="data/Surge_Frames/PmLR50/clips_64f/train_dense_64f_detailed.csv"
+    polypdiag="data/Surge_Frames/PolypDiag/clips_64f/train_dense_64f_detailed.csv"
+    privatepwh="data/Surge_Frames/Private_PWH_TSS_79/clips_64f/unlabeled_dense_64f_detailed.csv"
+    pumch="data/Surge_Frames/Private_PUMCH/clips_64f/unlabeled_dense_64f_detailed.csv"
+    tss="data/Surge_Frames/Private_HKU-TSS/clips_64f/unlabeled_dense_64f_detailed.csv"
+
     data = SurgicalVideoDataset(
-        data_paths=[pitvis],
-        datasets_weights=[1.0],
+        # data_paths=[alxutue,jigasws,autolaparo,cholec80,bernbypass70,strasbypass70,egosurgery,avos,cataract,ophnet2024,endofmprivate,endofmcolonoscopic,privatekch,privatesysu,pitvis],
+        # datasets_weights=[0.08,0.08,0.04,0.04,0.04,0.04,0.08,0.08,0.08,0.08,0.03,0.03,0.03,0.03,0.13],
+        data_paths=[tss, gynsurg, pmr50,polypdiag,privatepwh,pumch],
+        datasets_weights=[0.04,0.04,0.04,0.04,0.04,0.04],
         frames_per_clip=64,
         fps=None,
         dataset_fpcs=None,
@@ -378,7 +408,7 @@ if __name__ == "__main__":
     print(f"数据集长度: {len(data)}")
     
     # 查看前几个样本的标签格式
-    for i in range(min(20, len(data))):
+    for i in range(1, len(data)):
         item = data[i]
         buffer, label, clip_indices = item
         print(f"样本 {i} 的标签: {label} (格式: [label, case_id, idx])")

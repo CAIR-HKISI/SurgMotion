@@ -96,3 +96,5 @@ python -m evals.main \
   --devices ${DEVICES} \
   --val_only \
   > "${LOG_FILE}" 2>&1 &
+
+

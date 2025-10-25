@@ -438,36 +438,123 @@ if __name__ == "__main__":
     #         window_size=window_size
     #     )
 
-    for window_size in [16, 32, 64, 128]:
-        print(f"###### 处理Cholec80数据集，窗口大小: {window_size}f ######")
-        process_train_and_val(
-            base_data_path="data/Surge_Frames/Cholec80",
-            output_base_path=f"data/Surge_Frames/Cholec80/clips_{window_size}f",
-            window_size=window_size
-        )
+    # for window_size in [16, 32, 64, 128]:
+    #     print(f"###### 处理Cholec80数据集，窗口大小: {window_size}f ######")
+    #     process_train_and_val(
+    #         base_data_path="data/Surge_Frames/Cholec80",
+    #         output_base_path=f"data/Surge_Frames/Cholec80/clips_{window_size}f",
+    #         window_size=window_size
+    #     )
 
 
     # for window_size in [16, 32, 64, 128]:
     #     print(f"###### 处理AutoLaparo数据集，窗口大小: {window_size}f ######")
     #     process_train_and_val(
-    #         base_data_path="data/Surge_Frames/AutoLaparo_v2",
-    #         output_base_path=f"data/Surge_Frames/AutoLaparo_v2/clips_{window_size}f",
+    #         base_data_path="data/Surge_Frames/AutoLaparo",
+    #         output_base_path=f"data/Surge_Frames/AutoLaparo/clips_{window_size}f",
     #         window_size=window_size
     #     )
 
     # for window_size in [16, 32, 64, 128]:
     #     print(f"###### 处理M2CAI2016数据集，窗口大小: {window_size}f ######")
     #     process_train_and_val(
-    #         base_data_path="data/Surge_Frames/M2CAI2016",
-    #         output_base_path=f"data/Surge_Frames/M2CAI2016/clips_{window_size}f",
+    #         base_data_path="data/Surge_Frames/M2CAI16",
+    #         output_base_path=f"data/Surge_Frames/M2CAI16/clips_{window_size}f",
     #         window_size=window_size
     #     )
 
     # for window_size in [16, 32, 64, 128]:
     #     print(f"###### 处理PitVis数据集，窗口大小: {window_size}f ######")
     #     process_train_and_val(
-    #             base_data_path="data/Surge_Frames/Pitvis",
-    #             output_base_path=f"data/Surge_Frames/Pitvis/clips_{window_size}f",
+    #             base_data_path="data/Surge_Frames/PitVis",
+    #             output_base_path=f"data/Surge_Frames/PitVis/clips_{window_size}f",
     #             window_size=window_size
     #         )
 
+    # for window_size in [16, 32, 64, 128]:
+    #     print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+    #     process_train_and_val(
+    #             base_data_path="data/Surge_Frames/EgoSurgery",
+    #             output_base_path=f"data/Surge_Frames/EgoSurgery/clips_{window_size}f",
+    #             window_size=window_size
+    #         )
+
+    # for window_size in [16, 32, 64, 128]:
+    #     print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+    #     process_train_and_val(
+    #             base_data_path="data/Surge_Frames/BernBypass70",
+    #             output_base_path=f"data/Surge_Frames/BernBypass70/clips_{window_size}f",
+    #             window_size=window_size
+    #         )
+
+    # for window_size in [16, 32, 64, 128]:
+    #     print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+    #     process_train_and_val(
+    #             base_data_path="data/Surge_Frames/StrasBypass70",
+    #             output_base_path=f"data/Surge_Frames/StrasBypass70/clips_{window_size}f",
+    #             window_size=window_size
+    #         )
+
+    # for window_size in [16, 32, 64, 128]:
+    #     print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+    #     process_train_and_val(
+    #             base_data_path="data/Surge_Frames/PmLR50",
+    #             output_base_path=f"data/Surge_Frames/PmLR50/clips_{window_size}f",
+    #             window_size=window_size
+    #         )
+
+    # for window_size in [16, 32, 64, 128]:
+    #         print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+    #         process_train_and_val(
+    #                 base_data_path="data/Surge_Frames/OphNet2024_phase",
+    #                 output_base_path=f"data/Surge_Frames/OphNet2024_phase/clips_{window_size}f",
+    #                 window_size=window_size
+    #             )
+
+    # for window_size in [16, 32, 64, 128]:
+    #         print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+    #         process_train_and_val(
+    #                 base_data_path="data/Surge_Frames/PolypDiag",
+    #                 output_base_path=f"data/Surge_Frames/PolypDiag/clips_{window_size}f",
+    #                 window_size=window_size
+                # )
+
+    # for window_size in [16, 32, 64, 128]:
+    #         print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+    #         process_train_and_val(
+    #                 base_data_path="data/Surge_Frames/CATARACTS",
+    #                 output_base_path=f"data/Surge_Frames/CATARACTS/clips_{window_size}f",
+    #                 window_size=window_size
+    #             )
+
+    # for window_size in [16, 32, 64, 128]:
+    #         print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+    #         process_train_and_val(
+    #                 base_data_path="data/Surge_Frames/JIGSAWS",
+    #                 output_base_path=f"data/Surge_Frames/JIGSAWS/clips_{window_size}f",
+    #                 window_size=window_size
+    #             )
+
+    # for window_size in [16, 32, 64, 128]:
+    #         print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+    #         process_train_and_val(
+    #                 base_data_path="data/Surge_Frames/AIxsuture",
+    #                 output_base_path=f"data/Surge_Frames/AIxsuture/clips_{window_size}f",
+    #                 window_size=window_size
+    #             )
+
+    # for window_size in [16, 32, 64, 128]:
+    #         print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+    #         process_train_and_val(
+    #                 base_data_path="data/Surge_Frames/AVOS",
+    #                 output_base_path=f"data/Surge_Frames/AVOS/clips_{window_size}f",
+    #                 window_size=window_size
+    #             )
+
+    for window_size in [64]:
+            print(f"###### 处理EgoSurgery数据集，窗口大小: {window_size}f ######")
+            process_train_and_val(
+                    base_data_path="data/Surge_Frames/GynSurg_Action",
+                    output_base_path=f"data/Surge_Frames/GynSurg_Action/clips_{window_size}f",
+                    window_size=window_size
+                )

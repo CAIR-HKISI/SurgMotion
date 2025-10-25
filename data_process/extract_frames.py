@@ -7,53 +7,83 @@ from pathlib import Path
 def videos_to_imgs(input_path="/Videos/input",
                    output_path="/Videos/output",
                    fps=1,
-                   pattern="*.mp4"):
-    
-    output_path = Path(output_path)
+                   pattern="**/*.mp4"):
+    """
+    Converts videos into individual frames using ffmpeg.
+    Each video will have its own folder under the mirrored structure.
+    """
     input_path = Path(input_path)
+    output_path = Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    output_path.mkdir(exist_ok=True)
-
+    # 匹配符合 pattern 的视频文件（支持递归搜索）
     dirs = list(input_path.glob(pattern))
     dirs.sort()
 
-    for i, vid_path in enumerate(tqdm(dirs)): 
-        file_name = vid_path.stem 
-        out_folder = output_path / file_name.split('-')[0]
-        out_folder.mkdir(exist_ok=True)
+    print(f"🎥 Found {len(dirs)} video(s) under {input_path}")
 
-        # os.system(command) method executes the command (a string) in a subshell; here, the command converts each video into images, by filtering
-        # os.system(f'ffmpeg -i {vid_path} -vf "fps={fps}" {out_folder/file_name}_%08d.jpg') 
-        os.system(f'ffmpeg -i "{vid_path}" -vf "fps={fps},scale=\'if(gte(iw,ih),512,-1)\':\'if(gte(ih,iw),512,-1)\':force_original_aspect_ratio=decrease" "{out_folder/file_name}_%08d.jpg"')
-        print("Done extracting: {}".format(i + 1))
+    for i, vid_path in enumerate(tqdm(dirs, desc="Extracting frames")):
+        file_name = vid_path.stem  # 不带扩展名的文件名
+
+        # ✅ 获取相对于输入根目录的路径层次（不含输入根目录本身）
+        rel_path = vid_path.relative_to(input_path).parent
+
+        # ✅ 每个视频一个文件夹，保持上层目录结构
+        out_folder = output_path / rel_path / file_name
+        out_folder.mkdir(parents=True, exist_ok=True)
+
+        # ✅ 输出文件名前缀，例如：00000001.jpg
+        output_pattern = out_folder / f"{file_name}_%08d.jpg"
+
+        # ✅ 调用 ffmpeg 提取帧并缩放
+        ffmpeg_cmd = (
+            f'ffmpeg -y -i "{vid_path}" '
+            f'-vf "fps={fps},scale=\'if(gte(iw,ih),512,-1)\':\'if(gte(ih,iw),512,-1)\':'
+            f'force_original_aspect_ratio=decrease" "{output_pattern}"'
+        )
+        os.system(ffmpeg_cmd)
+
+        print(f"✅ [{i+1}/{len(dirs)}] Done extracting frames from: {vid_path.name}")
+
+    print("🎉 All videos processed successfully.")
+
 
 if __name__ == "__main__":
-    """
-    Parse command line arguments
-    """
     parser = argparse.ArgumentParser(
-        description="Utility to download annotations on DONE videos in MOSaiC ext stack"
+        description="Extract frames from videos (each video gets its own folder)."
     )
     parser.add_argument(
         "--video_path",
         required=True,
         type=str,
-        help="Define input video dir",
+        help="Path to input video directory.",
     )
     parser.add_argument(
         "--output",
         required=True,
         type=str,
-        help="Define output dir to save frames extracted",
+        help="Path to output directory for extracted frames.",
     )
     parser.add_argument(
         "--fps",
         required=False,
         type=int,
         default=1,
-        help="Define fps for frames extraction",
+        help="Frames per second for extraction (default: 1)",
     )
-    arguments = parser.parse_args()
+    parser.add_argument(
+        "--pattern",
+        required=False,
+        type=str,
+        default="*.mp4",
+        help="Glob pattern for locating video files (default: '**/*.mp4'). Example: '*.avi'",
+    )
 
-    videos_to_imgs(input_path=arguments.video_path, output_path=arguments.output, fps=arguments.fps)
+    args = parser.parse_args()
 
+    videos_to_imgs(
+        input_path=args.video_path,
+        output_path=args.output,
+        fps=args.fps,
+        pattern=args.pattern
+    )

@@ -43,6 +43,7 @@ class MaskCollator(object):
                     full_complement=m.get("full_complement", False),
                     pred_full_complement=m.get("pred_full_complement", False),
                     inv_block=m.get("inv_block", False),
+                    mask_last_n_frames=m.get("mask_last_n_frames", None),
                 )
                 self.mask_generators[fpc].append(mask_generator)
 
@@ -93,6 +94,7 @@ class _MaskGenerator(object):
         inv_block=False,
         full_complement=False,
         pred_full_complement=False,
+        mask_last_n_frames=None,
     ):
         super(_MaskGenerator, self).__init__()
         if not isinstance(crop_size, tuple):
@@ -118,6 +120,7 @@ class _MaskGenerator(object):
         self.max_keep = max_keep  # maximum number of patches to keep in context
         self._itr_counter = Value("i", -1)  # collator is shared across worker processes
         self.inv_block = inv_block
+        self.mask_last_n_frames = mask_last_n_frames  # number of last frames to mask (None means disabled)
 
     def step(self):
         i = self._itr_counter
@@ -169,6 +172,69 @@ class _MaskGenerator(object):
         # --
         return mask
 
+    def _sample_last_n_frames_mask(self, n_frames):
+        """
+        Generate mask that randomly masks the last N frames
+        :param n_frames: number of last frames to mask
+        :return: mask tensor of shape (duration, height, width)
+        """
+        mask = torch.ones((self.duration, self.height, self.width), dtype=torch.int32)
+        
+        # Randomly select which of the last N frames to mask
+        if n_frames > 0 and n_frames <= self.duration:
+            # Randomly choose which frames from the last N frames to mask
+            last_frames_start = max(0, self.duration - n_frames)
+            frames_to_mask = torch.randint(last_frames_start, self.duration, (1,)).item()
+            mask[frames_to_mask, :, :] = 0
+        
+        return mask
+
+    def _generate_last_n_frames_masks(self, batch_size, generator):
+        """
+        Generate masks for the last N frames strategy
+        :param batch_size: batch size
+        :param generator: torch generator for reproducibility
+        :return: (encoder_masks, predictor_masks)
+        """
+        collated_masks_pred, collated_masks_enc = [], []
+        
+        for _ in range(batch_size):
+            # Generate mask for last N frames
+            mask_e = self._sample_last_n_frames_mask(self.mask_last_n_frames)
+            mask_e = mask_e.flatten()
+            
+            # Get predictor mask (masked regions) and encoder mask (visible regions)
+            mask_p = torch.argwhere(mask_e == 0).squeeze()
+            mask_e = torch.nonzero(mask_e).squeeze()
+            
+            # Ensure we have valid masks
+            if len(mask_e) == 0:
+                # If all frames are masked, keep at least one frame
+                mask_e = torch.tensor([0], dtype=torch.long)
+                mask_p = torch.tensor([], dtype=torch.long)
+            elif len(mask_p) == 0:
+                # If no frames are masked, mask the last frame
+                last_frame_idx = self.duration * self.height * self.width - 1
+                mask_p = torch.tensor([last_frame_idx], dtype=torch.long)
+                mask_e = torch.tensor([i for i in range(self.duration * self.height * self.width) if i != last_frame_idx], dtype=torch.long)
+            
+            collated_masks_pred.append(mask_p)
+            collated_masks_enc.append(mask_e)
+        
+        # Apply max_keep constraint if specified
+        if self.max_keep is not None:
+            min_keep_enc = min(min(len(cm) for cm in collated_masks_enc), self.max_keep)
+            collated_masks_enc = [cm[:min_keep_enc] for cm in collated_masks_enc]
+        
+        # Collate the masks
+        collated_masks_enc = torch.utils.data.default_collate(collated_masks_enc)
+        collated_masks_pred = torch.utils.data.default_collate(collated_masks_pred)
+        
+        if self.inv_block:
+            return collated_masks_pred, collated_masks_enc  # predict context from block
+        else:
+            return collated_masks_enc, collated_masks_pred
+
     def __call__(self, batch_size):
         """
         Create encoder and predictor masks when collating imgs into a batch
@@ -179,6 +245,11 @@ class _MaskGenerator(object):
         seed = self.step()
         g = torch.Generator()
         g.manual_seed(seed)
+        
+        # Check if we should use the last N frames mask strategy
+        if self.mask_last_n_frames is not None:
+            return self._generate_last_n_frames_masks(batch_size, g)
+        
         p_size = self._sample_block_size(
             generator=g,
             temporal_scale=self.temporal_pred_mask_scale,

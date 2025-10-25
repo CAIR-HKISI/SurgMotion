@@ -52,7 +52,7 @@ def convert_25fps_to_1fps(annotations):
 
 def check_frame_exists(video_name, frame_idx):
     """检查帧文件是否存在"""
-    frame_path = f"data/Surge_Frames/M2CAI2016/frames/{video_name}/{video_name}_{frame_idx:08d}.jpg"
+    frame_path = f"data/Surge_Frames/M2CAI16/frames/{video_name}/{video_name}_{frame_idx:08d}.jpg"
     return os.path.exists(frame_path), frame_path
 
 def process_dataset(split_name, annotation_dir, output_csv):
@@ -117,22 +117,22 @@ def main():
     # 处理训练集
     train_df = process_dataset(
         'train',
-        'data/micai2016/train_dataset',
-        'data/Surge_Frames/M2CAI2016/train_metadata.csv'
+        'data/Landscopy/m2cai16/train_dataset',
+        'data/Surge_Frames/M2CAI16/train_metadata.csv'
     )
     
     # 处理测试集
     test_df = process_dataset(
         'test',
-        'data/micai2016/test_dataset',
-        'data/Surge_Frames/M2CAI2016/test_metadata.csv'
+        'data/Landscopy/m2cai16/test_dataset',
+        'data/Surge_Frames/M2CAI16/test_metadata.csv'
     )
     
     # 处理验证集（使用测试集数据）
     val_df = process_dataset(
         'val',
-        'data/micai2016/test_dataset',
-        'data/Surge_Frames/M2CAI2016/val_metadata.csv'
+        'data/Landscopy/m2cai16/test_dataset',
+        'data/Surge_Frames/M2CAI16/val_metadata.csv'
     )
     
     print("数据集处理完成！")

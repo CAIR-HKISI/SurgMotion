@@ -31,7 +31,7 @@ TEST_VIDEOS = ['02', '06', '12', '13', '24']
 
 def read_annotation_file(video_id):
     """读取单个视频的标注文件"""
-    annotation_path = f"data/pitvits/annotations_{video_id}.csv"
+    annotation_path = f"data/NeuroSurgery/pitvits/26531686/annotations_{video_id}.csv"
     if not os.path.exists(annotation_path):
         print(f"警告: 标注文件 {annotation_path} 不存在")
         return None
@@ -50,7 +50,7 @@ def read_annotation_file(video_id):
 
 def get_frame_path(video_id, frame_index):
     """生成帧文件路径"""
-    return f"data/Surge_Frames/Pitvis/frames/video_{video_id}/video_{video_id}_{frame_index:08d}.jpg"
+    return f"data/Surge_Frames/PitVis/frames/video_{video_id}/video_{video_id}_{frame_index:08d}.jpg"
 
 def process_video_annotations(video_id):
     """处理单个视频的标注数据"""
@@ -82,7 +82,7 @@ def process_video_annotations(video_id):
         
         processed_data.append({
             'index': frame_index,
-            'Hospital': 'pitvis',
+            'DataName': 'PitVis',
             'Year': 2023,
             'Case_Name': f"video_{video_id}",
             'Case_ID': video_id,
@@ -115,7 +115,7 @@ def save_metadata_csv(data, filename):
     df = pd.DataFrame(data)
     
     # 确保输出目录存在
-    output_dir = Path("data/Surge_Frames/Pitvis")
+    output_dir = Path("data/Surge_Frames/PitVis")
     output_dir.mkdir(parents=True, exist_ok=True)
     
     output_path = output_dir / filename
