@@ -176,9 +176,10 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
                     # 提取路径
                     samples += list(data['clip_path'].values)
                     
-                    # 转换label和case_id为int，并拼接成[label, case_id]格式
+                    # Convert label and Index to int, hash case_id to int
+                    # Use hash to convert string case_id to integer for tensor operations
                     combined_labels = [
-                        [int(row['label']), int(row['case_id']), int(row['Index'])] 
+                        [int(row['label']), hash(str(row['case_id'])) % (2**31), int(row['Index'])]
                         for _, row in data.iterrows()
                     ]
                     labels += combined_labels
@@ -257,8 +258,10 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
         buffer = split_into_clips(buffer)
         if self.transform is not None:
             buffer = [self.transform(clip) for clip in buffer]
-        
-        return buffer, label, clip_indices  # 返回列表形式的clip，与原代码一致
+
+        # Add dataset_idx to label tuple
+        label_with_dataset = label + [dataset_idx]
+        return buffer, label_with_dataset, clip_indices  # 返回列表形式的clip，与原代码一致
 
     def get_item_image(self, index):
         sample = self.samples[index]
@@ -278,8 +281,10 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
             buffer = self.shared_transform(buffer)
         if self.transform is not None:
             buffer = [self.transform(buffer)]
-        
-        return buffer, label, clip_indices
+
+        # Add dataset_idx to label tuple
+        label_with_dataset = label + [dataset_idx]
+        return buffer, label_with_dataset, clip_indices
 
     def load_frames_from_txt(self, txt_path, fpc):
         """从txt文件加载帧并保持与原视频加载一致的buffer结构"""
