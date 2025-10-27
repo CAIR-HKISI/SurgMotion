@@ -39,9 +39,9 @@ conda activate jepa_torch
 
 # 传入运行参数
 TASK=multidata_cpt     # 例如：classification 或 segmentation
-FNAME=cpt_vitl-256px-64f_lr1e-4_epoch-10.yaml    # 配置文件名，例如 config.yaml
+# FNAME=cpt_vitl-256px-64f_lr1e-4_epoch-10.yaml    # 配置文件名，例如 config.yaml
 # FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_neuro.yaml"
-# FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_21-dataset.yaml"
+FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_21-dataset.yaml"
 DEVICES=$CUDA_VISIBLE_DEVICES  # 设备号，例如 0,1
 
 # 时间戳
