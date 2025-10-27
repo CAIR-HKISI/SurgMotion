@@ -8,9 +8,11 @@ import torch.multiprocessing as mp
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import precision_score, recall_score, jaccard_score, f1_score, accuracy_score
+import wandb
 
 from evals.surgical_video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
+from evals.utils.bootstrap import bootstrap_per_video_metrics, print_bootstrap_results
 from src.datasets.data_manager import init_data
 from src.models.attentive_pooler import AttentiveClassifier
 from src.utils.checkpoint_loader import robust_checkpoint_loader
@@ -30,16 +32,109 @@ torch.backends.cudnn.benchmark = True
 
 
 # ----------------------
+# Edit Distance Calculation
+# ----------------------
+def compress_segments(sequence):
+    """
+    Compress consecutive repeated labels into segments.
+    Example: [0, 0, 0, 1, 1, 1, 2] -> [0, 1, 2]
+             [0, 1, 0, 1, 0] -> [0, 1, 0, 1, 0]
+    """
+    if len(sequence) == 0:
+        return []
+
+    segments = [sequence[0]]
+    for i in range(1, len(sequence)):
+        if sequence[i] != sequence[i-1]:
+            segments.append(sequence[i])
+
+    return segments
+
+
+def levenshtein_distance(seq1, seq2):
+    """Calculate Levenshtein (edit) distance between two sequences."""
+    m, n = len(seq1), len(seq2)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+
+    for i in range(m + 1):
+        dp[i][0] = i
+    for j in range(n + 1):
+        dp[0][j] = j
+
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if seq1[i-1] == seq2[j-1]:
+                dp[i][j] = dp[i-1][j-1]
+            else:
+                dp[i][j] = 1 + min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
+
+    return dp[m][n]
+
+
+def segmental_edit_distance(seq1, seq2):
+    """
+    Calculate edit distance on compressed segments (not frame-level).
+    Returns normalized edit score (0-100 scale).
+    """
+    # Compress sequences to segments
+    segments1 = compress_segments(seq1)
+    segments2 = compress_segments(seq2)
+
+    # Calculate edit distance on segments
+    edit_dist = levenshtein_distance(segments1, segments2)
+    max_len = max(len(segments1), len(segments2))
+
+    if max_len == 0:
+        return 0.0
+
+    return (edit_dist / max_len) * 100
+
+
+# ----------------------
 # 视频级评估函数
 # ----------------------
-def evaluate_per_video(predictions_df, phases=None):
+def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None):
+    """
+    Evaluate per-video metrics with optional bootstrap uncertainty estimation.
+
+    Args:
+        predictions_df: DataFrame with columns [data_idx, vid, prediction, label]
+        phases: List of phase names (optional)
+        use_bootstrap: If True, perform bootstrap resampling for uncertainty estimation
+        n_bootstrap: Number of bootstrap iterations (default: 1000)
+        random_seed: Random seed for reproducibility (default: None)
+
+    Returns:
+        per_video: List of per-video metrics
+        stats: Aggregated statistics (with bootstrap uncertainty if use_bootstrap=True)
+        phases: List of phase names
+    """
     if phases is None:
         all_labels = np.concatenate([predictions_df['label'].values, predictions_df['prediction'].values])
         classes = np.unique(all_labels)
         phases = [str(c) for c in classes]
 
+    # Sort predictions by video and temporal index to ensure correct ordering
+    predictions_df = predictions_df.sort_values(['vid', 'data_idx'])
+
+    # Compute overall (across all videos) per-class metrics
+    all_gt = predictions_df['label'].values
+    all_pred = predictions_df['prediction'].values
+
+    # Get unique classes present in the data
+    unique_classes = np.unique(np.concatenate([all_gt, all_pred]))
+
+    # Per-class metrics (using None for labels to get per-class results)
+    per_class_precision = precision_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_recall = recall_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_f1 = f1_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_iou = jaccard_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+
+    # Per-video metrics
     per_video = []
     for vid, subdf in predictions_df.groupby('vid'):
+        # Ensure temporal ordering within each video
+        subdf = subdf.sort_values('data_idx')
         gt = subdf['label'].values
         pred = subdf['prediction'].values
 
@@ -50,6 +145,9 @@ def evaluate_per_video(predictions_df, phases=None):
         macro_f1 = f1_score(gt, pred, average='macro', zero_division=0) * 100
         n_samples = len(gt)
 
+        # Calculate segmental edit distance (temporal segmentation metric)
+        edit_dist = segmental_edit_distance(gt.tolist(), pred.tolist())
+
         per_video.append({
             "Video": vid,
             "Num_Samples": n_samples,
@@ -57,15 +155,50 @@ def evaluate_per_video(predictions_df, phases=None):
             "Macro_Precision": macro_prec,
             "Macro_Recall": macro_rec,
             "Macro_IoU": macro_iou,
-            "Macro_F1": macro_f1
+            "Macro_F1": macro_f1,
+            "Edit_Distance": edit_dist
         })
 
-    metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1"]
+    # Aggregate stats across videos
+    metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1", "Edit_Distance"]
     stats = {}
-    for m in metrics:
-        vals = [v[m] for v in per_video]
-        stats[f"{m}_Mean"] = np.mean(vals)
-        stats[f"{m}_Std"] = np.std(vals)
+
+    if use_bootstrap:
+        # Perform bootstrap resampling for uncertainty estimation
+        logger.info(f"Performing bootstrap with {n_bootstrap} iterations...")
+        bootstrap_results = bootstrap_per_video_metrics(
+            per_video_results=per_video,
+            metric_keys=metrics,
+            n_bootstrap=n_bootstrap,
+            random_seed=random_seed
+        )
+
+        # Store bootstrap results
+        for m in metrics:
+            stats[f"{m}_Mean"] = bootstrap_results['mean'][m]
+            stats[f"{m}_Std"] = bootstrap_results['std'][m]
+            stats[f"{m}_CI_Lower"] = bootstrap_results['ci_lower'][m]
+            stats[f"{m}_CI_Upper"] = bootstrap_results['ci_upper'][m]
+
+        # Print bootstrap results
+        print_bootstrap_results(bootstrap_results, metric_keys=metrics)
+    else:
+        # Standard aggregation (simple mean and std)
+        for m in metrics:
+            vals = [v[m] for v in per_video]
+            stats[f"{m}_Mean"] = np.mean(vals)
+            stats[f"{m}_Std"] = np.std(vals)
+
+    # Add per-class metrics to stats
+    per_class_metrics = {}
+    for i, cls in enumerate(unique_classes):
+        per_class_metrics[f"Phase_{cls}"] = {
+            "Precision": per_class_precision[i],
+            "Recall": per_class_recall[i],
+            "F1": per_class_f1[i],
+            "IoU": per_class_iou[i]
+        }
+    stats["per_class"] = per_class_metrics
 
     return per_video, stats, phases
 
@@ -81,6 +214,24 @@ def main(args_eval, resume_preempt=False):
     eval_tag = args_eval.get("tag", None)
     num_workers = args_eval.get("num_workers", 12)
 
+    # Quick run / debug mode configuration
+    quick_run = args_eval.get("quick_run", False)
+    quick_run_num_videos = args_eval.get("quick_run_num_videos", 2)
+
+    # Bootstrap configuration (default: enabled)
+    use_bootstrap = args_eval.get("use_bootstrap", True)
+    n_bootstrap = args_eval.get("n_bootstrap", 1000)
+    bootstrap_seed = args_eval.get("bootstrap_seed", None)
+
+    # wandb configuration
+    wandb_config = args_eval.get("wandb", {})
+    wandb_project = wandb_config.get("project", "nsjepa-surgical-probing")
+    wandb_entity = wandb_config.get("entity", None)
+    wandb_name = wandb_config.get("name", None)
+    wandb_tags = wandb_config.get("tags", [])
+    wandb_group = wandb_config.get("group", None)
+    wandb_notes = wandb_config.get("notes", None)
+
     args_pretrain = args_eval.get("model_kwargs")
     checkpoint = args_pretrain.get("checkpoint")
     module_name = args_pretrain.get("module_name")
@@ -94,9 +245,29 @@ def main(args_eval, resume_preempt=False):
 
     args_data = args_exp.get("data")
     dataset_type = args_data.get("dataset_type", "VideoDataset")
+
+    # Support both single and multiple datasets
+    train_data_path = args_data.get("dataset_train")
+    if isinstance(train_data_path, str):
+        train_data_path = [train_data_path]
+
+    val_data_path = args_data.get("dataset_val")
+    if isinstance(val_data_path, str):
+        val_data_path = [val_data_path]
+
+    # Support datasets_weights for sampling from multiple datasets
+    datasets_weights = args_data.get("datasets_weights", None)
+
+    # Support per-dataset num_classes or single num_classes for all datasets
     num_classes = args_data.get("num_classes")
-    train_data_path = [args_data.get("dataset_train")]
-    val_data_path = [args_data.get("dataset_val")]
+    if isinstance(num_classes, int):
+        num_classes_list = [num_classes] * len(train_data_path)
+    else:
+        num_classes_list = num_classes
+
+    # Support head-to-dataset mapping (which dataset each head trains on)
+    head_to_dataset_map = args_data.get("head_to_dataset_map", None)
+
     resolution = args_data.get("resolution", 224)
     num_segments = args_data.get("num_segments", 1)
     frames_per_clip = args_data.get("frames_per_clip", 16)
@@ -119,6 +290,81 @@ def main(args_eval, resume_preempt=False):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     world_size, rank = init_distributed()
 
+    # Quick run mode: create subset CSV files (only on rank 0)
+    if quick_run and rank == 0:
+        logger.info(f"Quick run mode enabled: using {quick_run_num_videos} video(s)")
+
+        # Create subset for training data
+        train_data_path_subset = []
+        for path in train_data_path:
+            if path.endswith('.csv'):
+                subset_path = create_quick_run_subset(path, num_videos=quick_run_num_videos)
+                train_data_path_subset.append(subset_path)
+            else:
+                logger.warning(f"Quick run mode only supports CSV files, skipping: {path}")
+                train_data_path_subset.append(path)
+
+        # Create subset for validation data
+        val_data_path_subset = []
+        for path in val_data_path:
+            if path.endswith('.csv'):
+                subset_path = create_quick_run_subset(path, num_videos=quick_run_num_videos)
+                val_data_path_subset.append(subset_path)
+            else:
+                logger.warning(f"Quick run mode only supports CSV files, skipping: {path}")
+                val_data_path_subset.append(path)
+
+        # Use subset paths
+        train_data_path = train_data_path_subset
+        val_data_path = val_data_path_subset
+
+    # Sync across ranks if using distributed training
+    if dist.is_initialized():
+        dist.barrier()
+
+    # Initialize wandb (only on rank 0)
+    if rank == 0:
+        # Extract model name (parent directory of checkpoint) for logging
+        if checkpoint:
+            checkpoint_dir = os.path.dirname(checkpoint)
+            model_name = os.path.basename(checkpoint_dir)
+        else:
+            model_name = "unknown"
+
+        # Prepare config dict for wandb
+        wandb_run_config = {
+            "eval_name": args_eval.get("eval_name"),
+            "tag": eval_tag,
+            "dataset": args_eval.get("dataset", "unknown"),  # Dataset name for easy identification
+            "model": model_name,  # Model/checkpoint directory name
+            "checkpoint_path": checkpoint,  # Full checkpoint path
+            "num_workers": num_workers,
+            "batch_size": batch_size,
+            "num_epochs": num_epochs,
+            "use_bfloat16": use_bfloat16,
+            "num_probe_blocks": num_probe_blocks,
+            "num_heads": num_heads,
+            "frames_per_clip": frames_per_clip,
+            "resolution": resolution,
+            "num_classes": num_classes_list,
+            "use_bootstrap": use_bootstrap,
+            "n_bootstrap": n_bootstrap if use_bootstrap else None,
+            "quick_run": quick_run,
+            "quick_run_num_videos": quick_run_num_videos if quick_run else None,
+        }
+
+        wandb.init(
+            project=wandb_project,
+            entity=wandb_entity,
+            name=wandb_name,
+            config=wandb_run_config,
+            tags=wandb_tags,
+            group=wandb_group,
+            notes=wandb_notes,
+            resume="allow"
+        )
+        logger.info(f"wandb initialized: {wandb.run.url}")
+
     # checkpoint 路径
     folder = os.path.join(pretrain_folder, "video_classification_frozen/")
     if eval_tag is not None:
@@ -138,17 +384,37 @@ def main(args_eval, resume_preempt=False):
     )
 
     # 构建多个分类头
-    classifiers = [
-        AttentiveClassifier(
-            embed_dim=encoder.embed_dim,
-            num_heads=num_heads,
-            depth=num_probe_blocks,
-            num_classes=num_classes,
-            use_activation_checkpointing=True,
-        ).to(device)
-        for _ in opt_kwargs
-    ]
-    classifiers = [DistributedDataParallel(c, static_graph=True) for c in classifiers]
+    # If head_to_dataset_map is provided, use per-dataset num_classes
+    if head_to_dataset_map is not None:
+        classifiers = [
+            AttentiveClassifier(
+                embed_dim=encoder.embed_dim,
+                num_heads=num_heads,
+                depth=num_probe_blocks,
+                num_classes=num_classes_list[head_to_dataset_map[idx]],
+                use_activation_checkpointing=True,
+            ).to(device)
+            for idx in range(len(opt_kwargs))
+        ]
+    else:
+        # Default: all heads use the first dataset's num_classes
+        classifiers = [
+            AttentiveClassifier(
+                embed_dim=encoder.embed_dim,
+                num_heads=num_heads,
+                depth=num_probe_blocks,
+                num_classes=num_classes_list[0],
+                use_activation_checkpointing=True,
+            ).to(device)
+            for _ in opt_kwargs
+        ]
+
+    # Only use DistributedDataParallel if distributed is initialized
+    if dist.is_initialized():
+        classifiers = [DistributedDataParallel(c, static_graph=True) for c in classifiers]
+        logger.info("Wrapped classifiers with DistributedDataParallel")
+    else:
+        logger.info("Running in single-process mode (no DDP wrapping)")
 
     train_loader, train_sampler = make_dataloader(
         dataset_type=dataset_type,
@@ -166,6 +432,7 @@ def main(args_eval, resume_preempt=False):
         training=True,
         num_workers=num_workers,
         normalization=normalization,
+        datasets_weights=datasets_weights,
     )
     val_loader, _ = make_dataloader(
         dataset_type=dataset_type,
@@ -242,6 +509,8 @@ def main(args_eval, resume_preempt=False):
                 use_bfloat16=use_bfloat16,
                 num_classes=num_classes,
                 epoch=epoch,
+                head_to_dataset_map=head_to_dataset_map,
+                rank=rank,
             )
         else:
             train_metrics = None
@@ -261,6 +530,12 @@ def main(args_eval, resume_preempt=False):
             epoch=epoch,
             save_predictions=True,
             folder=folder,
+            head_to_dataset_map=head_to_dataset_map,
+            use_bootstrap=use_bootstrap,
+            n_bootstrap=n_bootstrap,
+            bootstrap_seed=bootstrap_seed,
+            rank=rank,
+            train_loader_len=len(train_loader),
         )
 
         logger.info(f"Epoch {epoch+1}: train={train_metrics} val={val_metrics}")
@@ -272,6 +547,10 @@ def main(args_eval, resume_preempt=False):
 
         save_checkpoint(epoch + 1)
 
+    # Finish wandb run (only on rank 0)
+    if rank == 0:
+        wandb.finish()
+
     if dist.is_initialized():
         dist.destroy_process_group()
 
@@ -282,7 +561,9 @@ def main(args_eval, resume_preempt=False):
 def run_one_epoch(
     device, training, encoder, classifiers, scaler, optimizer,
     scheduler, wd_scheduler, data_loader, use_bfloat16, num_classes,
-    epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20
+    epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20,
+    head_to_dataset_map=None, use_bootstrap=False, n_bootstrap=1000, bootstrap_seed=None,
+    rank=0, train_loader_len=None
 ):
     for c in classifiers:
         c.train(mode=training)
@@ -305,47 +586,104 @@ def run_one_epoch(
             labels = data[1][0].to(device)
             batch_size = len(labels)
 
+            # Extract dataset_idx if available (for multi-dataset training)
+            if len(data[1]) > 3:
+                dataset_indices = data[1][3].to(device)
+            else:
+                dataset_indices = None
+
             with torch.no_grad():
                 features = encoder(clips, clip_indices)
 
             # 每个分类器独立输出
             outputs = [[c(f) for f in features] for c in classifiers]
 
-            # 每个分类器独立 loss
-            losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
+            # 每个分类器独立 loss with optional masking for multi-dataset training
+            losses = []
+            has_samples = []  # Track which heads have actual samples in this batch
+            if head_to_dataset_map is not None and dataset_indices is not None:
+                # Multi-dataset training: mask loss by dataset
+                for head_idx, coutputs in enumerate(outputs):
+                    assigned_dataset = head_to_dataset_map[head_idx]
+                    head_losses = []
+                    head_has_samples = False
+                    for o in coutputs:
+                        mask = (dataset_indices == assigned_dataset)
+                        if mask.sum() > 0:
+                            loss = criterion(o[mask], labels[mask])
+                            head_has_samples = True
+                        else:
+                            # No samples from this dataset in batch, create dummy loss
+                            loss = torch.tensor(0.0, device=device, requires_grad=True)
+                        head_losses.append(loss)
+                    losses.append(head_losses)
+                    has_samples.append(head_has_samples)
+            else:
+                # Single dataset or no masking: standard loss calculation
+                losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
+                has_samples = [True] * len(losses)
 
         if training:
             if use_bfloat16:
-                for s, li, o in zip(scaler, losses, optimizer):
-                    for lij in li:
-                        s.scale(lij).backward(retain_graph=True)
-                    s.step(o)
-                    s.update()
-                    o.zero_grad()
+                for s, li, o, has_sample in zip(scaler, losses, optimizer, has_samples):
+                    if has_sample:
+                        for lij in li:
+                            s.scale(lij).backward(retain_graph=True)
+                        s.step(o)
+                        s.update()
+                        o.zero_grad()
+                    else:
+                        # Skip optimizer step if no samples for this head in batch
+                        o.zero_grad()
             else:
-                for li, o in zip(losses, optimizer):
-                    for lij in li:
-                        lij.backward(retain_graph=True)
-                    o.step()
-                    o.zero_grad()
+                for li, o, has_sample in zip(losses, optimizer, has_samples):
+                    if has_sample:
+                        for lij in li:
+                            lij.backward(retain_graph=True)
+                        o.step()
+                        o.zero_grad()
+                    else:
+                        # Skip optimizer step if no samples for this head in batch
+                        o.zero_grad()
 
         with torch.no_grad():
             for idx, coutputs in enumerate(outputs):
                 avg_output = torch.stack([F.softmax(o, dim=1) for o in coutputs]).mean(0)
                 preds = avg_output.argmax(dim=1)
-                acc = 100.0 * preds.eq(labels).sum() / batch_size
-                acc = float(AllReduce.apply(acc))
-                acc_meters[idx].update(acc)
+
+                # Calculate metrics: if masking, only for assigned dataset samples
+                if head_to_dataset_map is not None and dataset_indices is not None:
+                    assigned_dataset = head_to_dataset_map[idx]
+                    mask = (dataset_indices == assigned_dataset)
+                    if mask.sum() > 0:
+                        masked_preds = preds[mask]
+                        masked_labels = labels[mask]
+                        acc = 100.0 * masked_preds.eq(masked_labels).sum() / mask.sum()
+                        acc = float(AllReduce.apply(acc))
+                        acc_meters[idx].update(acc, mask.sum().item())
+                    # else: no samples from this dataset in batch, skip update
+                else:
+                    # No masking: standard accuracy calculation
+                    acc = 100.0 * preds.eq(labels).sum() / batch_size
+                    acc = float(AllReduce.apply(acc))
+                    acc_meters[idx].update(acc)
 
                 loss_val = torch.stack([lij.detach() for lij in losses[idx]]).mean().item()
                 loss_meters[idx].update(loss_val, batch_size)
 
                 if not training:
                     vid_ids, data_idxs = data[1][1], data[1][2]
-                    for pred, label, vid, did in zip(
-                        preds.cpu(), labels.cpu(), vid_ids.cpu(), data_idxs.cpu()
-                    ):
-                        all_predictions.append([idx, did.item(), vid.item(), pred.item(), label.item()])
+                    # Save predictions with dataset_idx for per-dataset analysis
+                    if dataset_indices is not None:
+                        for pred, label, vid, did, ds_idx in zip(
+                            preds.cpu(), labels.cpu(), vid_ids.cpu(), data_idxs.cpu(), dataset_indices.cpu()
+                        ):
+                            all_predictions.append([idx, did.item(), vid.item(), pred.item(), label.item(), ds_idx.item()])
+                    else:
+                        for pred, label, vid, did in zip(
+                            preds.cpu(), labels.cpu(), vid_ids.cpu(), data_idxs.cpu()
+                        ):
+                            all_predictions.append([idx, did.item(), vid.item(), pred.item(), label.item(), 0])
 
         if itr % log_interval == 0:
             if training:
@@ -354,6 +692,15 @@ def run_one_epoch(
                     + " ".join([f"Head{h}: Acc={am.avg:.2f}%, Loss={lm.avg:.4f}"
                                 for h, (am, lm) in enumerate(zip(acc_meters, loss_meters))])
                 )
+
+                # Log training metrics to wandb at log_interval (only on rank 0)
+                if rank == 0:
+                    global_step = epoch * len(data_loader) + itr
+                    wandb_metrics = {}
+                    for h, (am, lm) in enumerate(zip(acc_meters, loss_meters)):
+                        wandb_metrics[f"train/head_{h}/Acc"] = am.avg
+                        wandb_metrics[f"train/head_{h}/Loss"] = lm.avg
+                    wandb.log(wandb_metrics, step=global_step)
             else:
                 logger.info(
                     f"[Val][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
@@ -363,11 +710,45 @@ def run_one_epoch(
     metrics = {f"head_{i}": {"Acc": acc_meters[i].avg, "Loss": loss_meters[i].avg} for i in range(len(classifiers))}
 
     if not training and len(all_predictions) > 0:
-        df = pd.DataFrame(all_predictions, columns=["head","data_idx","vid","prediction","label"])
+        df = pd.DataFrame(all_predictions, columns=["head","data_idx","vid","prediction","label","dataset_idx"])
         results = {}
+
+        # Calculate global step for validation logging
+        # Use the step at the END of the epoch (after all training steps)
+        global_step = (epoch + 1) * train_loader_len
+
+        # Evaluate per head
         for head_id, g in df.groupby("head"):
-            per_video, stats, phases = evaluate_per_video(g)
+            per_video, stats, phases = evaluate_per_video(
+                g,
+                use_bootstrap=use_bootstrap,
+                n_bootstrap=n_bootstrap,
+                random_seed=bootstrap_seed
+            )
             results[f"head_{head_id}"] = stats
+
+            # Log to wandb (only on rank 0)
+            if rank == 0:
+                wandb_metrics = {
+                    f"val/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
+                    f"val/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
+                    f"val/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
+                    f"val/head_{head_id}/Macro_Precision": stats['Macro_Precision_Mean'],
+                    f"val/head_{head_id}/Macro_Recall": stats['Macro_Recall_Mean'],
+                    f"val/head_{head_id}/Edit_Distance": stats['Edit_Distance_Mean'],
+                }
+
+                # Add uncertainty metrics if bootstrap was used
+                if use_bootstrap:
+                    wandb_metrics.update({
+                        f"val/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
+                        f"val/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
+                        f"val/head_{head_id}/Macro_IoU_Std": stats['Macro_IoU_Std'],
+                        f"val/head_{head_id}/Accuracy_CI_Width": stats['Accuracy_CI_Upper'] - stats['Accuracy_CI_Lower'],
+                        f"val/head_{head_id}/Macro_F1_CI_Width": stats['Macro_F1_CI_Upper'] - stats['Macro_F1_CI_Lower'],
+                    })
+
+                wandb.log(wandb_metrics, step=global_step)
 
         logger.info("=== Evaluation per head ===")
         for k, v in results.items():
@@ -377,8 +758,122 @@ def run_one_epoch(
                 f"F1={v['Macro_F1_Mean']:.2f}±{v['Macro_F1_Std']:.2f}, "
                 f"IoU={v['Macro_IoU_Mean']:.2f}±{v['Macro_IoU_Std']:.2f}, "
                 f"Prec={v['Macro_Precision_Mean']:.2f}±{v['Macro_Precision_Std']:.2f}, "
-                f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}"
+                f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}, "
+                f"Edit={v['Edit_Distance_Mean']:.2f}±{v['Edit_Distance_Std']:.2f}"
             )
+
+            # Log per-class metrics
+            if "per_class" in v:
+                logger.info(f"  Per-class metrics for {k}:")
+                for phase_name, phase_metrics in v["per_class"].items():
+                    logger.info(
+                        f"    {phase_name}: "
+                        f"Prec={phase_metrics['Precision']:.2f}%, "
+                        f"Rec={phase_metrics['Recall']:.2f}%, "
+                        f"F1={phase_metrics['F1']:.2f}%, "
+                        f"IoU={phase_metrics['IoU']:.2f}%"
+                    )
+
+        # Find best head by Macro F1
+        best_head_name = max(results.items(), key=lambda x: x[1]['Macro_F1_Mean'])[0]
+        best_head_stats = results[best_head_name]
+
+        logger.info("\n" + "="*70)
+        logger.info(f"BEST HEAD: {best_head_name} (Macro_F1={best_head_stats['Macro_F1_Mean']:.2f})")
+        logger.info("="*70)
+        logger.info(
+            f"Acc={best_head_stats['Accuracy_Mean']:.2f}±{best_head_stats['Accuracy_Std']:.2f}, "
+            f"F1={best_head_stats['Macro_F1_Mean']:.2f}±{best_head_stats['Macro_F1_Std']:.2f}, "
+            f"IoU={best_head_stats['Macro_IoU_Mean']:.2f}±{best_head_stats['Macro_IoU_Std']:.2f}, "
+            f"Prec={best_head_stats['Macro_Precision_Mean']:.2f}±{best_head_stats['Macro_Precision_Std']:.2f}, "
+            f"Rec={best_head_stats['Macro_Recall_Mean']:.2f}±{best_head_stats['Macro_Recall_Std']:.2f}, "
+            f"Edit={best_head_stats['Edit_Distance_Mean']:.2f}±{best_head_stats['Edit_Distance_Std']:.2f}"
+        )
+        logger.info("="*70)
+
+        # Log best head to wandb (only on rank 0)
+        if rank == 0:
+            wandb_best_metrics = {
+                f"val/best_head/Accuracy": best_head_stats['Accuracy_Mean'],
+                f"val/best_head/Macro_F1": best_head_stats['Macro_F1_Mean'],
+                f"val/best_head/Macro_IoU": best_head_stats['Macro_IoU_Mean'],
+                f"val/best_head/Macro_Precision": best_head_stats['Macro_Precision_Mean'],
+                f"val/best_head/Macro_Recall": best_head_stats['Macro_Recall_Mean'],
+                f"val/best_head/Edit_Distance": best_head_stats['Edit_Distance_Mean'],
+            }
+
+            # Add uncertainty metrics if bootstrap was used
+            if use_bootstrap:
+                wandb_best_metrics.update({
+                    f"val/best_head/Accuracy_Std": best_head_stats['Accuracy_Std'],
+                    f"val/best_head/Macro_F1_Std": best_head_stats['Macro_F1_Std'],
+                    f"val/best_head/Macro_IoU_Std": best_head_stats['Macro_IoU_Std'],
+                    f"val/best_head/Accuracy_CI_Width": best_head_stats['Accuracy_CI_Upper'] - best_head_stats['Accuracy_CI_Lower'],
+                    f"val/best_head/Macro_F1_CI_Width": best_head_stats['Macro_F1_CI_Upper'] - best_head_stats['Macro_F1_CI_Lower'],
+                })
+
+            wandb.log(wandb_best_metrics, step=global_step)
+
+            # Also log which head was best (extract head number from name like "head_5")
+            best_head_id = int(best_head_name.split('_')[1])
+            wandb.log({"val/best_head_id": best_head_id}, step=global_step)
+
+        # Per-dataset evaluation if we have multi-dataset setup
+        if head_to_dataset_map is not None:
+            logger.info("\n=== Evaluation per dataset ===")
+            dataset_results = {}
+            for ds_idx in df['dataset_idx'].unique():
+                ds_df = df[df['dataset_idx'] == ds_idx]
+                # Find heads assigned to this dataset
+                assigned_heads = [h for h, d in enumerate(head_to_dataset_map) if d == ds_idx]
+
+                logger.info(f"\nDataset {ds_idx} (Heads: {assigned_heads}):")
+                for head_id in assigned_heads:
+                    head_df = ds_df[ds_df['head'] == head_id]
+                    if len(head_df) > 0:
+                        per_video, stats, phases = evaluate_per_video(
+                            head_df,
+                            use_bootstrap=use_bootstrap,
+                            n_bootstrap=n_bootstrap,
+                            random_seed=bootstrap_seed
+                        )
+                        dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
+
+                        # Log to wandb (only on rank 0)
+                        if rank == 0:
+                            wandb_metrics = {
+                                f"val/dataset_{ds_idx}/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
+                                f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
+                                f"val/dataset_{ds_idx}/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
+                                f"val/dataset_{ds_idx}/head_{head_id}/Edit_Distance": stats['Edit_Distance_Mean'],
+                            }
+                            if use_bootstrap:
+                                wandb_metrics.update({
+                                    f"val/dataset_{ds_idx}/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
+                                    f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
+                                })
+                            wandb.log(wandb_metrics, step=global_step)
+
+                        logger.info(
+                            f"  Head {head_id}: "
+                            f"Acc={stats['Accuracy_Mean']:.2f}±{stats['Accuracy_Std']:.2f}, "
+                            f"F1={stats['Macro_F1_Mean']:.2f}±{stats['Macro_F1_Std']:.2f}, "
+                            f"IoU={stats['Macro_IoU_Mean']:.2f}±{stats['Macro_IoU_Std']:.2f}, "
+                            f"Edit={stats['Edit_Distance_Mean']:.2f}±{stats['Edit_Distance_Std']:.2f}"
+                        )
+
+                        # Log per-class metrics for this dataset
+                        if "per_class" in stats:
+                            logger.info(f"    Per-class metrics (Dataset {ds_idx}, Head {head_id}):")
+                            for phase_name, phase_metrics in stats["per_class"].items():
+                                logger.info(
+                                    f"      {phase_name}: "
+                                    f"Prec={phase_metrics['Precision']:.2f}%, "
+                                    f"Rec={phase_metrics['Recall']:.2f}%, "
+                                    f"F1={phase_metrics['F1']:.2f}%, "
+                                    f"IoU={phase_metrics['IoU']:.2f}%"
+                                )
+            metrics.update(dataset_results)
 
         if save_predictions and folder is not None:
             pred_file = os.path.join(folder, f"predictions_epoch_{epoch}.csv")
@@ -411,6 +906,58 @@ def load_checkpoint(device, r_path, encoder, classifiers, opt, scaler, val_only=
 
 
 # ----------------------
+# Quick run / debug utilities
+# ----------------------
+def create_quick_run_subset(csv_path, num_videos=1, output_dir=None):
+    """
+    Create a subset CSV file with only N videos for quick debugging runs.
+
+    Args:
+        csv_path: Path to original CSV file
+        num_videos: Number of videos to include in subset
+        output_dir: Directory to save subset CSV (default: same as original)
+
+    Returns:
+        Path to subset CSV file
+    """
+    import pandas as pd
+    import os
+
+    df = pd.read_csv(csv_path)
+
+    # Get unique video IDs (case_id column)
+    unique_videos = df['case_id'].unique()
+
+    if len(unique_videos) < num_videos:
+        logger.warning(
+            f"Requested {num_videos} videos but only {len(unique_videos)} available. "
+            f"Using all {len(unique_videos)} videos."
+        )
+        num_videos = len(unique_videos)
+
+    # Select first N videos
+    selected_videos = unique_videos[:num_videos]
+    subset_df = df[df['case_id'].isin(selected_videos)]
+
+    # Create output path
+    if output_dir is None:
+        output_dir = os.path.dirname(csv_path)
+
+    basename = os.path.basename(csv_path)
+    name_without_ext = os.path.splitext(basename)[0]
+    subset_path = os.path.join(f"{name_without_ext}_quick_{num_videos}vid.csv")
+
+    # Save subset
+    subset_df.to_csv(subset_path, index=False)
+    logger.info(
+        f"Created quick run subset: {subset_path} "
+        f"({len(subset_df)} samples from {num_videos} video(s))"
+    )
+
+    return subset_path
+
+
+# ----------------------
 # dataloader
 # ----------------------
 DEFAULT_NORMALIZATION = ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
@@ -432,6 +979,7 @@ def make_dataloader(
     num_workers=12,
     subset_file=None,
     normalization=None,
+    datasets_weights=None,
 ):
     if normalization is None:
         normalization = DEFAULT_NORMALIZATION
@@ -464,6 +1012,7 @@ def make_dataloader(
         num_workers=num_workers,
         drop_last=False,
         subset_file=subset_file,
+        datasets_weights=datasets_weights,
     )
     return data_loader, data_sampler
 

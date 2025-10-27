@@ -10,12 +10,12 @@ data:
   - data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
   datasets_weights:
   - 1.0
-  batch_size: 32
+  batch_size: 64
   crop_size: 256
   dataset_fpcs:
   - 64
   fps: 1
-  num_workers: 4
+  num_workers: 8
   patch_size: 16
   persistent_workers: true
   pin_mem: true

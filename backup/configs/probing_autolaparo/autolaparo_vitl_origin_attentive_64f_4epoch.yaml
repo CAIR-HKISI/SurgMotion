@@ -1,6 +1,6 @@
 cpus_per_task: 2
-eval_name: surgical_video_classification_frozen
-folder:  logs5/autolaparo_vitl16_16x2x3_64f_orgin_probing_4epoch
+eval_name: surgical_phase_probing
+folder:  logs5/autolaparo_vitl16_16x2x3_64f_orgin_probing_1epoch
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
@@ -13,15 +13,15 @@ experiment:
     num_probe_blocks: 4
   data:
     dataset_type: surgical_videodataset
-    dataset_train: data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
-    dataset_val: data/Surge_Frames/AutoLaparo/clips_64f/test_dense_64f_detailed.csv
+    dataset_train: data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed_label_7-class.csv
+    dataset_val: data/Surge_Frames/AutoLaparo/clips_64f/test_dense_64f_detailed_label_7-class.csv
     frames_per_clip: 64
     num_classes: 7
     num_segments: 1
     num_views_per_segment: 1
     resolution: 384
   optimization:
-    batch_size: 32
+    batch_size: 8
     multihead_kwargs:
     - final_lr: 0.0
       final_weight_decay: 0.0
@@ -29,8 +29,8 @@ experiment:
       start_lr: 0.0001
       warmup: 0.0
       weight_decay: 0.0
-    num_epochs: 4
-    use_bfloat16: true
+    num_epochs: 1
+    use_bfloat16: false
     use_pos_embed: false
 model_kwargs:
   checkpoint: ckpts/vitl.pt

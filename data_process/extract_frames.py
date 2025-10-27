@@ -47,7 +47,6 @@ def videos_to_imgs(input_path="/Videos/input",
 
     print("🎉 All videos processed successfully.")
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Extract frames from videos (each video gets its own folder)."

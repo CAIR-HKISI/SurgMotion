@@ -1,13 +1,21 @@
 app: vjepa_cpt
 cpus_per_task: 4
+<<<<<<<< HEAD:backup/configs/cpt_m2cai/m2cai_cpt_vith-256px-64f_lr1e-4_epoch-20.yaml
 folder: logs6/cpt_m2cai/cpt_vith16-256px-64f_lr1e-4_epoch-20
+========
+folder: logs6/autolaparo_cpt_epoch-50_vith16-256px-64f_lr1e-4
+>>>>>>>> 5c1bd8e7b66a3bbee4c68b5616bd6523d4555a30:backup/configs/cpt_autolaparo/autolapro_cpt_vith-256px-64f_lr1e-4_epoch-50.yaml
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
 data:
   dataset_type: surgical_videodataset
   datasets:
+<<<<<<<< HEAD:backup/configs/cpt_m2cai/m2cai_cpt_vith-256px-64f_lr1e-4_epoch-20.yaml
   - data/Surge_Frames/M2CAI2016/clips_64f/train_dense_64f_detailed.csv
+========
+  - data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
+>>>>>>>> 5c1bd8e7b66a3bbee4c68b5616bd6523d4555a30:backup/configs/cpt_autolaparo/autolapro_cpt_vith-256px-64f_lr1e-4_epoch-50.yaml
   datasets_weights:
   - 1.0
   batch_size: 32
@@ -18,7 +26,7 @@ data:
   num_workers: 4
   patch_size: 16
   persistent_workers: true
-  pin_mem: false
+  pin_mem: true
   tubelet_size: 2
 data_aug:
   auto_augment: false
@@ -83,7 +91,7 @@ optimization:
   ema:
   - 0.99925
   - 0.99925
-  epochs: 20
+  epochs: 50
   final_lr: 1.0e-07
   final_weight_decay: 0.04
   ipe: 300

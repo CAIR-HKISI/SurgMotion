@@ -77,7 +77,7 @@ model:
   use_mask_tokens: true
   use_rope: true
   zero_init_mask_tokens: true
-  cpt_ckeckpoint: ckpts/vitl.pt 
+  cpt_ckeckpoint: ckpts/vitl.pt
 optimization:
   anneal_ckpt: None
   ema:

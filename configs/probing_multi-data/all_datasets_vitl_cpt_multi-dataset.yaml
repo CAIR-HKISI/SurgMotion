@@ -1,0 +1,232 @@
+cpus_per_task: 2
+eval_name: surgical_phase_probing
+folder: logs/cpt_multi-data/all_datasets_vitl16-256px-64f_multi-head
+mem_per_gpu: 220G
+nodes: 1
+max_workers: 4
+num_workers: 4  # Reduced from default 12 to avoid OOM with 18 classifiers
+resume_checkpoint: true
+tag: all-datasets-multi-head
+tasks_per_node: 1
+experiment:
+  classifier:
+    num_heads: 16
+    num_probe_blocks: 4
+  data:
+    dataset_type: surgical_videodataset
+
+    # Multiple datasets (9 datasets total)
+    dataset_train:
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/M2CAI16/clips_64f/train_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/BernBypass70/clips_64f/train_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/EgoSurgery/clips_64f/train_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/OphNet2024_phase/clips_64f/train_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/PitVis/clips_64f/train_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/PmLR50/clips_64f/train_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/StrasBypass70/clips_64f/train_dense_64f_detailed.csv
+
+    dataset_val:
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/Cholec80/clips_64f/test_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/M2CAI16/clips_64f/test_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/AutoLaparo/clips_64f/test_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/BernBypass70/clips_64f/test_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/EgoSurgery/clips_64f/test_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/OphNet2024_phase/clips_64f/test_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/PitVis/clips_64f/test_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/PmLR50/clips_64f/test_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/StrasBypass70/clips_64f/test_dense_64f_detailed.csv
+
+    # Sampling weights for each dataset (equal weighting)
+    datasets_weights:
+    - 0.111  # Cholec80
+    - 0.111  # M2CAI16
+    - 0.111  # AutoLaparo
+    - 0.111  # BernBypass70
+    - 0.111  # EgoSurgery
+    - 0.111  # OphNet2024_phase
+    - 0.111  # PitVis
+    - 0.111  # PmLR50
+    - 0.111  # StrasBypass70
+
+    # Number of classes per dataset (adjust based on actual phase counts)
+    num_classes:
+    - 7   # Cholec80
+    - 8   # M2CAI16
+    - 7   # AutoLaparo
+    - 12   # BernBypass70
+    - 9   # EgoSurgery
+    - 52   # OphNet2024_phase
+    - 12   # PitVis
+    - 5   # PmLR50
+    - 12   # StrasBypass70
+
+    # Map each classification head to a dataset index
+    # With 18 classifiers and 9 datasets, we assign 2 classifiers per dataset:
+    # Dataset 0 (Cholec80): classifiers 0-1
+    # Dataset 1 (M2CAI16): classifiers 2-3
+    # Dataset 2 (AutoLaparo): classifiers 4-5
+    # Dataset 3 (BernBypass): classifiers 6-7
+    # Dataset 4 (EgoSurgery): classifiers 8-9
+    # Dataset 5 (OphNet2024): classifiers 10-11
+    # Dataset 6 (PitVis): classifiers 12-13
+    # Dataset 7 (PmLR50): classifiers 14-15
+    # Dataset 8 (StrasBypass70): classifiers 16-17
+    # Note: num_heads=16 is the attention mechanism parameter (must divide 1024)
+    # The number of classifiers (18) is independent and has no such constraint
+    head_to_dataset_map: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8]
+
+    frames_per_clip: 64
+    num_segments: 1
+    num_views_per_segment: 1
+    resolution: 256
+
+  optimization:
+    batch_size: 3  # Reduced from 4 to accommodate 18 classifiers
+    multihead_kwargs:
+    # Head 0 (Cholec80)
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.01
+    # Head 1 (Cholec80)
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.01
+    # Head 2 (M2CAI16)
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.01
+    # Head 3 (M2CAI16)
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.01
+    # Head 4 (AutoLaparo)
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.01
+    # Head 5 (AutoLaparo)
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.01
+    # Head 6 (BernBypass)
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.1
+    # Head 7 (BernBypass)
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.1
+    # Head 8 (EgoSurgery)
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.1
+    # Head 9 (EgoSurgery)
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.1
+    # Head 10 (OphNet2024_phase)
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.1
+    # Head 11 (OphNet2024_phase)
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.1
+    # Head 12 (PitVis)
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.4
+    # Head 13 (PitVis)
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.4
+    # Classifier 14 (PmLR50)
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.4
+    # Classifier 15 (PmLR50)
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.4
+    # Classifier 16 (StrasBypass70)
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.8
+    # Classifier 17 (StrasBypass70)
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.8
+    num_epochs: 1
+    use_bfloat16: true
+    use_pos_embed: false
+
+model_kwargs:
+  checkpoint: /home/jinlin_wu/NSJepa/logs/cpt_multi-data/m2cai-autolaparo-cholec80_cpt_vitl-256px-64f_lr1e-4_epoch-20/latest.pt
+  module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
+  pretrain_kwargs:
+    encoder:
+      checkpoint_key: target_encoder
+      img_temporal_dim_size: null
+      model_name: vit_large
+      patch_size: 16
+      tubelet_size: 2
+      uniform_power: true
+      use_rope: true
+  wrapper_kwargs:
+    max_frames: 128
+    use_pos_embed: false

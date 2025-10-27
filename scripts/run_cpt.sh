@@ -67,7 +67,7 @@ TIME=$(date +"%Y%m%d_%H%M")
 
 # 3. 去掉 .yaml 后缀, 构造日志文件名
 CFG_NAME=${FNAME%.yaml}
-LOG_FILE="logs8/${TASK}_${TIME}_${CFG_NAME}.log"
+LOG_FILE="logs9/${TASK}_${TIME}_${CFG_NAME}.log"
 
 
 # 4. 运行（把 nohup 的输出直接写进 LOG_FILE）

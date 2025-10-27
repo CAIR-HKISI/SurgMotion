@@ -1,0 +1,103 @@
+cpus_per_task: 2
+eval_name: surgical_phase_probing
+dataset: m2cai16  # Dataset name for wandb logging
+folder: logs/cpt_m2cai/m2cai_vitl16-256px-64f_quick-debug
+mem_per_gpu: 220G
+nodes: 1
+max_workers: 4
+num_workers: 8  
+resume_checkpoint: true
+tag: m2cai-probing-quick
+tasks_per_node: 1
+
+# Quick run / debug mode (strongly subsampled dataset)
+quick_run: true
+quick_run_num_videos: 1  # Use only 1 video for very fast testing
+
+# Bootstrap configuration (disabled for quick run to save time)
+use_bootstrap: false  # Disable bootstrap for quick runs
+n_bootstrap: 1000
+bootstrap_seed: 42
+
+# wandb configuration
+wandb:
+  project: nsjepa-surgical-probing-debug
+  entity: nsjepa
+  name: quick-debug-run
+  tags:
+    - m2cai
+    - debug
+    - quick-run
+  group: debug
+  notes: "Quick debug run with 1 video for fast iteration"
+
+experiment:
+  classifier:
+    num_heads: 16
+    num_probe_blocks: 4
+  data:
+    dataset_type: surgical_videodataset
+
+    # Single dataset (M2CAI16)
+    dataset_train:
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/M2CAI16/clips_64f/train_dense_64f_detailed.csv
+
+    dataset_val:
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/M2CAI16/clips_64f/test_dense_64f_detailed.csv
+
+    # Number of classes for M2CAI16
+    num_classes:
+    - 8   # M2CAI16 has 8 phases
+
+    frames_per_clip: 64
+    num_segments: 1
+    num_views_per_segment: 1
+    resolution: 256
+
+  optimization:
+    batch_size: 8 
+    multihead_kwargs:
+    # Only 4 heads for quick testing
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.1
+    num_epochs: 1
+    use_bfloat16: true
+    use_pos_embed: false
+
+model_kwargs:
+  checkpoint: /home/jinlin_wu/NSJepa/logs/cpt_multi-data/m2cai-autolaparo-cholec80_cpt_vitl-256px-64f_lr1e-4_epoch-20/latest.pt
+  module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
+  pretrain_kwargs:
+    encoder:
+      checkpoint_key: target_encoder
+      img_temporal_dim_size: null
+      model_name: vit_large
+      patch_size: 16
+      tubelet_size: 2
+      uniform_power: true
+      use_rope: true
+  wrapper_kwargs:
+    max_frames: 128
+    use_pos_embed: false
