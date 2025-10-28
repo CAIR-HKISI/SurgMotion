@@ -580,7 +580,7 @@ def run_one_epoch(
             [s.step() for s in scheduler]
             [wds.step() for wds in wd_scheduler]
 
-        with torch.cuda.amp.autocast(dtype=torch.float16, enabled=use_bfloat16):
+        with torch.amp.autocast('cuda', dtype=torch.float16, enabled=use_bfloat16):
             clips = [[dij.to(device) for dij in di] for di in data[0]]
             clip_indices = [d.to(device) for d in data[2]]
             labels = data[1][0].to(device)
@@ -1036,7 +1036,7 @@ def init_opt(classifiers, opt_kwargs, iterations_per_epoch, num_epochs, use_bflo
         schedulers.append(WarmupCosineLRSchedule(optim, T_max=int(num_epochs * iterations_per_epoch)))
         wd_schedulers.append(CosineWDSchedule(optim, T_max=int(num_epochs * iterations_per_epoch)))
         optimizers.append(optim)
-        scalers.append(torch.cuda.amp.GradScaler() if use_bfloat16 else None)
+        scalers.append(torch.amp.GradScaler('cuda') if use_bfloat16 else None)
     return optimizers, scalers, schedulers, wd_schedulers
 
 

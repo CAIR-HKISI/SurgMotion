@@ -1,13 +1,13 @@
 cpus_per_task: 2
 eval_name: surgical_phase_probing
-dataset: pitvis_step  # Dataset name for wandb logging
-folder: logs/cpt_pitvis/pitvis_vitl16-256px-64f_multi-head
+dataset: polypdiag_diagnosis  # Dataset name for wandb logging
+folder: logs/cpt_polypdiag/polypdiag_vitl16-256px-64f_multi-head
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 num_workers: 8
 resume_checkpoint: true
-tag: pitvis-probing
+tag: polypdiag-diag-probing
 tasks_per_node: 1
 
 # Bootstrap configuration (default: enabled)
@@ -19,13 +19,13 @@ bootstrap_seed: 42
 wandb:
   project: nsjepa-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: pitvis_probing  # Run name (optional, wandb will generate if null)
+  name: polypdiag_probing  # Run name (optional, wandb will generate if null)
   tags:
-    - pitvis
-    - step-probing
+    - polypdiag
+    - diag-probing
     - vitl
   group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on PitVis dataset with bootstrap uncertainty estimation"
+  notes: "Multi-head probing on PolypDiag dataset for diagnosis classification with bootstrap uncertainty estimation"
 
 experiment:
   classifier:
@@ -34,16 +34,16 @@ experiment:
   data:
     dataset_type: surgical_videodataset
 
-    # Single dataset (PitVis)
+    # Single dataset (PolypDiag)
     dataset_train:
-    - /home/jinlin_wu/NSJepa/data/Surge_Frames/PitVis/clips_64f/train_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/PolypDiag/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
-    - /home/jinlin_wu/NSJepa/data/Surge_Frames/PitVis/clips_64f/test_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/PolypDiag/clips_64f/test_dense_64f_detailed.csv
 
-    # Number of classes for PitVis
+    # Number of classes for PolypDiag
     num_classes:
-    - 15   # PitVis has 15 phases
+    - 2   # PolypDiag has 2 diagnosis classes (binary classification)
 
     frames_per_clip: 64
     num_segments: 1
