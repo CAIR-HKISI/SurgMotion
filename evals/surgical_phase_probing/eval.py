@@ -93,7 +93,7 @@ def segmental_edit_distance(seq1, seq2):
 # ----------------------
 # 视频级评估函数
 # ----------------------
-def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None):
+def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None, head_id=None):
     """
     Evaluate per-video metrics with optional bootstrap uncertainty estimation.
 
@@ -103,6 +103,7 @@ def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_boots
         use_bootstrap: If True, perform bootstrap resampling for uncertainty estimation
         n_bootstrap: Number of bootstrap iterations (default: 1000)
         random_seed: Random seed for reproducibility (default: None)
+        head_id: Classifier head ID for logging purposes (optional)
 
     Returns:
         per_video: List of per-video metrics
@@ -165,7 +166,8 @@ def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_boots
 
     if use_bootstrap:
         # Perform bootstrap resampling for uncertainty estimation
-        logger.info(f"Performing bootstrap with {n_bootstrap} iterations...")
+        head_str = f" for head_{head_id}" if head_id is not None else ""
+        logger.info(f"Performing bootstrap with {n_bootstrap} iterations{head_str}...")
         bootstrap_results = bootstrap_per_video_metrics(
             per_video_results=per_video,
             metric_keys=metrics,
@@ -723,7 +725,8 @@ def run_one_epoch(
                 g,
                 use_bootstrap=use_bootstrap,
                 n_bootstrap=n_bootstrap,
-                random_seed=bootstrap_seed
+                random_seed=bootstrap_seed,
+                head_id=head_id
             )
             results[f"head_{head_id}"] = stats
 
@@ -835,7 +838,8 @@ def run_one_epoch(
                             head_df,
                             use_bootstrap=use_bootstrap,
                             n_bootstrap=n_bootstrap,
-                            random_seed=bootstrap_seed
+                            random_seed=bootstrap_seed,
+                            head_id=head_id
                         )
                         dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
 
