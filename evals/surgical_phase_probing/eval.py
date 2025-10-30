@@ -481,7 +481,7 @@ def main(args_eval, resume_preempt=False):
     def save_checkpoint(epoch):
         save_dict = {
             "encoder": encoder.state_dict(),
-            "classifiers": [c.module.state_dict() for c in classifiers],
+            "classifiers": [c.module.state_dict() if hasattr(c, 'module') else c.state_dict() for c in classifiers],
             "opt": [o.state_dict() for o in optimizer],
             "scaler": [None if s is None else s.state_dict() for s in scaler],
             "epoch": epoch,
@@ -891,7 +891,10 @@ def load_checkpoint(device, r_path, encoder, classifiers, opt, scaler, val_only=
 
     encoder.load_state_dict(checkpoint["encoder"])
     for c, state in zip(classifiers, checkpoint["classifiers"]):
-        c.module.load_state_dict(state)
+        if hasattr(c, 'module'):
+            c.module.load_state_dict(state)
+        else:
+            c.load_state_dict(state)
 
     if val_only:
         return encoder, classifiers, opt, scaler, 0
