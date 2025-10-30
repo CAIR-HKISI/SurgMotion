@@ -32,7 +32,7 @@ torch.backends.cudnn.benchmark = True
 
 
 # ----------------------
-# Edit Distance Calculation
+# Edit Score Calculation
 # ----------------------
 def compress_segments(sequence):
     """
@@ -151,8 +151,8 @@ def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_boots
         macro_f1 = f1_score(gt, pred, average='macro', zero_division=0) * 100
         n_samples = len(gt)
 
-        # Calculate segmental edit distance (temporal segmentation metric)
-        edit_dist = segmental_edit_distance(gt.tolist(), pred.tolist())
+        # Calculate segmental edit score (temporal segmentation metric)
+        edit_score = segmental_edit_distance(gt.tolist(), pred.tolist())
 
         per_video.append({
             "Video": vid,
@@ -162,11 +162,11 @@ def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_boots
             "Macro_Recall": macro_rec,
             "Macro_IoU": macro_iou,
             "Macro_F1": macro_f1,
-            "Edit_Distance": edit_dist
+            "Edit_Score": edit_score
         })
 
     # Aggregate stats across videos
-    metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1", "Edit_Distance"]
+    metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1", "Edit_Score"]
     stats = {}
 
     if use_bootstrap:
@@ -743,7 +743,7 @@ def run_one_epoch(
                     f"val/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
                     f"val/head_{head_id}/Macro_Precision": stats['Macro_Precision_Mean'],
                     f"val/head_{head_id}/Macro_Recall": stats['Macro_Recall_Mean'],
-                    f"val/head_{head_id}/Edit_Distance": stats['Edit_Distance_Mean'],
+                    f"val/head_{head_id}/Edit_Score": stats['Edit_Score_Mean'],
                 }
 
                 # Add uncertainty metrics if bootstrap was used
@@ -767,7 +767,7 @@ def run_one_epoch(
                 f"IoU={v['Macro_IoU_Mean']:.2f}±{v['Macro_IoU_Std']:.2f}, "
                 f"Prec={v['Macro_Precision_Mean']:.2f}±{v['Macro_Precision_Std']:.2f}, "
                 f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}, "
-                f"Edit={v['Edit_Distance_Mean']:.2f}±{v['Edit_Distance_Std']:.2f}"
+                f"Edit={v['Edit_Score_Mean']:.2f}±{v['Edit_Score_Std']:.2f}"
             )
 
             # Log per-class metrics
@@ -795,7 +795,7 @@ def run_one_epoch(
             f"IoU={best_head_stats['Macro_IoU_Mean']:.2f}±{best_head_stats['Macro_IoU_Std']:.2f}, "
             f"Prec={best_head_stats['Macro_Precision_Mean']:.2f}±{best_head_stats['Macro_Precision_Std']:.2f}, "
             f"Rec={best_head_stats['Macro_Recall_Mean']:.2f}±{best_head_stats['Macro_Recall_Std']:.2f}, "
-            f"Edit={best_head_stats['Edit_Distance_Mean']:.2f}±{best_head_stats['Edit_Distance_Std']:.2f}"
+            f"Edit={best_head_stats['Edit_Score_Mean']:.2f}±{best_head_stats['Edit_Score_Std']:.2f}"
         )
         logger.info("="*70)
 
@@ -807,7 +807,7 @@ def run_one_epoch(
                 f"val/best_head/Macro_IoU": best_head_stats['Macro_IoU_Mean'],
                 f"val/best_head/Macro_Precision": best_head_stats['Macro_Precision_Mean'],
                 f"val/best_head/Macro_Recall": best_head_stats['Macro_Recall_Mean'],
-                f"val/best_head/Edit_Distance": best_head_stats['Edit_Distance_Mean'],
+                f"val/best_head/Edit_Score": best_head_stats['Edit_Score_Mean'],
             }
 
             # Add uncertainty metrics if bootstrap was used
@@ -854,7 +854,7 @@ def run_one_epoch(
                                 f"val/dataset_{ds_idx}/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
                                 f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
                                 f"val/dataset_{ds_idx}/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
-                                f"val/dataset_{ds_idx}/head_{head_id}/Edit_Distance": stats['Edit_Distance_Mean'],
+                                f"val/dataset_{ds_idx}/head_{head_id}/Edit_Score": stats['Edit_Score_Mean'],
                             }
                             if use_bootstrap:
                                 wandb_metrics.update({
@@ -868,7 +868,7 @@ def run_one_epoch(
                             f"Acc={stats['Accuracy_Mean']:.2f}±{stats['Accuracy_Std']:.2f}, "
                             f"F1={stats['Macro_F1_Mean']:.2f}±{stats['Macro_F1_Std']:.2f}, "
                             f"IoU={stats['Macro_IoU_Mean']:.2f}±{stats['Macro_IoU_Std']:.2f}, "
-                            f"Edit={stats['Edit_Distance_Mean']:.2f}±{stats['Edit_Distance_Std']:.2f}"
+                            f"Edit={stats['Edit_Score_Mean']:.2f}±{stats['Edit_Score_Std']:.2f}"
                         )
 
                         # Log per-class metrics for this dataset
