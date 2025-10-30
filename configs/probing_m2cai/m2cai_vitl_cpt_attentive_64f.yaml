@@ -1,6 +1,7 @@
 cpus_per_task: 2
 eval_name: surgical_phase_probing
 folder: logs/cpt_m2cai/m2cai_vitl16-256px-64f_multi-head
+dataset: m2cai_phase
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
