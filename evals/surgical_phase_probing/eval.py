@@ -75,6 +75,10 @@ def segmental_edit_distance(seq1, seq2):
     """
     Calculate edit distance on compressed segments (not frame-level).
     Returns normalized edit score (0-100 scale).
+    This score was originally proposed in 
+    
+    "Learning Convolutional Action Primitives for Fine-grained Action Recognition"
+    Colin Lea, Rene Vidal, and Gregory D. Hager; ICRA 2016
     """
     # Compress sequences to segments
     segments1 = compress_segments(seq1)
@@ -85,9 +89,10 @@ def segmental_edit_distance(seq1, seq2):
     max_len = max(len(segments1), len(segments2))
 
     if max_len == 0:
-        return 0.0
-
-    return (edit_dist / max_len) * 100
+        return 100.0  # Perfect score for empty sequences
+    
+    # Invert to match "higher is better" convention
+    return (1 - edit_dist / max_len) * 100
 
 
 # ----------------------
