@@ -310,9 +310,13 @@ def main(args, resume_preempt=False):
         betas=betas,
         eps=eps,
     )
-    encoder = DistributedDataParallel(encoder, static_graph=True)
-    predictor = DistributedDataParallel(predictor, static_graph=False, find_unused_parameters=True)
-    target_encoder = DistributedDataParallel(target_encoder)
+    # 仅在分布式已初始化时启用 DDP；单进程/单卡时跳过
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        encoder = DistributedDataParallel(encoder, static_graph=True)
+        predictor = DistributedDataParallel(predictor, static_graph=False, find_unused_parameters=True)
+        target_encoder = DistributedDataParallel(target_encoder)
+    else:
+        logger.info("DDP is not initialized; running without DistributedDataParallel")
     for p in target_encoder.parameters():
         p.requires_grad = False
 

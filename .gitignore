@@ -46,3 +46,6 @@ logs8
 ./run_*.sh
 logs7
 logs9
+
+SLURM_Logs/*
+logs10

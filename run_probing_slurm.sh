@@ -38,13 +38,11 @@ conda activate jepa_torch
 # ========================
 
 # 传入运行参数
-TASK=multidata_cpt     # 例如：classification 或 segmentation
+TASK=probing    # 例如：classification 或 segmentation
 # FNAME=cpt_vitl-256px-64f_lr1e-4_epoch-10.yaml    # 配置文件名，例如 config.yaml
 # FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_neuro.yaml"
-# FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_21-dataset_40epoch.yaml"
-FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_21-dataset_80epoch.yaml"
+FNAME="pitvis_vitl_cpt_attentive_64f.yaml"
 DEVICES=$CUDA_VISIBLE_DEVICES  # 设备号，例如 0,1
-echo "DEVICES=${DEVICES}"
 
 # 时间戳
 TIME=$(date +"%Y%m%d_%H%M")
@@ -53,12 +51,13 @@ TIME=$(date +"%Y%m%d_%H%M")
 CFG_NAME=${FNAME%.yaml}
 
 # Slurm 日志路径（独立训练日志）
-LOG_FILE="logs9/${TASK}_${TIME}_${CFG_NAME}.log"
+LOG_FILE="logs10/${TASK}_${TIME}_${CFG_NAME}.log"
 
 # 确保日志目录存在
-mkdir -p logs9
+mkdir -p logs10
 
-
+# 设置端口（可根据需要随机分配）
+export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
 
 # ========================
 # 启动训练任务
@@ -71,8 +70,8 @@ echo "DEVICES=${DEVICES}"
 echo "MASTER_PORT=${MASTER_PORT}"
 echo "LOG_FILE=${LOG_FILE}"
 
-
-srun python -m app.main \
+# 启动 Python 程序
+srun python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \
   --devices ${DEVICES} \
   > "${LOG_FILE}" 2>&1
