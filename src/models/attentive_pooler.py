@@ -135,3 +135,40 @@ class AttentiveClassifier(nn.Module):
         x = self.pooler(x).squeeze(1)
         x = self.linear(x)
         return x
+
+
+class AttentiveRegressor(nn.Module):
+    """Attentive Regressor for continuous value prediction (e.g., skill scores)"""
+
+    def __init__(
+        self,
+        embed_dim=768,
+        num_heads=12,
+        mlp_ratio=4.0,
+        depth=1,
+        norm_layer=nn.LayerNorm,
+        init_std=0.02,
+        qkv_bias=True,
+        num_outputs=1,
+        complete_block=True,
+        use_activation_checkpointing=False,
+    ):
+        super().__init__()
+        self.pooler = AttentivePooler(
+            num_queries=1,
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            mlp_ratio=mlp_ratio,
+            depth=depth,
+            norm_layer=norm_layer,
+            init_std=init_std,
+            qkv_bias=qkv_bias,
+            complete_block=complete_block,
+            use_activation_checkpointing=use_activation_checkpointing,
+        )
+        self.linear = nn.Linear(embed_dim, num_outputs, bias=True)
+
+    def forward(self, x):
+        x = self.pooler(x).squeeze(1)
+        x = self.linear(x)
+        return x

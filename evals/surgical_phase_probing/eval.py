@@ -8,13 +8,14 @@ import torch.multiprocessing as mp
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import precision_score, recall_score, jaccard_score, f1_score, accuracy_score
+from scipy.stats import spearmanr
 import wandb
 
 from evals.surgical_video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
 from evals.utils.bootstrap import bootstrap_per_video_metrics, print_bootstrap_results
 from src.datasets.data_manager import init_data
-from src.models.attentive_pooler import AttentiveClassifier
+from src.models.attentive_pooler import AttentiveClassifier, AttentiveRegressor
 from src.utils.checkpoint_loader import robust_checkpoint_loader
 from src.utils.distributed import AllReduce, init_distributed
 from src.utils.logging import AverageMeter
@@ -93,6 +94,102 @@ def segmental_edit_distance(seq1, seq2):
     
     # Invert to match "higher is better" convention
     return (1 - edit_dist / max_len) * 100
+
+
+# ----------------------
+# Regression Metrics
+# ----------------------
+def compute_regression_metrics(predictions, targets):
+    """
+    Compute regression metrics: MAE and Spearman correlation.
+
+    Args:
+        predictions: Array of predicted values
+        targets: Array of ground truth values
+
+    Returns:
+        Dictionary with MAE and Spearman correlation
+    """
+    predictions = np.array(predictions)
+    targets = np.array(targets)
+
+    # Mean Absolute Error
+    mae = np.mean(np.abs(predictions - targets))
+
+    # Spearman correlation
+    spearman_corr, spearman_pval = spearmanr(predictions, targets)
+
+    return {
+        "MAE": mae,
+        "Spearman": spearman_corr,
+        "Spearman_PValue": spearman_pval
+    }
+
+
+def evaluate_per_video_regression(predictions_df, use_bootstrap=False, n_bootstrap=1000, random_seed=None, head_id=None):
+    """
+    Evaluate per-video regression metrics with optional bootstrap uncertainty estimation.
+
+    Args:
+        predictions_df: DataFrame with columns [data_idx, vid, prediction, label]
+        use_bootstrap: If True, perform bootstrap resampling for uncertainty estimation
+        n_bootstrap: Number of bootstrap iterations (default: 1000)
+        random_seed: Random seed for reproducibility (default: None)
+        head_id: Regressor head ID for logging purposes (optional)
+
+    Returns:
+        per_video: List of per-video metrics
+        stats: Aggregated statistics (with bootstrap uncertainty if use_bootstrap=True)
+    """
+    # Sort predictions by video and temporal index
+    predictions_df = predictions_df.sort_values(['vid', 'data_idx'])
+
+    # Per-video metrics
+    per_video = []
+    for vid_name, vid_data in predictions_df.groupby("vid"):
+        gt = vid_data['label'].values
+        pred = vid_data['prediction'].values
+
+        metrics = compute_regression_metrics(pred, gt)
+        metrics["vid"] = vid_name
+        per_video.append(metrics)
+
+    # Overall metrics
+    all_gt = predictions_df['label'].values
+    all_pred = predictions_df['prediction'].values
+    overall_metrics = compute_regression_metrics(all_pred, all_gt)
+
+    # Bootstrap uncertainty estimation
+    if use_bootstrap:
+        head_str = f" for head_{head_id}" if head_id is not None else ""
+        logger.info(f"Performing bootstrap with {n_bootstrap} iterations{head_str}...")
+
+        bootstrap_results = bootstrap_per_video_metrics(
+            per_video_results=per_video,
+            metric_keys=["MAE", "Spearman"],
+            n_bootstrap=n_bootstrap,
+            random_seed=random_seed
+        )
+
+        stats = {}
+        for metric in ["MAE", "Spearman"]:
+            stats[f"{metric}_Mean"] = bootstrap_results["mean"][metric]
+            stats[f"{metric}_Std"] = bootstrap_results["std"][metric]
+            stats[f"{metric}_CI_Lower"] = bootstrap_results["ci_lower"][metric]
+            stats[f"{metric}_CI_Upper"] = bootstrap_results["ci_upper"][metric]
+
+        stats["Overall_MAE"] = overall_metrics["MAE"]
+        stats["Overall_Spearman"] = overall_metrics["Spearman"]
+    else:
+        # Simple averaging without bootstrap
+        stats = {
+            "MAE_Mean": np.mean([v["MAE"] for v in per_video]),
+            "Spearman_Mean": np.mean([v["Spearman"] for v in per_video]),
+            "Overall_MAE": overall_metrics["MAE"],
+            "Overall_Spearman": overall_metrics["Spearman"]
+        }
+
+    return per_video, stats
 
 
 # ----------------------
@@ -224,6 +321,11 @@ def main(args_eval, resume_preempt=False):
     # Quick run / debug mode configuration
     quick_run = args_eval.get("quick_run", False)
     quick_run_num_videos = args_eval.get("quick_run_num_videos", 2)
+
+    # Task type: 'classification' or 'regression'
+    task_type = args_eval.get("task_type", "classification")
+    if task_type not in ["classification", "regression"]:
+        raise ValueError(f"task_type must be 'classification' or 'regression', got '{task_type}'")
 
     # Bootstrap configuration (default: enabled)
     use_bootstrap = args_eval.get("use_bootstrap", True)
@@ -390,27 +492,40 @@ def main(args_eval, resume_preempt=False):
         device=device,
     )
 
-    # 构建多个分类头
-    # If head_to_dataset_map is provided, use per-dataset num_classes
-    if head_to_dataset_map is not None:
+    # 构建多个分类头或回归头
+    if task_type == "classification":
+        # If head_to_dataset_map is provided, use per-dataset num_classes
+        if head_to_dataset_map is not None:
+            classifiers = [
+                AttentiveClassifier(
+                    embed_dim=encoder.embed_dim,
+                    num_heads=num_heads,
+                    depth=num_probe_blocks,
+                    num_classes=num_classes_list[head_to_dataset_map[idx]],
+                    use_activation_checkpointing=True,
+                ).to(device)
+                for idx in range(len(opt_kwargs))
+            ]
+        else:
+            # Default: all heads use the first dataset's num_classes
+            classifiers = [
+                AttentiveClassifier(
+                    embed_dim=encoder.embed_dim,
+                    num_heads=num_heads,
+                    depth=num_probe_blocks,
+                    num_classes=num_classes_list[0],
+                    use_activation_checkpointing=True,
+                ).to(device)
+                for _ in opt_kwargs
+            ]
+    else:  # regression
+        # For regression, all heads output a single value
         classifiers = [
-            AttentiveClassifier(
+            AttentiveRegressor(
                 embed_dim=encoder.embed_dim,
                 num_heads=num_heads,
                 depth=num_probe_blocks,
-                num_classes=num_classes_list[head_to_dataset_map[idx]],
-                use_activation_checkpointing=True,
-            ).to(device)
-            for idx in range(len(opt_kwargs))
-        ]
-    else:
-        # Default: all heads use the first dataset's num_classes
-        classifiers = [
-            AttentiveClassifier(
-                embed_dim=encoder.embed_dim,
-                num_heads=num_heads,
-                depth=num_probe_blocks,
-                num_classes=num_classes_list[0],
+                num_outputs=1,
                 use_activation_checkpointing=True,
             ).to(device)
             for _ in opt_kwargs
@@ -419,9 +534,9 @@ def main(args_eval, resume_preempt=False):
     # Only use DistributedDataParallel if distributed is initialized
     if dist.is_initialized():
         classifiers = [DistributedDataParallel(c, static_graph=True) for c in classifiers]
-        logger.info("Wrapped classifiers with DistributedDataParallel")
+        logger.info(f"Wrapped {task_type} heads with DistributedDataParallel")
     else:
-        logger.info("Running in single-process mode (no DDP wrapping)")
+        logger.info(f"Running {task_type} in single-process mode (no DDP wrapping)")
 
     train_loader, train_sampler = make_dataloader(
         dataset_type=dataset_type,
@@ -495,6 +610,9 @@ def main(args_eval, resume_preempt=False):
         }
         if rank == 0:
             torch.save(save_dict, latest_path)
+
+    # Set task_type as function attribute for run_one_epoch
+    run_one_epoch.task_type = task_type
 
     # ----------------
     # 训练循环
@@ -575,7 +693,13 @@ def run_one_epoch(
     for c in classifiers:
         c.train(mode=training)
 
-    criterion = torch.nn.CrossEntropyLoss()
+    # Select loss function based on task type
+    task_type = getattr(run_one_epoch, 'task_type', 'classification')
+    if task_type == "classification":
+        criterion = torch.nn.CrossEntropyLoss()
+    else:  # regression
+        criterion = torch.nn.MSELoss()
+
     acc_meters = [AverageMeter() for _ in classifiers]
     loss_meters = [AverageMeter() for _ in classifiers]
 
@@ -605,9 +729,14 @@ def run_one_epoch(
             # 每个分类器独立输出
             outputs = [[c(f) for f in features] for c in classifiers]
 
-            # 每个分类器独立 loss with optional masking for multi-dataset training
+            # 每个分类器/回归器独立 loss with optional masking for multi-dataset training
             losses = []
             has_samples = []  # Track which heads have actual samples in this batch
+
+            if task_type == "regression":
+                # For regression: convert labels to float and squeeze outputs
+                labels_float = labels.float()
+
             if head_to_dataset_map is not None and dataset_indices is not None:
                 # Multi-dataset training: mask loss by dataset
                 for head_idx, coutputs in enumerate(outputs):
@@ -617,7 +746,10 @@ def run_one_epoch(
                     for o in coutputs:
                         mask = (dataset_indices == assigned_dataset)
                         if mask.sum() > 0:
-                            loss = criterion(o[mask], labels[mask])
+                            if task_type == "classification":
+                                loss = criterion(o[mask], labels[mask])
+                            else:  # regression
+                                loss = criterion(o[mask].squeeze(), labels_float[mask])
                             head_has_samples = True
                         else:
                             # No samples from this dataset in batch, create dummy loss
@@ -627,7 +759,10 @@ def run_one_epoch(
                     has_samples.append(head_has_samples)
             else:
                 # Single dataset or no masking: standard loss calculation
-                losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
+                if task_type == "classification":
+                    losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
+                else:  # regression
+                    losses = [[criterion(o.squeeze(), labels_float) for o in coutputs] for coutputs in outputs]
                 has_samples = [True] * len(losses)
 
         if training:
@@ -655,8 +790,13 @@ def run_one_epoch(
 
         with torch.no_grad():
             for idx, coutputs in enumerate(outputs):
-                avg_output = torch.stack([F.softmax(o, dim=1) for o in coutputs]).mean(0)
-                preds = avg_output.argmax(dim=1)
+                if task_type == "classification":
+                    avg_output = torch.stack([F.softmax(o, dim=1) for o in coutputs]).mean(0)
+                    preds = avg_output.argmax(dim=1)
+                else:  # regression
+                    # Average predictions across views and squeeze
+                    avg_output = torch.stack([o.squeeze() for o in coutputs]).mean(0)
+                    preds = avg_output
 
                 # Calculate metrics: if masking, only for assigned dataset samples
                 if head_to_dataset_map is not None and dataset_indices is not None:
@@ -665,13 +805,19 @@ def run_one_epoch(
                     if mask.sum() > 0:
                         masked_preds = preds[mask]
                         masked_labels = labels[mask]
-                        acc = 100.0 * masked_preds.eq(masked_labels).sum() / mask.sum()
+                        if task_type == "classification":
+                            acc = 100.0 * masked_preds.eq(masked_labels).sum() / mask.sum()
+                        else:  # regression - use MAE as the metric
+                            acc = torch.abs(masked_preds - masked_labels.float()).mean()
                         acc = float(AllReduce.apply(acc))
                         acc_meters[idx].update(acc, mask.sum().item())
                     # else: no samples from this dataset in batch, skip update
                 else:
-                    # No masking: standard accuracy calculation
-                    acc = 100.0 * preds.eq(labels).sum() / batch_size
+                    # No masking: standard metric calculation
+                    if task_type == "classification":
+                        acc = 100.0 * preds.eq(labels).sum() / batch_size
+                    else:  # regression - use MAE as the metric
+                        acc = torch.abs(preds - labels.float()).mean()
                     acc = float(AllReduce.apply(acc))
                     acc_meters[idx].update(acc)
 
@@ -694,27 +840,42 @@ def run_one_epoch(
 
         if itr % log_interval == 0:
             if training:
-                logger.info(
-                    f"[Train][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
-                    + " ".join([f"Head{h}: Acc={am.avg:.2f}%, Loss={lm.avg:.4f}"
-                                for h, (am, lm) in enumerate(zip(acc_meters, loss_meters))])
-                )
+                if task_type == "classification":
+                    logger.info(
+                        f"[Train][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
+                        + " ".join([f"Head{h}: Acc={am.avg:.2f}%, Loss={lm.avg:.4f}"
+                                    for h, (am, lm) in enumerate(zip(acc_meters, loss_meters))])
+                    )
+                else:  # regression
+                    logger.info(
+                        f"[Train][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
+                        + " ".join([f"Head{h}: MAE={am.avg:.4f}, Loss={lm.avg:.4f}"
+                                    for h, (am, lm) in enumerate(zip(acc_meters, loss_meters))])
+                    )
 
                 # Log training metrics to wandb at log_interval (only on rank 0)
                 if rank == 0:
                     global_step = epoch * len(data_loader) + itr
                     wandb_metrics = {}
                     for h, (am, lm) in enumerate(zip(acc_meters, loss_meters)):
-                        wandb_metrics[f"train/head_{h}/Acc"] = am.avg
+                        metric_name = "Acc" if task_type == "classification" else "MAE"
+                        wandb_metrics[f"train/head_{h}/{metric_name}"] = am.avg
                         wandb_metrics[f"train/head_{h}/Loss"] = lm.avg
                     wandb.log(wandb_metrics, step=global_step)
             else:
-                logger.info(
-                    f"[Val][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
-                    + " ".join([f"Head{h}: Acc={am.avg:.2f}%" for h, am in enumerate(acc_meters)])
-                )
+                if task_type == "classification":
+                    logger.info(
+                        f"[Val][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
+                        + " ".join([f"Head{h}: Acc={am.avg:.2f}%" for h, am in enumerate(acc_meters)])
+                    )
+                else:  # regression
+                    logger.info(
+                        f"[Val][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
+                        + " ".join([f"Head{h}: MAE={am.avg:.4f}" for h, am in enumerate(acc_meters)])
+                    )
 
-    metrics = {f"head_{i}": {"Acc": acc_meters[i].avg, "Loss": loss_meters[i].avg} for i in range(len(classifiers))}
+    metric_name = "Acc" if task_type == "classification" else "MAE"
+    metrics = {f"head_{i}": {metric_name: acc_meters[i].avg, "Loss": loss_meters[i].avg} for i in range(len(classifiers))}
 
     if not training and len(all_predictions) > 0:
         df = pd.DataFrame(all_predictions, columns=["head","data_idx","vid","prediction","label","dataset_idx"])
@@ -726,105 +887,181 @@ def run_one_epoch(
 
         # Evaluate per head
         for head_id, g in df.groupby("head"):
-            per_video, stats, phases = evaluate_per_video(
-                g,
-                use_bootstrap=use_bootstrap,
-                n_bootstrap=n_bootstrap,
-                random_seed=bootstrap_seed,
-                head_id=head_id
-            )
-            results[f"head_{head_id}"] = stats
+            if task_type == "classification":
+                per_video, stats, phases = evaluate_per_video(
+                    g,
+                    use_bootstrap=use_bootstrap,
+                    n_bootstrap=n_bootstrap,
+                    random_seed=bootstrap_seed,
+                    head_id=head_id
+                )
+                results[f"head_{head_id}"] = stats
 
-            # Log to wandb (only on rank 0)
-            if rank == 0:
-                wandb_metrics = {
-                    f"val/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
-                    f"val/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
-                    f"val/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
-                    f"val/head_{head_id}/Macro_Precision": stats['Macro_Precision_Mean'],
-                    f"val/head_{head_id}/Macro_Recall": stats['Macro_Recall_Mean'],
-                    f"val/head_{head_id}/Edit_Score": stats['Edit_Score_Mean'],
-                }
+                # Log to wandb (only on rank 0)
+                if rank == 0:
+                    wandb_metrics = {
+                        f"val/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
+                        f"val/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
+                        f"val/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
+                        f"val/head_{head_id}/Macro_Precision": stats['Macro_Precision_Mean'],
+                        f"val/head_{head_id}/Macro_Recall": stats['Macro_Recall_Mean'],
+                        f"val/head_{head_id}/Edit_Score": stats['Edit_Score_Mean'],
+                    }
 
-                # Add uncertainty metrics if bootstrap was used
-                if use_bootstrap:
-                    wandb_metrics.update({
-                        f"val/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
-                        f"val/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
-                        f"val/head_{head_id}/Macro_IoU_Std": stats['Macro_IoU_Std'],
-                        f"val/head_{head_id}/Accuracy_CI_Width": stats['Accuracy_CI_Upper'] - stats['Accuracy_CI_Lower'],
-                        f"val/head_{head_id}/Macro_F1_CI_Width": stats['Macro_F1_CI_Upper'] - stats['Macro_F1_CI_Lower'],
+                    # Add uncertainty metrics if bootstrap was used
+                    if use_bootstrap:
+                        wandb_metrics.update({
+                            f"val/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
+                            f"val/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
+                            f"val/head_{head_id}/Macro_IoU_Std": stats['Macro_IoU_Std'],
+                            f"val/head_{head_id}/Accuracy_CI_Width": stats['Accuracy_CI_Upper'] - stats['Accuracy_CI_Lower'],
+                            f"val/head_{head_id}/Macro_F1_CI_Width": stats['Macro_F1_CI_Upper'] - stats['Macro_F1_CI_Lower'],
+                        })
+
+                    wandb.log(wandb_metrics, step=global_step)
+
+            else:  # regression
+                per_video, stats = evaluate_per_video_regression(
+                    g,
+                    use_bootstrap=use_bootstrap,
+                    n_bootstrap=n_bootstrap,
+                    random_seed=bootstrap_seed,
+                    head_id=head_id
+                )
+                results[f"head_{head_id}"] = stats
+
+                # Log to wandb (only on rank 0)
+                if rank == 0:
+                    wandb_metrics = {
+                        f"val/head_{head_id}/MAE": stats['MAE_Mean'],
+                        f"val/head_{head_id}/Spearman": stats['Spearman_Mean'],
+                        f"val/head_{head_id}/Overall_MAE": stats['Overall_MAE'],
+                        f"val/head_{head_id}/Overall_Spearman": stats['Overall_Spearman'],
+                    }
+
+                    # Add uncertainty metrics if bootstrap was used
+                    if use_bootstrap:
+                        wandb_metrics.update({
+                            f"val/head_{head_id}/MAE_Std": stats['MAE_Std'],
+                            f"val/head_{head_id}/Spearman_Std": stats['Spearman_Std'],
+                            f"val/head_{head_id}/MAE_CI_Width": stats['MAE_CI_Upper'] - stats['MAE_CI_Lower'],
+                            f"val/head_{head_id}/Spearman_CI_Width": stats['Spearman_CI_Upper'] - stats['Spearman_CI_Lower'],
                     })
 
                 wandb.log(wandb_metrics, step=global_step)
 
         logger.info("=== Evaluation per head ===")
         for k, v in results.items():
+            if task_type == "classification":
+                logger.info(
+                    f"{k}: "
+                    f"Acc={v['Accuracy_Mean']:.2f}±{v['Accuracy_Std']:.2f}, "
+                    f"F1={v['Macro_F1_Mean']:.2f}±{v['Macro_F1_Std']:.2f}, "
+                    f"IoU={v['Macro_IoU_Mean']:.2f}±{v['Macro_IoU_Std']:.2f}, "
+                    f"Prec={v['Macro_Precision_Mean']:.2f}±{v['Macro_Precision_Std']:.2f}, "
+                    f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}, "
+                    f"Edit={v['Edit_Score_Mean']:.2f}±{v['Edit_Score_Std']:.2f}"
+                )
+
+                # Log per-class metrics
+                if "per_class" in v:
+                    logger.info(f"  Per-class metrics for {k}:")
+                    for phase_name, phase_metrics in v["per_class"].items():
+                        logger.info(
+                            f"    {phase_name}: "
+                            f"Prec={phase_metrics['Precision']:.2f}%, "
+                            f"Rec={phase_metrics['Recall']:.2f}%, "
+                            f"F1={phase_metrics['F1']:.2f}%, "
+                            f"IoU={phase_metrics['IoU']:.2f}%"
+                        )
+            else:  # regression
+                logger.info(
+                    f"{k}: "
+                    f"MAE={v['MAE_Mean']:.4f}±{v['MAE_Std']:.4f}, "
+                    f"Spearman={v['Spearman_Mean']:.4f}±{v['Spearman_Std']:.4f}"
+                )
+
+        # Find best head by Macro F1 (classification) or MAE (regression)
+        if task_type == "classification":
+            best_head_name = max(results.items(), key=lambda x: x[1]['Macro_F1_Mean'])[0]
+            best_head_stats = results[best_head_name]
+
+            logger.info("\n" + "="*70)
+            logger.info(f"BEST HEAD: {best_head_name} (Macro_F1={best_head_stats['Macro_F1_Mean']:.2f})")
+            logger.info("="*70)
             logger.info(
-                f"{k}: "
-                f"Acc={v['Accuracy_Mean']:.2f}±{v['Accuracy_Std']:.2f}, "
-                f"F1={v['Macro_F1_Mean']:.2f}±{v['Macro_F1_Std']:.2f}, "
-                f"IoU={v['Macro_IoU_Mean']:.2f}±{v['Macro_IoU_Std']:.2f}, "
-                f"Prec={v['Macro_Precision_Mean']:.2f}±{v['Macro_Precision_Std']:.2f}, "
-                f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}, "
-                f"Edit={v['Edit_Score_Mean']:.2f}±{v['Edit_Score_Std']:.2f}"
+                f"Acc={best_head_stats['Accuracy_Mean']:.2f}±{best_head_stats['Accuracy_Std']:.2f}, "
+                f"F1={best_head_stats['Macro_F1_Mean']:.2f}±{best_head_stats['Macro_F1_Std']:.2f}, "
+                f"IoU={best_head_stats['Macro_IoU_Mean']:.2f}±{best_head_stats['Macro_IoU_Std']:.2f}, "
+                f"Prec={best_head_stats['Macro_Precision_Mean']:.2f}±{best_head_stats['Macro_Precision_Std']:.2f}, "
+                f"Rec={best_head_stats['Macro_Recall_Mean']:.2f}±{best_head_stats['Macro_Recall_Std']:.2f}, "
+                f"Edit={best_head_stats['Edit_Score_Mean']:.2f}±{best_head_stats['Edit_Score_Std']:.2f}"
             )
+            logger.info("="*70)
 
-            # Log per-class metrics
-            if "per_class" in v:
-                logger.info(f"  Per-class metrics for {k}:")
-                for phase_name, phase_metrics in v["per_class"].items():
-                    logger.info(
-                        f"    {phase_name}: "
-                        f"Prec={phase_metrics['Precision']:.2f}%, "
-                        f"Rec={phase_metrics['Recall']:.2f}%, "
-                        f"F1={phase_metrics['F1']:.2f}%, "
-                        f"IoU={phase_metrics['IoU']:.2f}%"
-                    )
+            # Log best head to wandb (only on rank 0)
+            if rank == 0:
+                wandb_best_metrics = {
+                    f"val/best_head/Accuracy": best_head_stats['Accuracy_Mean'],
+                    f"val/best_head/Macro_F1": best_head_stats['Macro_F1_Mean'],
+                    f"val/best_head/Macro_IoU": best_head_stats['Macro_IoU_Mean'],
+                    f"val/best_head/Macro_Precision": best_head_stats['Macro_Precision_Mean'],
+                    f"val/best_head/Macro_Recall": best_head_stats['Macro_Recall_Mean'],
+                    f"val/best_head/Edit_Score": best_head_stats['Edit_Score_Mean'],
+                }
 
-        # Find best head by Macro F1
-        best_head_name = max(results.items(), key=lambda x: x[1]['Macro_F1_Mean'])[0]
-        best_head_stats = results[best_head_name]
+                # Add uncertainty metrics if bootstrap was used
+                if use_bootstrap:
+                    wandb_best_metrics.update({
+                        f"val/best_head/Accuracy_Std": best_head_stats['Accuracy_Std'],
+                        f"val/best_head/Macro_F1_Std": best_head_stats['Macro_F1_Std'],
+                        f"val/best_head/Macro_IoU_Std": best_head_stats['Macro_IoU_Std'],
+                        f"val/best_head/Accuracy_CI_Width": best_head_stats['Accuracy_CI_Upper'] - best_head_stats['Accuracy_CI_Lower'],
+                        f"val/best_head/Macro_F1_CI_Width": best_head_stats['Macro_F1_CI_Upper'] - best_head_stats['Macro_F1_CI_Lower'],
+                    })
 
-        logger.info("\n" + "="*70)
-        logger.info(f"BEST HEAD: {best_head_name} (Macro_F1={best_head_stats['Macro_F1_Mean']:.2f})")
-        logger.info("="*70)
-        logger.info(
-            f"Acc={best_head_stats['Accuracy_Mean']:.2f}±{best_head_stats['Accuracy_Std']:.2f}, "
-            f"F1={best_head_stats['Macro_F1_Mean']:.2f}±{best_head_stats['Macro_F1_Std']:.2f}, "
-            f"IoU={best_head_stats['Macro_IoU_Mean']:.2f}±{best_head_stats['Macro_IoU_Std']:.2f}, "
-            f"Prec={best_head_stats['Macro_Precision_Mean']:.2f}±{best_head_stats['Macro_Precision_Std']:.2f}, "
-            f"Rec={best_head_stats['Macro_Recall_Mean']:.2f}±{best_head_stats['Macro_Recall_Std']:.2f}, "
-            f"Edit={best_head_stats['Edit_Score_Mean']:.2f}±{best_head_stats['Edit_Score_Std']:.2f}"
-        )
-        logger.info("="*70)
+                wandb.log(wandb_best_metrics, step=global_step)
 
-        # Log best head to wandb (only on rank 0)
-        if rank == 0:
-            wandb_best_metrics = {
-                f"val/best_head/Accuracy": best_head_stats['Accuracy_Mean'],
-                f"val/best_head/Macro_F1": best_head_stats['Macro_F1_Mean'],
-                f"val/best_head/Macro_IoU": best_head_stats['Macro_IoU_Mean'],
-                f"val/best_head/Macro_Precision": best_head_stats['Macro_Precision_Mean'],
-                f"val/best_head/Macro_Recall": best_head_stats['Macro_Recall_Mean'],
-                f"val/best_head/Edit_Score": best_head_stats['Edit_Score_Mean'],
-            }
+                # Also log which head was best (extract head number from name like "head_5")
+                best_head_id = int(best_head_name.split('_')[1])
+                wandb.log({"val/best_head_id": best_head_id}, step=global_step)
 
-            # Add uncertainty metrics if bootstrap was used
-            if use_bootstrap:
-                wandb_best_metrics.update({
-                    f"val/best_head/Accuracy_Std": best_head_stats['Accuracy_Std'],
-                    f"val/best_head/Macro_F1_Std": best_head_stats['Macro_F1_Std'],
-                    f"val/best_head/Macro_IoU_Std": best_head_stats['Macro_IoU_Std'],
-                    f"val/best_head/Accuracy_CI_Width": best_head_stats['Accuracy_CI_Upper'] - best_head_stats['Accuracy_CI_Lower'],
-                    f"val/best_head/Macro_F1_CI_Width": best_head_stats['Macro_F1_CI_Upper'] - best_head_stats['Macro_F1_CI_Lower'],
-                })
+        else:  # regression - best head has lowest MAE
+            best_head_name = min(results.items(), key=lambda x: x[1]['MAE_Mean'])[0]
+            best_head_stats = results[best_head_name]
 
-            wandb.log(wandb_best_metrics, step=global_step)
+            logger.info("\n" + "="*70)
+            logger.info(f"BEST HEAD: {best_head_name} (MAE={best_head_stats['MAE_Mean']:.4f})")
+            logger.info("="*70)
+            logger.info(
+                f"MAE={best_head_stats['MAE_Mean']:.4f}±{best_head_stats['MAE_Std']:.4f}, "
+                f"Spearman={best_head_stats['Spearman_Mean']:.4f}±{best_head_stats['Spearman_Std']:.4f}"
+            )
+            logger.info("="*70)
 
-            # Also log which head was best (extract head number from name like "head_5")
-            best_head_id = int(best_head_name.split('_')[1])
-            wandb.log({"val/best_head_id": best_head_id}, step=global_step)
+            # Log best head to wandb (only on rank 0)
+            if rank == 0:
+                wandb_best_metrics = {
+                    f"val/best_head/MAE": best_head_stats['MAE_Mean'],
+                    f"val/best_head/Spearman": best_head_stats['Spearman_Mean'],
+                    f"val/best_head/Overall_MAE": best_head_stats['Overall_MAE'],
+                    f"val/best_head/Overall_Spearman": best_head_stats['Overall_Spearman'],
+                }
+
+                # Add uncertainty metrics if bootstrap was used
+                if use_bootstrap:
+                    wandb_best_metrics.update({
+                        f"val/best_head/MAE_Std": best_head_stats['MAE_Std'],
+                        f"val/best_head/Spearman_Std": best_head_stats['Spearman_Std'],
+                        f"val/best_head/MAE_CI_Width": best_head_stats['MAE_CI_Upper'] - best_head_stats['MAE_CI_Lower'],
+                        f"val/best_head/Spearman_CI_Width": best_head_stats['Spearman_CI_Upper'] - best_head_stats['Spearman_CI_Lower'],
+                    })
+
+                wandb.log(wandb_best_metrics, step=global_step)
+
+                # Also log which head was best (extract head number from name like "head_5")
+                best_head_id = int(best_head_name.split('_')[1])
+                wandb.log({"val/best_head_id": best_head_id}, step=global_step)
 
         # Per-dataset evaluation if we have multi-dataset setup
         if head_to_dataset_map is not None:
