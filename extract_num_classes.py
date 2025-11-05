@@ -15,7 +15,11 @@ datasets = [
     "OphNet2024_phase",
     "PitVis",
     "PmLR50",
-    "StrasBypass70"
+    "StrasBypass70",
+    "GynSurg_Action",
+    "AVOS",
+    "GraSP",
+    "SurgAction160"
 ]
 
 print("Number of classes per dataset:")
