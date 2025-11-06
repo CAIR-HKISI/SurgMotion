@@ -25,7 +25,7 @@ source /home/felix_holm/.bashrc
 conda deactivate
 conda activate jepa_torch
 
-FNAME="autolaparo_vitl_cpt_attentive_64f.yaml"
+FNAME="autolaparo_vitl_cpt_attentive_64f_40e.yaml"
 TASK="probing_autolaparo"
 python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \

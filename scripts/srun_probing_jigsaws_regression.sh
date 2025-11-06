@@ -25,7 +25,7 @@ source /home/felix_holm/.bashrc
 conda deactivate
 conda activate jepa_torch
 
-FNAME="jigsaws_vitl_cpt_regression_64f.yaml"
+FNAME="jigsaws_vitl_cpt_regression_64f_40e.yaml"
 TASK="probing_jigsaws_regression"
 python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \
