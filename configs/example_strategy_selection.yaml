@@ -1,13 +1,20 @@
 app: vjepa_cpt
+<<<<<<< HEAD
 <<<<<<<< HEAD:configs/cpt_pitvis/pitvis_cpt_vitl-256px-128f_lr1e-4_epoch-10.yaml
 cpus_per_task: 4
 folder: logs4/pitvis_cpt_epoch-10_vitl16-256px-128f_lr1e-4
+=======
+<<<<<<<< HEAD:configs/cpt_pitvis/pitvis_cpt_vitl-256px-64f_lr1e-4_epoch-30.yaml
+cpus_per_task: 4
+folder: logs3/pitvis_cpt_epoch-30_vitl16-256px-64f_lr1e-4
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
 data:
   dataset_type: surgical_videodataset
   datasets:
+<<<<<<< HEAD
   - data_process/pitvis_clips_clean/pitvis_clips_clean_128f/train_dense_128f_detailed.csv
   datasets_weights:
   - 1.0
@@ -15,6 +22,9 @@ data:
   crop_size: 256
   dataset_fpcs:
   - 128
+=======
+  - data_process/pitvis_clips_clean/pitvis_clips_clean_64f/train_dense_64f_detailed.csv
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
 ========
 cpus_per_task: 8
 folder: logs/example_strategy_selection
@@ -26,25 +36,40 @@ data:
   dataset_type: surgical_videodataset
   datasets:
   - data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv
+<<<<<<< HEAD
+=======
+>>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2:configs/example_strategy_selection.yaml
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
   datasets_weights:
   - 1.0
   batch_size: 64
   crop_size: 256
   dataset_fpcs:
   - 64
+<<<<<<< HEAD
 >>>>>>>> cea3dfc041 (next window prediction):configs/example_strategy_selection.yaml
+=======
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
   fps: 1
   num_workers: 4
   patch_size: 16
   persistent_workers: true
+<<<<<<< HEAD
 <<<<<<<< HEAD:configs/cpt_pitvis/pitvis_cpt_vitl-256px-128f_lr1e-4_epoch-10.yaml
+=======
+<<<<<<<< HEAD:configs/cpt_pitvis/pitvis_cpt_vitl-256px-64f_lr1e-4_epoch-30.yaml
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
   pin_mem: false
   tubelet_size: 2
 ========
   pin_mem: true
   tubelet_size: 2
 
+<<<<<<< HEAD
 >>>>>>>> cea3dfc041 (next window prediction):configs/example_strategy_selection.yaml
+=======
+>>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2:configs/example_strategy_selection.yaml
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
 data_aug:
   auto_augment: false
   motion_shift: false
@@ -57,7 +82,11 @@ data_aug:
   reprob: 0.0
 loss:
   loss_exp: 1.0
+<<<<<<< HEAD
 <<<<<<<< HEAD:configs/cpt_pitvis/pitvis_cpt_vitl-256px-128f_lr1e-4_epoch-10.yaml
+=======
+<<<<<<<< HEAD:configs/cpt_pitvis/pitvis_cpt_vitl-256px-64f_lr1e-4_epoch-30.yaml
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
 mask:
 - aspect_ratio:
   - 0.75
@@ -84,7 +113,11 @@ mask:
   inv_block: false
 
 # 策略2: 传统的block mask策略
+<<<<<<< HEAD
 >>>>>>>> cea3dfc041 (next window prediction):configs/example_strategy_selection.yaml
+=======
+>>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2:configs/example_strategy_selection.yaml
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
 - aspect_ratio:
   - 0.75
   - 1.5
@@ -98,7 +131,11 @@ mask:
   temporal_scale:
   - 1.0
   - 1.0
+<<<<<<< HEAD
 <<<<<<<< HEAD:configs/cpt_pitvis/pitvis_cpt_vitl-256px-128f_lr1e-4_epoch-10.yaml
+=======
+<<<<<<<< HEAD:configs/cpt_pitvis/pitvis_cpt_vitl-256px-64f_lr1e-4_epoch-30.yaml
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
 ========
 
 # 策略选择配置
@@ -112,17 +149,29 @@ mask_strategy_selection: "all"
 # mask_strategy_selection: "weighted"
 # mask_strategy_weights: [0.5, 0.5]  # 对应上面的2个策略的权重
 
+<<<<<<< HEAD
 >>>>>>>> cea3dfc041 (next window prediction):configs/example_strategy_selection.yaml
+=======
+>>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2:configs/example_strategy_selection.yaml
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
 meta:
   dtype: bfloat16
   eval_freq: 100
   load_checkpoint: false
   read_checkpoint: None
+<<<<<<< HEAD
 <<<<<<<< HEAD:configs/cpt_pitvis/pitvis_cpt_vitl-256px-128f_lr1e-4_epoch-10.yaml
   save_every_freq: 50
 ========
   save_every_freq: 5
 >>>>>>>> cea3dfc041 (next window prediction):configs/example_strategy_selection.yaml
+=======
+<<<<<<<< HEAD:configs/cpt_pitvis/pitvis_cpt_vitl-256px-64f_lr1e-4_epoch-30.yaml
+  save_every_freq: 50
+========
+  save_every_freq: 5
+>>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2:configs/example_strategy_selection.yaml
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
   seed: 239
   use_sdpa: true
 model:
@@ -141,7 +190,11 @@ optimization:
   ema:
   - 0.99925
   - 0.99925
+<<<<<<< HEAD
   epochs: 10
+=======
+  epochs: 50
+>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
   final_lr: 1.0e-07
   final_weight_decay: 0.04
   ipe: 300

@@ -27,7 +27,7 @@ import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 
 from app.vjepa.transforms import make_transforms
-from app.vjepa.utils import init_opt, init_video_model, load_checkpoint
+from app.vjepa.utils import init_opt, init_video_model
 from src.datasets.data_manager import init_data
 from src.masks.multiseq_multiblock3d import MaskCollator
 from src.masks.utils import apply_masks
@@ -73,6 +73,81 @@ def load_cpt_checkpoint(encoder, pretrained, checkpoint_key="target_encoder"):
     logger.info(f"loaded pretrained {checkpoint_key} from epoch: {checkpoint['epoch']}\n path: {pretrained}")
     del checkpoint
     return encoder
+
+
+def load_checkpoint_with_module_fix(
+    r_path,
+    encoder,
+    predictor,
+    target_encoder,
+    opt,
+    scaler,
+):
+    """加载checkpoint并处理module.前缀不一致的问题"""
+    logger.info(f"Loading checkpoint from {r_path}")
+    checkpoint = robust_checkpoint_loader(r_path, map_location=torch.device("cpu"))
+    
+    epoch = checkpoint["epoch"]
+    
+    def fix_state_dict_keys(checkpoint_dict, model_state_dict):
+        """智能处理module.前缀：检查模型是否需要module.前缀，然后调整checkpoint中的键"""
+        # 检查模型的键是否有module.前缀
+        model_keys = list(model_state_dict.keys())
+        has_module = any(k.startswith("module.") for k in model_keys)
+        
+        # 检查checkpoint的键是否有module.前缀
+        ckpt_keys = list(checkpoint_dict.keys())
+        ckpt_has_module = any(k.startswith("module.") for k in ckpt_keys)
+        
+        # 如果模型有module.前缀但checkpoint没有，添加前缀
+        if has_module and not ckpt_has_module:
+            fixed_dict = {f"module.{k}": v for k, v in checkpoint_dict.items()}
+            logger.info(f"Adding 'module.' prefix to checkpoint keys (model has module, checkpoint doesn't)")
+        # 如果模型没有module.前缀但checkpoint有，去除前缀
+        elif not has_module and ckpt_has_module:
+            fixed_dict = {k.replace("module.", ""): v for k, v in checkpoint_dict.items()}
+            logger.info(f"Removing 'module.' prefix from checkpoint keys (checkpoint has module, model doesn't)")
+        else:
+            # 两者一致，直接使用
+            fixed_dict = checkpoint_dict
+        
+        return fixed_dict
+    
+    # -- loading encoder，处理"module."前缀
+    pretrained_dict = checkpoint["encoder"]
+    pretrained_dict = fix_state_dict_keys(pretrained_dict, encoder.state_dict())
+    msg = encoder.load_state_dict(pretrained_dict, strict=False)
+    logger.info(f"loaded pretrained encoder from epoch {epoch} with msg: {msg}")
+    
+    # -- loading predictor，处理"module."前缀
+    pretrained_dict = checkpoint["predictor"]
+    pretrained_dict = fix_state_dict_keys(pretrained_dict, predictor.state_dict())
+    msg = predictor.load_state_dict(pretrained_dict, strict=False)
+    logger.info(f"loaded pretrained predictor from epoch {epoch} with msg: {msg}")
+    
+    # -- loading target_encoder，处理"module."前缀
+    if target_encoder is not None:
+        pretrained_dict = checkpoint["target_encoder"]
+        pretrained_dict = fix_state_dict_keys(pretrained_dict, target_encoder.state_dict())
+        msg = target_encoder.load_state_dict(pretrained_dict, strict=False)
+        logger.info(f"loaded pretrained target encoder from epoch {epoch} with msg: {msg}")
+    
+    # -- loading optimizer
+    opt.load_state_dict(checkpoint["opt"])
+    if scaler is not None:
+        scaler.load_state_dict(checkpoint["scaler"])
+    logger.info(f"loaded optimizers from epoch {epoch}")
+    logger.info(f"read-path: {r_path}")
+    del checkpoint
+    
+    return (
+        encoder,
+        predictor,
+        target_encoder,
+        opt,
+        scaler,
+        epoch,
+    )
 
 
 def main(args, resume_preempt=False):
@@ -250,12 +325,19 @@ def main(args, resume_preempt=False):
         target_encoder.compile()
         predictor.compile()
 
+    # Get strategy selection configuration from args
+    # Allow strategy_selection and strategy_weights to be specified at the mask level or in args
+    strategy_selection = args.get("mask_strategy_selection", "random")  # Default: randomly select one strategy per batch
+    strategy_weights = args.get("mask_strategy_weights", None)  # Optional: weights for each strategy
+    
     mask_collator = MaskCollator(
         cfgs_mask=cfgs_mask,
         dataset_fpcs=dataset_fpcs,
         crop_size=crop_size,
         patch_size=patch_size,
         tubelet_size=tubelet_size,
+        strategy_selection=strategy_selection,
+        strategy_weights=strategy_weights,
     )
     transform = make_transforms(
         random_horizontal_flip=True,
@@ -310,9 +392,13 @@ def main(args, resume_preempt=False):
         betas=betas,
         eps=eps,
     )
-    encoder = DistributedDataParallel(encoder, static_graph=True)
-    predictor = DistributedDataParallel(predictor, static_graph=False, find_unused_parameters=True)
-    target_encoder = DistributedDataParallel(target_encoder)
+    # 仅在分布式已初始化时启用 DDP；单进程/单卡时跳过
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        encoder = DistributedDataParallel(encoder, static_graph=True)
+        predictor = DistributedDataParallel(predictor, static_graph=False, find_unused_parameters=True)
+        target_encoder = DistributedDataParallel(target_encoder)
+    else:
+        logger.info("DDP is not initialized; running without DistributedDataParallel")
     for p in target_encoder.parameters():
         p.requires_grad = False
 
@@ -333,7 +419,7 @@ def main(args, resume_preempt=False):
             optimizer,
             scaler,
             start_epoch,
-        ) = load_checkpoint(
+        ) = load_checkpoint_with_module_fix(
             r_path=latest_path,
             encoder=encoder,
             predictor=predictor,
