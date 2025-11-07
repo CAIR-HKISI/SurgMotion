@@ -1,26 +1,26 @@
-app: vjepa
+app: vjepa_cpt
+cpus_per_task: 8
+folder: logs/example_strategy_selection
+mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
-cpus_per_task: 4
-mem_per_gpu: 220G
-folder: logs/example_mask_last_n_frames
 
 data:
-  dataset_type: VideoDataset
+  dataset_type: surgical_videodataset
   datasets:
-  - /path/to/your/dataset.csv
+  - data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv
   datasets_weights:
   - 1.0
-  batch_size: 16
-  crop_size: 224
-  patch_size: 16
+  batch_size: 64
+  crop_size: 256
   dataset_fpcs:
-  - 16
-  tubelet_size: 2
-  fps: 4
+  - 64
+  fps: 1
   num_workers: 4
+  patch_size: 16
   persistent_workers: true
   pin_mem: true
+  tubelet_size: 2
 
 data_aug:
   auto_augment: false
@@ -36,9 +36,16 @@ data_aug:
 loss:
   loss_exp: 1.0
 
-# 新的mask策略配置
+# 配置多个masking策略
 mask:
-# 策略1: 使用传统的block mask策略
+# 策略1: 窗口预测策略（8个窗口）
+- num_windows: 8
+  full_complement: false
+  max_keep: null
+  max_temporal_keep: 1.0
+  inv_block: false
+
+# 策略2: 传统的block mask策略
 - aspect_ratio:
   - 0.75
   - 1.5
@@ -47,30 +54,29 @@ mask:
   max_temporal_keep: 1.0
   num_blocks: 2
   spatial_scale:
-  - 0.15
-  - 0.15
+  - 0.7
+  - 0.7
   temporal_scale:
   - 1.0
   - 1.0
 
-# 策略2: 使用新的mask最后N帧策略
-- mask_last_n_frames: 4  # 随机mask掉最后4帧中的1帧
-  full_complement: false
-  max_keep: null
-  max_temporal_keep: 1.0
+# 策略选择配置
+# 选项1: 使用所有策略（默认）
+mask_strategy_selection: "all"
 
-# 策略3: 使用新的mask最后N帧策略，但mask更多帧
-- mask_last_n_frames: 8  # 随机mask掉最后8帧中的1帧
-  full_complement: false
-  max_keep: null
-  max_temporal_keep: 1.0
+# 选项2: 每个batch随机选择一个策略
+# mask_strategy_selection: "random"
+
+# 选项3: 按权重选择策略（需要配置权重）
+# mask_strategy_selection: "weighted"
+# mask_strategy_weights: [0.5, 0.5]  # 对应上面的2个策略的权重
 
 meta:
   dtype: bfloat16
   eval_freq: 100
   load_checkpoint: false
-  read_checkpoint: null
-  save_every_freq: 50
+  read_checkpoint: None
+  save_every_freq: 5
   seed: 239
   use_sdpa: true
 

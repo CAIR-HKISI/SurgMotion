@@ -49,3 +49,5 @@ logs9
 
 SLURM_Logs/*
 logs10
+wandb
+docs/

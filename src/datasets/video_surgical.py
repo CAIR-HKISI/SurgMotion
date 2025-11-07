@@ -386,12 +386,13 @@ if __name__ == "__main__":
     privatepwh="data/Surge_Frames/Private_PWH_TSS_79/clips_64f/unlabeled_dense_64f_detailed.csv"
     pumch="data/Surge_Frames/Private_PUMCH/clips_64f/unlabeled_dense_64f_detailed.csv"
     tss="data/Surge_Frames/Private_HKU-TSS/clips_64f/unlabeled_dense_64f_detailed.csv"
+    surgaction160="data/Surge_Frames/SurgAction160/clips_64f/train_dense_64f_detailed.csv"
 
     data = SurgicalVideoDataset(
         # data_paths=[alxutue,jigasws,autolaparo,cholec80,bernbypass70,strasbypass70,egosurgery,avos,cataract,ophnet2024,endofmprivate,endofmcolonoscopic,privatekch,privatesysu,pitvis],
         # datasets_weights=[0.08,0.08,0.04,0.04,0.04,0.04,0.08,0.08,0.08,0.08,0.03,0.03,0.03,0.03,0.13],
-        data_paths=[tss, gynsurg, pmr50,polypdiag,privatepwh,pumch],
-        datasets_weights=[0.04,0.04,0.04,0.04,0.04,0.04],
+        data_paths=[tss, gynsurg, pmr50,polypdiag,privatepwh,pumch, surgaction160],
+        datasets_weights=[0.04,0.04,0.04,0.04,0.04,0.04,0.13],
         frames_per_clip=64,
         fps=None,
         dataset_fpcs=None,
