@@ -327,6 +327,13 @@ def main(args, resume_preempt=False):
 
     # Get strategy selection configuration from args
     # Allow strategy_selection and strategy_weights to be specified at the mask level or in args
+    # Supported masking strategies:
+    # 1. Window predict strategy: Set num_windows in mask config (e.g., num_windows: 8)
+    #    - Divides frames into N windows, each window predicts the next window
+    #    - Returns List[List[Tensor]]: outer list for strategies, inner list for window pairs
+    # 2. Block mask strategy: Use num_blocks, spatial_scale, temporal_scale, etc.
+    #    - Randomly masks spatial-temporal blocks (original JEPA strategy)
+    #    - Returns List[Tensor]: one tensor per strategy
     strategy_selection = args.get("mask_strategy_selection", "random")  # Default: randomly select one strategy per batch
     strategy_weights = args.get("mask_strategy_weights", None)  # Optional: weights for each strategy
     
@@ -516,8 +523,17 @@ def main(args, resume_preempt=False):
                 for fpc_sample in sample:
                     udata, masks_enc, masks_pred = fpc_sample
                     all_clips += [udata[0][0].to(device, non_blocking=True)]
-                    all_masks_enc += [[m.to(device, non_blocking=True) for m in masks_enc]]
-                    all_masks_pred += [[m.to(device, non_blocking=True) for m in masks_pred]]
+                    
+                    # Handle nested masks for window predict strategy
+                    # masks_enc can be List[Tensor] (block mask) or List[List[Tensor]] (window predict)
+                    def move_to_device(mask_item):
+                        if isinstance(mask_item, list):
+                            return [move_to_device(m) for m in mask_item]
+                        else:
+                            return mask_item.to(device, non_blocking=True)
+                    
+                    all_masks_enc += [[move_to_device(m) for m in masks_enc]]
+                    all_masks_pred += [[move_to_device(m) for m in masks_pred]]
                 return all_clips, all_masks_enc, all_masks_pred
 
             clips, masks_enc, masks_pred = load_clips()
@@ -538,41 +554,113 @@ def main(args, resume_preempt=False):
                         h = [F.layer_norm(hi, (hi.size(-1),)) for hi in h]
                         return h
 
-                def forward_context(c):
-                    z = encoder(c, masks_enc)
-                    z = predictor(z, masks_enc, masks_pred)
+                def forward_context(c, m_enc, m_pred):
+                    z = encoder(c, m_enc)
+                    z = predictor(z, m_enc, m_pred)
                     return z
 
-                def loss_fn(z, h):
+                def loss_fn(z, h, m_pred):
                     # Assumption: predictor will have returned only masked tokens for z
-                    h = [apply_masks(hi, mi, concat=False) for hi, mi in zip(h, masks_pred)]
+                    # For window predict strategy (num_windows), masks_pred is List[List[Tensor]]
+                    # where each inner list contains masks for one window-predict pair
+                    # For block mask strategy, masks_pred is List[Tensor]
+                    h = [apply_masks(hi, mi, concat=False) for hi, mi in zip(h, m_pred)]
 
                     loss, n = 0, 0
+                    # Handle nested structure: z and h are List[List[Tensor]] for window predict
+                    # Outer loop: iterate over mask strategies
+                    # Inner loop: iterate over window pairs (for window predict) or single mask (for block mask)
                     for zi, hi in zip(z, h):
                         for zij, hij in zip(zi, hi):
                             loss += torch.mean(torch.abs(zij - hij) ** loss_exp) / loss_exp
                             n += 1
-                    loss /= n
+                    loss /= n if n > 0 else 1
                     return loss
 
-                # Step 1. Forward
-                with torch.cuda.amp.autocast(dtype=dtype, enabled=mixed_precision):
+                # Check if window predict strategy (nested list structure)
+                # masks_enc structure: List[List[...]] (fpc layer, strategy layer)
+                # For window predict: masks_enc[fpc_idx][strategy_idx] is List[Tensor] (window layer)
+                # For block mask: masks_enc[fpc_idx][strategy_idx] is Tensor
+                is_window_predict = False
+                if len(masks_enc) > 0 and len(masks_enc[0]) > 0:
+                    # Check if first strategy is window predict (nested list)
+                    first_strategy = masks_enc[0][0]
+                    is_window_predict = isinstance(first_strategy, list)
+                
+                if is_window_predict:
+                    # Window predict strategy: process each window separately with gradient accumulation
+                    # This reduces memory usage and avoids tensor size mismatch issues
                     h = forward_target(clips)
-                    z = forward_context(clips)
-                    loss = loss_fn(z, h)  # jepa prediction loss
+                    
+                    total_loss = 0.0
+                    num_windows = 0
+                    
+                    # Process each fpc separately
+                    for fpc_idx in range(len(clips)):
+                        clip = clips[fpc_idx]
+                        fpc_masks_enc = masks_enc[fpc_idx]  # List[List[Tensor]] (strategy layer, window layer)
+                        fpc_masks_pred = masks_pred[fpc_idx]  # List[List[Tensor]] (strategy layer, window layer)
+                        
+                        # Process each strategy
+                        for strategy_idx in range(len(fpc_masks_enc)):
+                            # fpc_masks_enc[strategy_idx] is List[Tensor] for window predict (window layer)
+                            # fpc_masks_pred[strategy_idx] is List[Tensor] for window predict (window layer)
+                            window_masks_enc = fpc_masks_enc[strategy_idx]  # List[Tensor] (window layer)
+                            window_masks_pred = fpc_masks_pred[strategy_idx]  # List[Tensor] (window layer)
+                            
+                            # Process each window pair
+                            for window_idx in range(len(window_masks_enc)):
+                                # Extract single window pair
+                                single_masks_enc = [[window_masks_enc[window_idx]]]  # Wrap in strategy list
+                                single_masks_pred = [[window_masks_pred[window_idx]]]  # Wrap in strategy list
+                                
+                                # Forward for this window
+                                with torch.cuda.amp.autocast(dtype=dtype, enabled=mixed_precision):
+                                    z = forward_context([clip], single_masks_enc, single_masks_pred)
+                                    window_loss = loss_fn(z, [h[fpc_idx]], single_masks_pred)
+                                
+                                # Accumulate gradients
+                                if mixed_precision:
+                                    scaler.scale(window_loss).backward()
+                                else:
+                                    window_loss.backward()
+                                
+                                total_loss += float(window_loss)
+                                num_windows += 1
+                    
+                    # Average loss
+                    avg_loss = total_loss / num_windows if num_windows > 0 else 0.0
+                    
+                    # Step optimizer after accumulating all windows
+                    if mixed_precision:
+                        scaler.unscale_(optimizer)
+                        scaler.step(optimizer)
+                        scaler.update()
+                    else:
+                        optimizer.step()
+                    optimizer.zero_grad()
+                    
+                    loss = avg_loss
+                else:
+                    # Block mask strategy: original implementation
+                    # Step 1. Forward
+                    with torch.cuda.amp.autocast(dtype=dtype, enabled=mixed_precision):
+                        h = forward_target(clips)
+                        z = forward_context(clips, masks_enc, masks_pred)
+                        loss = loss_fn(z, h, masks_pred)  # jepa prediction loss
 
-                # Step 2. Backward & step
-                if mixed_precision:
-                    scaler.scale(loss).backward()
-                    scaler.unscale_(optimizer)
-                else:
-                    loss.backward()
-                if mixed_precision:
-                    scaler.step(optimizer)
-                    scaler.update()
-                else:
-                    optimizer.step()
-                optimizer.zero_grad()
+                    # Step 2. Backward & step
+                    if mixed_precision:
+                        scaler.scale(loss).backward()
+                        scaler.unscale_(optimizer)
+                    else:
+                        loss.backward()
+                    if mixed_precision:
+                        scaler.step(optimizer)
+                        scaler.update()
+                    else:
+                        optimizer.step()
+                    optimizer.zero_grad()
 
                 # Step 3. momentum update of target encoder
                 m = next(momentum_scheduler)

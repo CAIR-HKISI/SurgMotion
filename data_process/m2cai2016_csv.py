@@ -55,7 +55,37 @@ def check_frame_exists(video_name, frame_idx):
     frame_path = f"data/Surge_Frames/M2CAI16/frames/{video_name}/{video_name}_{frame_idx:08d}.jpg"
     return os.path.exists(frame_path), frame_path
 
-def process_dataset(split_name, annotation_dir, output_csv):
+def collect_all_case_ids():
+    """收集所有数据集中的唯一case_id"""
+    all_case_ids = set()
+    
+    # 收集训练集和测试集中的所有case_id
+    annotation_dirs = [
+        'data/Landscopy/m2cai16/train_dataset',
+        'data/Landscopy/m2cai16/test_dataset'
+    ]
+    
+    for annotation_dir in annotation_dirs:
+        if os.path.exists(annotation_dir):
+            annotation_files = glob.glob(os.path.join(annotation_dir, "*.txt"))
+            annotation_files = [f for f in annotation_files if not f.endswith('_timestamp.txt') and not f.endswith('_pred.txt')]
+            
+            for annotation_file in annotation_files:
+                video_name = os.path.basename(annotation_file).replace('.txt', '')
+                # 提取视频ID
+                if video_name.startswith('test_'):
+                    case_id = video_name.replace('test_', '')
+                else:
+                    case_id = video_name
+                all_case_ids.add(case_id)
+    
+    return sorted(list(all_case_ids))
+
+def create_case_id_mapping(case_ids):
+    """创建从字符串case_id到数字的映射"""
+    return {case_id: idx for idx, case_id in enumerate(case_ids)}
+
+def process_dataset(split_name, annotation_dir, output_csv, case_id_mapping):
     """处理数据集并生成CSV文件"""
     all_data = []
     
@@ -68,13 +98,18 @@ def process_dataset(split_name, annotation_dir, output_csv):
     for annotation_file in annotation_files:
         video_name = os.path.basename(annotation_file).replace('.txt', '')
         
-        # 提取视频ID
+        # 提取视频ID（字符串形式）
         if video_name.startswith('test_'):
-            case_id = video_name.replace('test_', '')
+            case_id_str = video_name.replace('test_', '')
         else:
-            case_id = video_name
+            case_id_str = video_name
+        
+        # 使用映射将字符串case_id转换为数字
+        case_id = case_id_mapping.get(case_id_str, -1)
+        if case_id == -1:
+            print(f"警告: case_id {case_id_str} 不在映射表中")
             
-        print(f"处理视频: {video_name}")
+        print(f"处理视频: {video_name} (case_id: {case_id_str} -> {case_id})")
         
         # 读取标注文件
         annotations = read_annotation_file(annotation_file)
@@ -93,7 +128,7 @@ def process_dataset(split_name, annotation_dir, output_csv):
                     'Hospital': 'm2cai2016',
                     'Year': 2016,
                     'Case_Name': video_name,
-                    'Case_ID': case_id,
+                    'Case_ID': case_id,  # 现在使用数字ID
                     'Frame_Path': frame_path,
                     'Phase_GT': PHASE_MAPPING.get(phase, -1),
                     'Phase_Name': phase,
@@ -114,25 +149,35 @@ def main():
     """主函数"""
     print("开始处理M2CAI2016数据集...")
     
+    # 收集所有唯一的case_id并创建映射
+    print("收集所有case_id...")
+    all_case_ids = collect_all_case_ids()
+    case_id_mapping = create_case_id_mapping(all_case_ids)
+    print(f"找到 {len(all_case_ids)} 个唯一的case_id")
+    print(f"Case_ID映射示例: {list(case_id_mapping.items())[:5]}")  # 显示前5个映射
+    
     # 处理训练集
     train_df = process_dataset(
         'train',
         'data/Landscopy/m2cai16/train_dataset',
-        'data/Surge_Frames/M2CAI16/train_metadata.csv'
+        'data/Surge_Frames/M2CAI16/train_metadata.csv',
+        case_id_mapping
     )
     
     # 处理测试集
     test_df = process_dataset(
         'test',
         'data/Landscopy/m2cai16/test_dataset',
-        'data/Surge_Frames/M2CAI16/test_metadata.csv'
+        'data/Surge_Frames/M2CAI16/test_metadata.csv',
+        case_id_mapping
     )
     
     # 处理验证集（使用测试集数据）
     val_df = process_dataset(
         'val',
         'data/Landscopy/m2cai16/test_dataset',
-        'data/Surge_Frames/M2CAI16/val_metadata.csv'
+        'data/Surge_Frames/M2CAI16/val_metadata.csv',
+        case_id_mapping
     )
     
     print("数据集处理完成！")

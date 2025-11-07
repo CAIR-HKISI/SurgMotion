@@ -8,16 +8,16 @@
 
 
 # 配置参数
-# data_name="Ophthalmology"
-# SOURCE_DIR="data/${data_name}"
-# TARGET_DIR="data/CAIR_SDS/${data_name}"
-# LOG_FILE="packaging_${data_name}.log"
-
-
-data_name="Open_surgery"
+data_name="Ophthalmology"
 SOURCE_DIR="data/${data_name}"
 TARGET_DIR="data/CAIR_SDS/${data_name}"
 LOG_FILE="packaging_${data_name}.log"
+
+
+# data_name="Open_surgery"
+# SOURCE_DIR="data/${data_name}"
+# TARGET_DIR="data/CAIR_SDS/${data_name}"
+# LOG_FILE="packaging_${data_name}.log"
 
 # 创建目标目录和日志文件
 mkdir -p "$TARGET_DIR"

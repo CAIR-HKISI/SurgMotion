@@ -10,7 +10,6 @@
 #SBATCH --gres=gpu:2                  # GPU数量
 #SBATCH --mem=128G                     # 内存大小（按需调整）
 
-
 # ========================
 # conda 环境准备
 # ========================
@@ -39,12 +38,20 @@ conda activate jepa_torch
 
 # 传入运行参数
 TASK=multidata_cpt     # 例如：classification 或 segmentation
-# FNAME=cpt_vitl-256px-64f_lr1e-4_epoch-10.yaml    # 配置文件名，例如 config.yaml
-# FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_neuro.yaml"
+# # FNAME=cpt_vitl-256px-64f_lr1e-4_epoch-10.yaml    # 配置文件名，例如 config.yaml
+# # FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_neuro.yaml"
 # FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_21-dataset_40epoch.yaml"
-FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_21-dataset_80epoch.yaml"
-DEVICES=$CUDA_VISIBLE_DEVICES  # 设备号，例如 0,1
+# FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_21-dataset_80epoch.yaml"
+FNAME="cpt_vith-256px-64f_lr1e-4_epoch-20_21-dataset.yaml"
+DEVICES=$(echo $CUDA_VISIBLE_DEVICES | tr ',' ' ')
 echo "DEVICES=${DEVICES}"
+
+
+# TASK="multidata_ntp"
+# FNAME="window_predict_vitl-256px-64f_lr1e-4_epoch-10_21-dataset.yaml"
+# # DEVICES=$CUDA_VISIBLE_DEVICES  # 设备号，例如 0,1
+# DEVICES=$(echo $CUDA_VISIBLE_DEVICES | tr ',' ' ')
+# echo "DEVICES=${DEVICES}"
 
 # 时间戳
 TIME=$(date +"%Y%m%d_%H%M")
