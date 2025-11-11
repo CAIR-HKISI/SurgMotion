@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=jepa_train          # 作业名
+#SBATCH --job-name=jepa_pretrain         # 作业名
 #SBATCH --output=logs9/%x_%j.out      # 标准输出日志（自动包含作业号）
 #SBATCH --error=logs9/%x_%j.err       # 标准错误日志
 #SBATCH --time=48:00:00               # 最大运行时间
-#SBATCH --partition=h800               # 队列（根据集群配置调整）
+#SBATCH --partition=AISS2025073101    # 队列（根据集群配置调整）
 #SBATCH --nodes=1                     # 节点数量
 #SBATCH --ntasks=1                    # 启动的任务数
 #SBATCH --cpus-per-task=8             # 每个任务的CPU核心数（按需调整）
 #SBATCH --gres=gpu:2                  # GPU数量
-#SBATCH --mem=128G                     # 内存大小（按需调整）
+#SBATCH --mem=128G                    # 内存大小（按需调整）
 
 # ========================
 # conda 环境准备
