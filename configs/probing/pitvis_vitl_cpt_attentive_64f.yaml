@@ -4,18 +4,6 @@ eval_name: surgical_phase_probing
 
 dataset: pitvis_steps  # Dataset name for wandb logging
 folder: logs9/neuro_cpt_vitl16-256px-64f_lr1e-4_epoch-10_neurosurgical
-=======
-<<<<<<<< HEAD:backup/probing_cholec80_v2/cholec80_vitl_cpt_attentive_64f_multi-head.yaml
-<<<<<<<< HEAD:configs/multidata_prob/cholec80_vitl_cpt_attentive_64f_multi-head.yaml
-folder: logs/cpt_cholec80/cpt_vitl16-256px-128f_lr1e-4_epoch-20/multi-head
-========
-folder: logs/cpt_cholec80/cpt_vitl16-256px-128f_lr1e-4_epoch-20/multi-head-v2
->>>>>>>> 5c1bd8e7b66a3bbee4c68b5616bd6523d4555a30:backup/probing_cholec80_v2/cholec80_vitl_cpt_attentive_64f_multi-head.yaml
-========
-dataset: pitvis_steps  # Dataset name for wandb logging
-folder: logs9/neuro_cpt_vitl16-256px-64f_lr1e-4_epoch-10_neurosurgical
->>>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2:configs/probing/pitvis_vitl_cpt_attentive_64f.yaml
->>>>>>> cea3dfc0413f0ffe4b3aad7c47f3a92b782929d2
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
