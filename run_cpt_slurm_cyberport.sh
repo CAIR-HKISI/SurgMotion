@@ -6,7 +6,7 @@
 #SBATCH --partition=AISS2025073101    # 队列（根据集群配置调整）
 #SBATCH --nodes=1                     # 节点数量
 #SBATCH --ntasks=1                    # 启动的任务数
-#SBATCH --cpus-per-task=2             # 每个任务的CPU核心数（按需调整）
+#SBATCH --cpus-per-task=16             # 每个任务的CPU核心数（按需调整）
 #SBATCH --gres=gpu:2                  # GPU数量
 #SBATCH --mem=128G                    # 内存大小（按需调整）
 

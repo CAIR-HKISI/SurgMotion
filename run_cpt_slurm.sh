@@ -42,18 +42,18 @@ TASK=multidata_cpt     # 例如：classification 或 segmentation
 # # FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_neuro.yaml"
 # FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_21-dataset_40epoch.yaml"
 # FNAME="cpt_vitl-256px-64f_lr1e-4_epoch-10_21-dataset_80epoch.yaml"
-FNAME="cpt_vith-256px-64f_lr1e-4_epoch-20_21-dataset.yaml"
+# FNAME="cpt_vith-256px-64f_lr1e-4_epoch-20_21-dataset.yaml"
 # FNAME="cpt_vitg-256px-64f_lr1e-4_epoch-20_21-dataset.yaml"
 
 DEVICES=$(echo $CUDA_VISIBLE_DEVICES | tr ',' ' ')
 echo "DEVICES=${DEVICES}"
 
 
-# TASK="multidata_ntp"
-# FNAME="window_predict_vitl-256px-64f_lr1e-4_epoch-10_21-dataset.yaml"
-# # DEVICES=$CUDA_VISIBLE_DEVICES  # 设备号，例如 0,1
-# DEVICES=$(echo $CUDA_VISIBLE_DEVICES | tr ',' ' ')
-# # echo "DEVICES=${DEVICES}"
+TASK="multidata_ntp"
+FNAME="window_predict_vitl-256px-64f_lr1e-4_epoch-10_21-dataset.yaml"
+# DEVICES=$CUDA_VISIBLE_DEVICES  # 设备号，例如 0,1
+DEVICES=$(echo $CUDA_VISIBLE_DEVICES | tr ',' ' ')
+# echo "DEVICES=${DEVICES}"
 
 # 时间戳
 TIME=$(date +"%Y%m%d_%H%M")
