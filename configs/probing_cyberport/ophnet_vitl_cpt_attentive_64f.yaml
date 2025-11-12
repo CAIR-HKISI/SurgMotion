@@ -36,10 +36,10 @@ experiment:
 
     # Single dataset (OphNet2024_phase)
     dataset_train:
-    - Surge_Frames/OphNet2024_phase/clips_64f/train_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/OphNet2024_phase/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
-    - data/Surge_Frames/OphNet2024_phase/clips_64f/test_dense_64f_detailed.csv
+    - /home/jinlin_wu/NSJepa/data/Surge_Frames/OphNet2024_phase/clips_64f/test_dense_64f_detailed.csv
 
     # Number of classes for OphNet2024_phase
     num_classes:
@@ -170,7 +170,7 @@ experiment:
     use_pos_embed: false
 
 model_kwargs:
-  checkpoint: logs/cpt_multi-data/m2cai-autolaparo-cholec80_cpt_vitl-256px-64f_lr1e-4_epoch-20/latest.pt
+  checkpoint: /home/jinlin_wu/NSJepa/logs/cpt_multi-data/m2cai-autolaparo-cholec80_cpt_vitl-256px-64f_lr1e-4_epoch-20/latest.pt
   module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
   pretrain_kwargs:
     encoder:

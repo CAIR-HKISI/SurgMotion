@@ -1,13 +1,15 @@
 cpus_per_task: 2
 eval_name: surgical_phase_probing
-dataset: ophnet2024_phase  # Dataset name for wandb logging
-folder: logs/cpt_ophnet/ophnet_vitl16-256px-64f_multi-head
+<<<<<<< HEAD
+
+dataset: pitvis_steps  # Dataset name for wandb logging
+folder: logs9/neuro_cpt_vitl16-256px-64f_lr1e-4_epoch-10_neurosurgical
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 num_workers: 8
 resume_checkpoint: true
-tag: ophnet-probing
+tag: pitvis-probing
 tasks_per_node: 1
 
 # Bootstrap configuration (default: enabled)
@@ -19,13 +21,13 @@ bootstrap_seed: 42
 wandb:
   project: nsjepa-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: ophnet_probing  # Run name (optional, wandb will generate if null)
+  name: pitvis_probing  # Run name (optional, wandb will generate if null)
   tags:
-    - ophnet
-    - phase-probing
+    - pitvis
+    - step-probing
     - vitl
   group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on OphNet dataset with bootstrap uncertainty estimation"
+  notes: "Multi-head probing on PitVis dataset with bootstrap uncertainty estimation"
 
 experiment:
   classifier:
@@ -36,14 +38,14 @@ experiment:
 
     # Single dataset (OphNet2024_phase)
     dataset_train:
-    - Surge_Frames/OphNet2024_phase/clips_64f/train_dense_64f_detailed.csv
+    - data/Surge_Frames/PitVis/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
-    - data/Surge_Frames/OphNet2024_phase/clips_64f/test_dense_64f_detailed.csv
+    - data/Surge_Frames/PitVis/clips_64f/val_dense_64f_detailed.csv
 
     # Number of classes for OphNet2024_phase
     num_classes:
-    - 52   # OphNet2024_phase has 52 phases
+    - 15   # OphNet2024_phase has 15 steps
 
     frames_per_clip: 64
     num_segments: 1
@@ -170,7 +172,7 @@ experiment:
     use_pos_embed: false
 
 model_kwargs:
-  checkpoint: logs/cpt_multi-data/m2cai-autolaparo-cholec80_cpt_vitl-256px-64f_lr1e-4_epoch-20/latest.pt
+  checkpoint: logs9/neuro_cpt_vitl16-256px-64f_lr1e-4_epoch-10_neurosurgical/latest.pt
   module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
   pretrain_kwargs:
     encoder:
