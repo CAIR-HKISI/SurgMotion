@@ -1,6 +1,6 @@
 app: vjepa_cpt
 cpus_per_task: 8
-folder: logs9/surgical_cpt_vitl16-256px-64f_lr1e-20_epoch_21-dataset_2nd_160epochs
+folder: logs9/surgical_cpt_vitl16-256px-64f_lr1e-20_epoch_21-dataset_2nd_80epochs
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
