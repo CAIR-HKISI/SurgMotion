@@ -1,12 +1,32 @@
 cpus_per_task: 2
 eval_name: surgical_phase_probing
-folder: logs/cpt_multi-data/cholec80-m2cai_vitl16-256px-64f_multi-head
+dataset: polypdiag  # Dataset name for wandb logging
+folder: logs9/neuro_cpt_vitl16-256px-64f_lr1e-4_epoch-10_neurosurgical
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
+num_workers: 8
 resume_checkpoint: true
-tag: multi-dataset-example
+tag: polypdiag-probing
 tasks_per_node: 1
+
+# Bootstrap configuration (default: enabled)
+use_bootstrap: true
+n_bootstrap: 1000
+bootstrap_seed: 42
+
+# wandb configuration
+wandb:
+  project: nsjepa-probing  # Your wandb project name
+  entity: nsjepa  # Your wandb username or team (optional, uses default if null)
+  name: polypdiag_probing  # Run name (optional, wandb will generate if null)
+  tags:
+    - polypdiag
+    - polypdiag-probing
+    - vitl
+  group: null  # Group name for grouping related runs (optional)
+  notes: "Multi-head probing on PolypDiag dataset with bootstrap uncertainty estimation"
+
 experiment:
   classifier:
     num_heads: 16
@@ -14,31 +34,16 @@ experiment:
   data:
     dataset_type: surgical_videodataset
 
-    # Multiple datasets (list format)
+    # Single dataset (OphNet2024_phase)
     dataset_train:
-    - /home/jinlin_wu/NSJepa/data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv
-    - /home/jinlin_wu/NSJepa/data/Surge_Frames/M2CAI16/clips_64f/train_dense_64f_detailed.csv
+    - data/Surge_Frames/PitVis/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
-    - /home/jinlin_wu/NSJepa/data/Surge_Frames/Cholec80/clips_64f/test_dense_64f_detailed.csv
-    - /home/jinlin_wu/NSJepa/data/Surge_Frames/M2CAI16/clips_64f/test_dense_64f_detailed.csv
+    - data/Surge_Frames/PitVis/clips_64f/val_dense_64f_detailed.csv
 
-    # Sampling weights for each dataset (optional, defaults to equal)
-    datasets_weights:
-    - 0.5  # Cholec80
-    - 0.5  # M2CAI
-
-    # Number of classes per dataset
+    # Number of classes for OphNet2024_phase
     num_classes:
-    - 7   # Cholec80 has 7 phases
-    - 8   # M2CAI has 8 phases
-
-    # Map each classification head to a dataset index
-    # Heads 0-7 train on Cholec80 (dataset 0)
-    # Heads 8-15 train on M2CAI (dataset 1)
-    # During training: Each head only receives gradients from its assigned dataset
-    # During evaluation: Metrics are computed separately per dataset
-    head_to_dataset_map: [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1]
+    - 15   # OphNet2024_phase has 15 steps
 
     frames_per_clip: 64
     num_segments: 1
@@ -46,100 +51,114 @@ experiment:
     resolution: 256
 
   optimization:
-    batch_size: 4  # Can mix samples from both datasets in one batch
+    batch_size: 4
     multihead_kwargs:
-    # Heads 0-7 for Cholec80 (dataset 0)
+    # Classifier 0
     - final_lr: 0.0
       final_weight_decay: 0.01
       lr: 0.005
       start_lr: 0.005
       warmup: 0.0
       weight_decay: 0.01
+    # Classifier 1
     - final_lr: 0.0
       final_weight_decay: 0.01
       lr: 0.003
       start_lr: 0.003
       warmup: 0.0
       weight_decay: 0.01
+    # Classifier 2
     - final_lr: 0.0
       final_weight_decay: 0.01
       lr: 0.001
       start_lr: 0.001
       warmup: 0.0
       weight_decay: 0.01
+    # Classifier 3
     - final_lr: 0.0
       final_weight_decay: 0.01
       lr: 0.0003
       start_lr: 0.0003
       warmup: 0.0
       weight_decay: 0.01
+    # Classifier 4
     - final_lr: 0.0
       final_weight_decay: 0.01
       lr: 0.0001
       start_lr: 0.0001
       warmup: 0.0
       weight_decay: 0.01
+    # Classifier 5
     - final_lr: 0.0
       final_weight_decay: 0.1
       lr: 0.005
       start_lr: 0.005
       warmup: 0.0
       weight_decay: 0.1
+    # Classifier 6
     - final_lr: 0.0
       final_weight_decay: 0.1
       lr: 0.003
       start_lr: 0.003
       warmup: 0.0
       weight_decay: 0.1
+    # Classifier 7
     - final_lr: 0.0
       final_weight_decay: 0.1
       lr: 0.001
       start_lr: 0.001
       warmup: 0.0
       weight_decay: 0.1
-    # Heads 8-15 for M2CAI (dataset 1)
+    # Classifier 8
     - final_lr: 0.0
       final_weight_decay: 0.1
       lr: 0.0003
       start_lr: 0.0003
       warmup: 0.0
       weight_decay: 0.1
+    # Classifier 9
     - final_lr: 0.0
       final_weight_decay: 0.1
       lr: 0.0001
       start_lr: 0.0001
       warmup: 0.0
       weight_decay: 0.1
+    # Classifier 10
     - final_lr: 0.0
       final_weight_decay: 0.4
       lr: 0.005
       start_lr: 0.005
       warmup: 0.0
       weight_decay: 0.4
+    # Classifier 11
     - final_lr: 0.0
       final_weight_decay: 0.4
       lr: 0.003
       start_lr: 0.003
       warmup: 0.0
       weight_decay: 0.4
+    # Classifier 12
     - final_lr: 0.0
       final_weight_decay: 0.4
       lr: 0.001
       start_lr: 0.001
       warmup: 0.0
       weight_decay: 0.4
+    # Classifier 13
     - final_lr: 0.0
       final_weight_decay: 0.4
       lr: 0.0003
       start_lr: 0.0003
       warmup: 0.0
       weight_decay: 0.4
+    # Classifier 14
     - final_lr: 0.0
       final_weight_decay: 0.4
       lr: 0.0001
       start_lr: 0.0001
       warmup: 0.0
       weight_decay: 0.4
+    # Classifier 15
     - final_lr: 0.0
       final_weight_decay: 0.8
       lr: 0.005
@@ -151,7 +170,7 @@ experiment:
     use_pos_embed: false
 
 model_kwargs:
-  checkpoint: /home/jinlin_wu/NSJepa/logs/cpt_multi-data/m2cai-autolaparo-cholec80_cpt_vitl-256px-64f_lr1e-4_epoch-20/latest.pt
+  checkpoint: logs9/neuro_cpt_vitl16-256px-64f_lr1e-4_epoch-10_neurosurgical/latest.pt
   module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
   pretrain_kwargs:
     encoder:
