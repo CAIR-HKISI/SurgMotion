@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=jepa_train          # 作业名
-#SBATCH --output=logs9/%x_%j.out      # 标准输出日志（自动包含作业号）
-#SBATCH --error=logs9/%x_%j.err       # 标准错误日志
+#SBATCH --job-name=prb_ophnet          # 作业名
+#SBATCH --output=log/%x_%j.out      # 标准输出日志（自动包含作业号）
+#SBATCH --error=log/%x_%j.err       # 标准错误日志
 #SBATCH --time=48:00:00               # 最大运行时间
 #SBATCH --partition=a100               # 队列（根据集群配置调整）
 #SBATCH --nodes=1                     # 节点数量
 #SBATCH --ntasks=1                    # 启动的任务数
-#SBATCH --cpus-per-task=8             # 每个任务的CPU核心数（按需调整）
-#SBATCH --gres=gpu:2                  # GPU数量
-#SBATCH --mem=128G                     # 内存大小（按需调整）
+#SBATCH --cpus-per-task=1             # 每个任务的CPU核心数（按需调整）
+#SBATCH --gres=gpu:1                  # GPU数量
+#SBATCH --mem=256G                     # 内存大小（按需调整）
 
 
 # ========================
@@ -39,8 +39,8 @@ conda activate jepa_torch
 # ========================
 
 # 传入运行参数
-TASK=probing    # 例如：classification 或 segmentation
-FNAME="pitvis_vitl_cpt_attentive_64f.yaml"
+TASK=probing    # config dir
+FNAME="ophnet_vitl_cpt_attentive_64f.yaml"
 DEVICES=$CUDA_VISIBLE_DEVICES  # 设备号，例如 0,1
 
 # 时间戳
@@ -50,28 +50,41 @@ TIME=$(date +"%Y%m%d_%H%M")
 CFG_NAME=${FNAME%.yaml}
 
 # Slurm 日志路径（独立训练日志）
-LOG_FILE="logs/${TASK}_${TIME}_${CFG_NAME}.log"
+LOG_FILE="log/${TASK}_${TIME}_${CFG_NAME}.log"
 
 # 确保日志目录存在
-mkdir -p logs10
+mkdir -p log
 
 # 设置端口（可根据需要随机分配）
 export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
 
 # ========================
+# 预训练模型路径
+# ========================
+
+base_folder="logs/surgical_ntp_vitl16-256px-64f_lr1e-4_epoch-10_21-dataset_20epoch_window_predict"
+folder="${base_folder}/ophnet"
+checkpoint="${base_folder}/latest.pt"
+
+# ========================
 # 启动训练任务
 # ========================
 
-echo "Starting training at $(date)"
+echo "Starting probing at $(date)"
 echo "TASK=${TASK}"
 echo "FNAME=${FNAME}"
 echo "DEVICES=${DEVICES}"
 echo "MASTER_PORT=${MASTER_PORT}"
 echo "LOG_FILE=${LOG_FILE}"
+echo "Checkpoint: ${checkpoint}"
+echo "Folder: ${folder}"
 
 # 启动 Python 程序
 srun python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \
+  --folder "${folder}" \
+  --checkpoint "${checkpoint}" \
   --devices ${DEVICES} \
+  --override_config_folder \
   > "${LOG_FILE}" 2>&1
 

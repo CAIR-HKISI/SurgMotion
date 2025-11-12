@@ -178,7 +178,7 @@ experiment:
     use_pos_embed: false
 
 model_kwargs:
-  checkpoint: /home/jinlin_wu/NSJepa/logs9/surgical_cpt_vitl16-256px-64f_lr1e-20_epoch_21-dataset/latest.pt
+  checkpoint: logs/surgical_cpt_vitl16-256px-64f_lr1e-20_epoch_21-dataset/latest.pt
   module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
   pretrain_kwargs:
     encoder:
