@@ -36,10 +36,10 @@ experiment:
 
     # SurgAction160 dataset paths
     dataset_train:
-    - /home/jinlin_wu/NSJepa/data/Surge_Frames/SurgAction160/clips_64f/train_dense_64f_detailed.csv
+    - data/Surge_Frames/SurgAction160/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
-    - /home/jinlin_wu/NSJepa/data/Surge_Frames/SurgAction160/clips_64f/test_dense_64f_detailed.csv
+    - data/Surge_Frames/SurgAction160/clips_64f/test_dense_64f_detailed.csv
 
     # Number of classes for SurgAction160
     num_classes:

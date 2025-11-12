@@ -36,10 +36,10 @@ experiment:
 
     # GraSP dataset paths
     dataset_train:
-    - /home/jinlin_wu/NSJepa/data/Surge_Frames/GraSP/clips_64f/train_dense_64f_detailed.csv
+    - data/Surge_Frames/GraSP/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
-    - /home/jinlin_wu/NSJepa/data/Surge_Frames/GraSP/clips_64f/test_dense_64f_detailed.csv
+    - data/Surge_Frames/GraSP/clips_64f/test_dense_64f_detailed.csv
 
     # Number of classes for GraSP
     num_classes:
