@@ -57,7 +57,7 @@ DATA_NAME=$(echo ${FNAME} | cut -d'_' -f1)
 
 # 模型名称
 CKPTL_NAME="surgical_cpt_vitg16-256px-64f_lr1e-20_epoch_21-dataset"
-MODEL_NAME="vit_g"
+MODEL_NAME="vit_giant"
 
 # Slurm 日志路径（独立训练日志）
 LOG_FILE="log/${TASK}_${TIME}_${CKPTL_NAME}_${DATA_NAME}.log"
