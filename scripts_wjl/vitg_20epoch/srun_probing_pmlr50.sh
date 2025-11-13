@@ -56,10 +56,11 @@ CFG_NAME=${FNAME%.yaml}
 DATA_NAME=$(echo ${FNAME} | cut -d'_' -f1)
 
 # 模型名称
-MODEL_NAME="surgical_cpt_vitg16-256px-64f_lr1e-20_epoch_21-dataset"
+CKPTL_NAME="surgical_cpt_vitg16-256px-64f_lr1e-20_epoch_21-dataset"
+MODEL_NAME="vit_g"
 
 # Slurm 日志路径（独立训练日志）
-LOG_FILE="log/${TASK}_${TIME}_${MODEL_NAME}_${DATA_NAME}.log"
+LOG_FILE="log/${TASK}_${TIME}_${CKPTL_NAME}_${DATA_NAME}.log"
 
 # 确保日志目录存在
 mkdir -p log
@@ -71,7 +72,7 @@ export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
 # 预训练模型路径
 # ========================
 
-base_folder="logs9/${MODEL_NAME}"
+base_folder="logs9/${CKPTL_NAME}"
 folder="${base_folder}/pmlr50"
 checkpoint="${base_folder}/latest.pt"
 
@@ -93,6 +94,7 @@ srun python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \
   --folder "${folder}" \
   --checkpoint "${checkpoint}" \
+  --model_name "${MODEL_NAME}" \
   --devices ${DEVICES} \
   --override_config_folder \
   > "${LOG_FILE}" 2>&1
