@@ -56,7 +56,8 @@ CFG_NAME=${FNAME%.yaml}
 DATA_NAME=$(echo ${FNAME} | cut -d'_' -f1)
 
 # 模型名称
-MODEL_NAME="surgical_cpt_vitg16-256px-64f_lr1e-20_epoch_21-dataset"
+CKPTL_NAME="surgical_cpt_vitg16-256px-64f_lr1e-20_epoch_21-dataset"
+MODEL_NAME="vit_g"
 
 # Slurm 日志路径（独立训练日志）
 LOG_FILE="log/${TASK}_${TIME}_${MODEL_NAME}_${DATA_NAME}.log"
@@ -93,6 +94,7 @@ srun python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \
   --folder "${folder}" \
   --checkpoint "${checkpoint}" \
+  --model_name "${MODEL_NAME}" \
   --devices ${DEVICES} \
   --override_config_folder \
   > "${LOG_FILE}" 2>&1
