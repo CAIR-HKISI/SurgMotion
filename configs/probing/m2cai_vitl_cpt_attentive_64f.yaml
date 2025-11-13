@@ -1,13 +1,13 @@
 cpus_per_task: 2
 eval_name: surgical_phase_probing
-dataset: ophnet2024_phase  # Dataset name for wandb logging
-folder: logs/cpt_ophnet/ophnet_vitl16-256px-64f_multi-head
+folder: logs/cpt_surgaction160/surgaction160_vitl16-256px-64f_multi-head
+dataset: m2cai_phase
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 num_workers: 8
-resume_checkpoint: true
-tag: ophnet-probing
+resume_checkpoint: false
+tag: m2cai-phase-recognition
 tasks_per_node: 1
 
 # Bootstrap configuration (default: enabled)
@@ -19,13 +19,13 @@ bootstrap_seed: 42
 wandb:
   project: nsjepa-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: ophnet_probing  # Run name (optional, wandb will generate if null)
+  name: surgaction160_action_recognition  # Run name (optional, wandb will generate if null)
   tags:
-    - ophnet
-    - phase-probing
+    - m2cai
+    - phase-recognition
     - vitl
   group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on OphNet dataset with bootstrap uncertainty estimation"
+  notes: "Multi-head probing on M2CAI dataset for phase recognition with bootstrap uncertainty estimation"
 
 experiment:
   classifier:
@@ -34,16 +34,16 @@ experiment:
   data:
     dataset_type: surgical_videodataset
 
-    # Single dataset (OphNet2024_phase)
+    # SurgAction160 dataset paths
     dataset_train:
-    - data/Surge_Frames/OphNet2024_phase/clips_64f/train_dense_64f_detailed.csv
+    - data/Surge_Frames/M2CAI2016/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
-    - data/Surge_Frames/OphNet2024_phase/clips_64f/test_dense_64f_detailed.csv
+    - data/Surge_Frames/M2CAI2016/clips_64f/test_dense_64f_detailed.csv
 
-    # Number of classes for OphNet2024_phase
+    # Number of classes for SurgAction160
     num_classes:
-    - 52   # OphNet2024_phase has 52 phases
+    - 16   # SurgAction160 has 16 action classes
 
     frames_per_clip: 64
     num_segments: 1
@@ -170,7 +170,7 @@ experiment:
     use_pos_embed: false
 
 model_kwargs:
-  checkpoint: logs/cpt_multi-data/m2cai-autolaparo-cholec80_cpt_vitl-256px-64f_lr1e-4_epoch-20/latest.pt
+  checkpoint: /home/jinlin_wu/NSJepa/logs9/surgical_cpt_vitl16-256px-64f_lr1e-20_epoch_21-dataset/latest.pt
   module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
   pretrain_kwargs:
     encoder:
