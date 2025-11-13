@@ -36,14 +36,14 @@ experiment:
 
     # SurgAction160 dataset paths
     dataset_train:
-    - data/Surge_Frames/M2CAI2016/clips_64f/train_dense_64f_detailed.csv
+    - data/Surge_Frames/M2CAI16/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
-    - data/Surge_Frames/M2CAI2016/clips_64f/test_dense_64f_detailed.csv
+    - data/Surge_Frames/M2CAI16/clips_64f/test_dense_64f_detailed.csv
 
     # Number of classes for SurgAction160
     num_classes:
-    - 16   # SurgAction160 has 16 action classes
+    - 8   # M2CAI16 has 8 action classes
 
     frames_per_clip: 64
     num_segments: 1

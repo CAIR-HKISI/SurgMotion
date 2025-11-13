@@ -19,7 +19,9 @@ datasets = [
     "GynSurg_Action",
     "AVOS",
     "GraSP",
-    "SurgAction160"
+    "SurgAction160",
+    "CATARACTS",
+    "M2CAI16",
 ]
 
 print("Number of classes per dataset:")

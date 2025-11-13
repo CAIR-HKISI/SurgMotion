@@ -43,7 +43,7 @@ experiment:
 
     # Number of classes for SurgAction160
     num_classes:
-    - 16   # SurgAction160 has 16 action classes
+    - 19   # SurgAction160 has 16 action classes
 
     frames_per_clip: 64
     num_segments: 1
