@@ -72,7 +72,7 @@ export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
 # 预训练模型路径
 # ========================
 
-base_folder="logs9/${CKPTL_NAME}"
+base_folder="logs/${CKPTL_NAME}"
 folder="${base_folder}/autolaparo"
 checkpoint="${base_folder}/latest.pt"
 
