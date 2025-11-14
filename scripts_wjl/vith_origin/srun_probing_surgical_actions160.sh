@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=jepa_train          # 作业名
-#SBATCH --output=logs9/%x_%j.out      # 标准输出日志（自动包含作业号）
-#SBATCH --error=logs9/%x_%j.err       # 标准错误日志
+#SBATCH --job-name=prb_surgact160          # 作业名
+#SBATCH --output=log11/%x_%j.out      # 标准输出日志（自动包含作业号）
+#SBATCH --error=log11/%x_%j.err       # 标准错误日志
 #SBATCH --time=48:00:00               # 最大运行时间
-#SBATCH --partition=a100               # 队列（根据集群配置调整）
+#SBATCH --partition=AISS2025073101    # 队列（根据集群配置调整）
 #SBATCH --nodes=1                     # 节点数量
 #SBATCH --ntasks=1                    # 启动的任务数
-#SBATCH --cpus-per-task=8             # 每个任务的CPU核心数（按需调整）
-#SBATCH --gres=gpu:2                  # GPU数量
-#SBATCH --mem=128G                     # 内存大小（按需调整）
+#SBATCH --cpus-per-task=16             # 每个任务的CPU核心数（按需调整）
+#SBATCH --gres=gpu:1                  # GPU数量
+#SBATCH --mem=256G                     # 内存大小（按需调整）
 
 
 # ========================
@@ -33,14 +33,17 @@ unset __conda_setup
 
 conda deactivate
 conda activate jepa_torch
+wandb offline
+
+export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 
 # ========================
 # 参数解析 & 环境准备
 # ========================
 
 # 传入运行参数
-TASK=probing    # 例如：classification 或 segmentation
-FNAME="pitvis_vitl_cpt_attentive_64f.yaml"
+TASK=probing    # config dir
+FNAME="surgical_actions160_vitl_cpt_attentive_64f.yaml"
 DEVICES=$CUDA_VISIBLE_DEVICES  # 设备号，例如 0,1
 
 # 时间戳
@@ -49,36 +52,49 @@ TIME=$(date +"%Y%m%d_%H%M")
 # 去掉 .yaml 后缀
 CFG_NAME=${FNAME%.yaml}
 
+# 从 FNAME 提取数据名称（surgical_actions160 需要特殊处理）
+DATA_NAME="surgical_actions160"
+
+# 模型名称
+CKPTL_NAME="vith_origin"
+MODEL_NAME="vit_huge"
+
 # Slurm 日志路径（独立训练日志）
-LOG_FILE="logs/${TASK}_${TIME}_${CFG_NAME}.log"
+LOG_FILE="log11/${TASK}_${TIME}_${CKPTL_NAME}_${DATA_NAME}.log"
 
 # 确保日志目录存在
-mkdir -p logs10
+mkdir -p log11
 
 # 设置端口（可根据需要随机分配）
 export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
 
 # ========================
+# 预训练模型路径
+# ========================
+
+base_folder="logs9/${CKPTL_NAME}"
+folder="${base_folder}/surgical_actions160"
+checkpoint="ckpts/vith.pt"
+
+# ========================
 # 启动训练任务
 # ========================
 
-base_folder="logs9/surgical_ntp_vitl16-256px-64f_lr1e-4_epoch-10_21-dataset_20epoch_window_predict"
-folder="${base_folder}/autolapro"
-checkpoint="${base_folder}/latest.pt"
-
-
-echo "Starting training at $(date)"
+echo "Starting probing at $(date)"
 echo "TASK=${TASK}"
 echo "FNAME=${FNAME}"
 echo "DEVICES=${DEVICES}"
 echo "MASTER_PORT=${MASTER_PORT}"
 echo "LOG_FILE=${LOG_FILE}"
+echo "Checkpoint: ${checkpoint}"
+echo "Folder: ${folder}"
 
 # 启动 Python 程序
 srun python -m evals.main \
   --fname "configs/${TASK}/${FNAME}" \
-  --folder  \
-  --checkpoint \
+  --folder "${folder}" \
+  --checkpoint "${checkpoint}" \
+  --model_name "${MODEL_NAME}" \
   --devices ${DEVICES} \
   --override_config_folder \
   > "${LOG_FILE}" 2>&1
