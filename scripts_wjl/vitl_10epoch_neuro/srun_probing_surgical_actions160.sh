@@ -57,7 +57,7 @@ DATA_NAME="surgical_actions160"
 
 # 模型名称
 CKPTL_NAME="neuro_cpt_vitl16-256px-64f_lr1e-4_epoch-10_neurosurgical"
-MODEL_NAME="vit_l"
+MODEL_NAME="vit_large"
 
 # Slurm 日志路径（独立训练日志）
 LOG_FILE="log/${TASK}_${TIME}_${CKPTL_NAME}_${DATA_NAME}.log"

@@ -57,7 +57,7 @@ DATA_NAME="m2cai"
 
 # 模型名称
 CKPTL_NAME="vitl_origin"
-MODEL_NAME="vit_l"
+MODEL_NAME="vit_large"
 
 # Slurm 日志路径（独立训练日志）
 LOG_FILE="log11/${TASK}_${TIME}_${CKPTL_NAME}_${DATA_NAME}.log"
