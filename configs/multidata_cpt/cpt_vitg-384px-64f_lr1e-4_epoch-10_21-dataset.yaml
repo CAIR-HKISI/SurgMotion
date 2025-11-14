@@ -1,6 +1,6 @@
 app: vjepa_cpt
 cpus_per_task: 8
-folder: logs9/surgical_cpt_vitg16-256px-64f_epoch-10_21-dataset
+folder: logs9/surgical_cpt_vitg16-384px-64f_epoch-10_21-dataset
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
@@ -72,7 +72,7 @@ data:
 
 
   batch_size: 64
-  crop_size: 256
+  crop_size: 384
   dataset_fpcs:
   - 64
   - 64
@@ -164,7 +164,7 @@ model:
   use_mask_tokens: true
   use_rope: true
   zero_init_mask_tokens: true
-  cpt_ckeckpoint: ckpts/vitg.pt 
+  cpt_ckeckpoint: ckpts/vitg-384.pt 
 optimization:
   anneal_ckpt: None
   ema:
