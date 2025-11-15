@@ -3,7 +3,7 @@
 #SBATCH --output=logs9/%x_%j.out      # 标准输出日志（自动包含作业号）
 #SBATCH --error=logs9/%x_%j.err       # 标准错误日志
 #SBATCH --time=48:00:00               # 最大运行时间
-#SBATCH --partition=AISS2025073101    # 队列（根据集群配置调整）
+#SBATCH --partition=aiss20250
 #SBATCH --nodes=1                     # 节点数量
 #SBATCH --nodelist=klb-dgx-011   # 指定节点
 #SBATCH --ntasks=1                    # 启动的任务数
