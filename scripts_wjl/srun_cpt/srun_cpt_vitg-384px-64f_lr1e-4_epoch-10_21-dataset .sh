@@ -8,7 +8,7 @@
 #SBATCH --nodelist=klb-dgx-011,klb-dgx-015    # 指定节点
 #SBATCH --ntasks=1                    # 启动的任务数
 #SBATCH --cpus-per-task=16             # 每个任务的CPU核心数（按需调整）
-#SBATCH --gres=gpu:2                  # GPU数量
+#SBATCH --gres=gpu:4                  # GPU数量
 #SBATCH --mem=256G                     # 内存大小（按需调整）
 
 # ========================
