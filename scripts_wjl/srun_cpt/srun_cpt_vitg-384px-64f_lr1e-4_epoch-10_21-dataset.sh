@@ -4,8 +4,8 @@
 #SBATCH --error=logs9/%x_%j.err       # 标准错误日志
 #SBATCH --time=48:00:00               # 最大运行时间
 #SBATCH --partition=aiss20250
+#SBATCH --account=med-multi-llm
 #SBATCH --nodes=1                     # 节点数量
-#SBATCH --nodelist=klb-dgx-011   # 指定节点
 #SBATCH --ntasks=1                    # 启动的任务数
 #SBATCH --cpus-per-task=16             # 每个任务的CPU核心数（按需调整）
 #SBATCH --gres=gpu:4                  # GPU数量
