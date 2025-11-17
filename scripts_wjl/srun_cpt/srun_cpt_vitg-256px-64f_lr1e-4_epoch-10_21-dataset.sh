@@ -5,7 +5,7 @@
 #SBATCH --time=48:00:00               # 最大运行时间
 #SBATCH --partition=AISS2025073101    # 队列（根据集群配置调整）
 #SBATCH --nodes=1                     # 节点数量
-#SBATCH --nodelist=klb-dgx-011,klb-dgx-015    # 指定节点
+#SBATCH --nodelist=klb-dgx-009,klb-dgx-120    # 指定节点
 #SBATCH --ntasks=1                    # 启动的任务数
 #SBATCH --cpus-per-task=16             # 每个任务的CPU核心数（按需调整）
 #SBATCH --gres=gpu:4                  # GPU数量
@@ -15,15 +15,18 @@
 # conda 环境准备
 # ========================
 
+
 # >>> conda initialize >>>
-__conda_setup="$('/home/jinlin_wu/miniforge3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+conda_path="/lustre/projects/med-multi-llm/jinlin_wu/miniconda3"
+
+__conda_setup="$('${conda_path}/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
 if [ $? -eq 0 ]; then
     eval "$__conda_setup"
 else
-    if [ -f "/home/jinlin_wu/miniforge3/etc/profile.d/conda.sh" ]; then
-        . "/home/jinlin_wu/miniforge3/etc/profile.d/conda.sh"
+    if [ -f "${conda_path}/etc/profile.d/conda.sh" ]; then
+        . "${conda_path}/etc/profile.d/conda.sh"
     else
-        export PATH="/home/jinlin_wu/miniforge3/bin:$PATH"
+        export PATH="${conda_path}/bin:$PATH"
     fi
 fi
 unset __conda_setup
@@ -31,7 +34,9 @@ unset __conda_setup
 
 conda deactivate
 conda activate jepa_torch
+wandb offline
 
+export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 
 # ========================
 # 参数解析 & 环境准备
