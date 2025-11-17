@@ -146,7 +146,7 @@ meta:
 model:
   model_name: vit_giant_xformers
   pred_depth: 24
-  pred_embed_dim: 1024
+  pred_embed_dim: 1408
   pred_is_frame_causal: true
   pred_num_heads: 16
   uniform_power: true
@@ -155,6 +155,7 @@ model:
   use_rope: true
   zero_init_mask_tokens: true
   cpt_ckeckpoint: ckpts/vitg.pt 
+  use_extrinsics: false
 optimization:
   anneal_ckpt: None
   ema:
