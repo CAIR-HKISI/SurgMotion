@@ -71,7 +71,7 @@ data:
   - 0.25
 
 
-  batch_size: 32
+  batch_size: 16
   crop_size: 384
   dataset_fpcs:
   - 64
@@ -151,7 +151,7 @@ meta:
   eval_freq: 100
   load_checkpoint: false
   read_checkpoint: None
-  save_every_freq: 50
+  save_every_freq: 2
   seed: 239
   use_sdpa: true
 model:
