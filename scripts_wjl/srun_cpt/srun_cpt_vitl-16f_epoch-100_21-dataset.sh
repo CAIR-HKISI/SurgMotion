@@ -60,7 +60,7 @@ CFG_NAME=${FNAME%.yaml}
 LOG_FILE="logs/${CFG_NAME}/${TIME}_${TASK}_${CFG_NAME}.log"
 
 # 确保日志目录存在
-mkdir -p logs
+mkdir -p "logs/${CFG_NAME}"
 
 
 # 设置端口（可根据需要随机分配）
