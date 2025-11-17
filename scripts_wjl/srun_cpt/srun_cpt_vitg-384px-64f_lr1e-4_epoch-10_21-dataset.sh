@@ -70,6 +70,8 @@ LOG_FILE="logs9/${TASK}_${TIME}_${CFG_NAME}.log"
 mkdir -p logs9
 
 
+# 设置端口（可根据需要随机分配）
+export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
 
 # ========================
 # 启动训练任务
@@ -81,7 +83,7 @@ echo "FNAME=${FNAME}"
 echo "DEVICES=${DEVICES}"
 echo "MASTER_PORT=${MASTER_PORT}"
 echo "LOG_FILE=${LOG_FILE}"
-
+echo "MASTER_PORT=${MASTER_PORT}"
 
 srun python -m app.main \
   --fname "configs/${TASK}/${FNAME}" \
