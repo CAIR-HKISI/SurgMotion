@@ -44,7 +44,7 @@ export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.loca
 
 # 传入运行参数
 TASK=multidata_cpt_1117     # 例如：classification 或 segmentation
-FNAME=cpt_vitg-256px-16f-causal_100epoch.yaml   # 配置文件名，例如 config.yaml
+FNAME=cpt_vitg-256px-16f_100epoch.yaml   # 配置文件名，例如 config.yaml
 
 DEVICES=$(echo $CUDA_VISIBLE_DEVICES | tr ',' ' ')
 echo "DEVICES=${DEVICES}"

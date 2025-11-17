@@ -1,6 +1,6 @@
 app: vjepa_cpt
 cpus_per_task: 16
-folder: logs/cpt_vitg-256px-16f-causal_100epoch
+folder: logs/cpt_vitg-256px-16f_100epoch
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
@@ -145,10 +145,10 @@ meta:
   use_sdpa: true
 model:
   model_name: vit_giant_xformers
-  pred_depth: 24
-  pred_embed_dim: 1408
+  pred_depth: 12
+  pred_embed_dim: 384
   pred_is_frame_causal: true
-  pred_num_heads: 16
+  pred_num_heads: 12
   uniform_power: true
   use_activation_checkpointing: true
   use_mask_tokens: true
