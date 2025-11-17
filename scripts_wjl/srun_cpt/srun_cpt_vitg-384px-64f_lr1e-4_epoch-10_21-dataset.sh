@@ -14,15 +14,18 @@
 # conda 环境准备
 # ========================
 
+
 # >>> conda initialize >>>
-__conda_setup="$('/home/jinlin_wu/miniforge3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+conda_path="/lustre/projects/med-multi-llm/jinlin_wu/miniconda3"
+
+__conda_setup="$('${conda_path}/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
 if [ $? -eq 0 ]; then
     eval "$__conda_setup"
 else
-    if [ -f "/home/jinlin_wu/miniforge3/etc/profile.d/conda.sh" ]; then
-        . "/home/jinlin_wu/miniforge3/etc/profile.d/conda.sh"
+    if [ -f "${conda_path}/etc/profile.d/conda.sh" ]; then
+        . "${conda_path}/etc/profile.d/conda.sh"
     else
-        export PATH="/home/jinlin_wu/miniforge3/bin:$PATH"
+        export PATH="${conda_path}/bin:$PATH"
     fi
 fi
 unset __conda_setup
@@ -30,6 +33,9 @@ unset __conda_setup
 
 conda deactivate
 conda activate jepa_torch
+wandb offline
+
+export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 
 
 # ========================
