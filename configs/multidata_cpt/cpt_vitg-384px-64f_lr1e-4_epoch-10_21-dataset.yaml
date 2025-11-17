@@ -71,7 +71,7 @@ data:
   - 0.25
 
 
-  batch_size: 64
+  batch_size: 32
   crop_size: 384
   dataset_fpcs:
   - 64
