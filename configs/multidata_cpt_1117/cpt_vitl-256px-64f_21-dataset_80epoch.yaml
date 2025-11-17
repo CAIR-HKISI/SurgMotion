@@ -1,6 +1,6 @@
 app: vjepa_cpt
 cpus_per_task: 16
-folder: logs9/surgical_cpt_vitl16-256px-64f_lr1e-20_epoch_21-dataset_2nd_160epochs
+folder: logs10/surgical_cpt_vitl16-256px-64f_lr1e-epoch-400
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
@@ -33,8 +33,6 @@ data:
   - data/Surge_Frames/EndoFM_Private/clips_64f/unlabeled_dense_64f_detailed.csv
   - data/Surge_Frames/EndoFM_Colonoscopic/clips_64f/unlabeled_dense_64f_detailed.csv
   - data/Surge_Frames/Private_KCH_Colonscopy_Cut/clips_64f/unlabeled_dense_64f_detailed.csv
-  - data/Surge_Frames/Private_SYSU_Brochiscopy_Cut/clips_64f/unlabeled_dense_64f_detailed.csv
-  - data/Surge_Frames/PolypDiag/clips_64f/train_dense_64f_detailed.csv
   
   
   ### NeuroSurgery dataset
@@ -175,14 +173,12 @@ optimization:
   ema:
   - 0.99925
   - 0.99925
-  epochs: 160
+  epochs: 80
   final_lr: 1.0e-07
   final_weight_decay: 0.04
   ipe: 300
   ipe_scale: 1.25
-  is_anneal: true
-  lr: 1.0e-04
-  resume_anneal: true
+  lr: 0.000525
   start_lr: 0.0001
   warmup: 0
   weight_decay: 0.04
