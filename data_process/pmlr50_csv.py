@@ -10,8 +10,8 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 LABEL_PATHS = {
     "train": "data/Landscopy/PmLR50/PmLR50/labels/train/1fpstrain.pickle",
-    "val":   "data/Landscopy/PmLR50/PmLR50/labels/infer/1fpsinfer.pickle",
-    "test":  "data/Landscopy/PmLR50/PmLR50/labels/test/1fpstest.pickle",
+    "test":   "data/Landscopy/PmLR50/PmLR50/labels/infer/1fpsinfer.pickle",
+    "val":  "data/Landscopy/PmLR50/PmLR50/labels/test/1fpstest.pickle",
 }
 
 # ======== 阶段编号映射 ========
@@ -69,7 +69,7 @@ def generate_pmlr_csv():
                 phase_name = phase2name.get(phase_gt, "Unknown")
 
                 data_item = {
-                    "index": global_idx,
+                    "Index": global_idx,
                     "DataName": "PmLR50",
                     "Year": 2023,
                     "Case_Name": f"video{case_id:02d}",

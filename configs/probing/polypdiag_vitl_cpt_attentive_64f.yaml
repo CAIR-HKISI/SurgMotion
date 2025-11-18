@@ -165,7 +165,7 @@ experiment:
       start_lr: 0.005
       warmup: 0.0
       weight_decay: 0.8
-    num_epochs: 2
+    num_epochs: 1
     use_bfloat16: true
     use_pos_embed: false
 

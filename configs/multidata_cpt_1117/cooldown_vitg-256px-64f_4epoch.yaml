@@ -1,6 +1,6 @@
 app: vjepa_cpt
 cpus_per_task: 16
-folder: logs10/surgical_cpt_vitl16-256px-64f_lr1e-epoch-400
+folder: logs/cooldown_vitg-256px-64f_4epoch
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
@@ -18,8 +18,6 @@ data:
   - data/Surge_Frames/BernBypass70/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/StrasBypass70/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/PmLR50/clips_64f/train_dense_64f_detailed.csv
-  - data/Surge_Frames/M2CAI16/clips_64f/train_dense_64f_detailed.csv
-  - data/Surge_Frames/GynSurg_Action/clips_64f/train_dense_64f_detailed.csv
   
   ### Open surgery dataset
   - data/Surge_Frames/EgoSurgery/clips_64f/train_dense_64f_detailed.csv
@@ -32,8 +30,6 @@ data:
   ### Gastrointestinal dataset
   - data/Surge_Frames/EndoFM_Private/clips_64f/unlabeled_dense_64f_detailed.csv
   - data/Surge_Frames/EndoFM_Colonoscopic/clips_64f/unlabeled_dense_64f_detailed.csv
-  - data/Surge_Frames/Private_KCH_Colonscopy_Cut/clips_64f/unlabeled_dense_64f_detailed.csv
-  
   
   ### NeuroSurgery dataset
   - data/Surge_Frames/PitVis/clips_64f/train_dense_64f_detailed.csv
@@ -48,11 +44,9 @@ data:
 
   - 0.20
   - 0.20
-  - 0.10
-  - 0.10
-  - 0.15
-  - 0.15
-  - 0.10
+  - 0.20
+  - 0.20
+  - 0.20
 
   - 0.50
   - 0.50
@@ -60,11 +54,8 @@ data:
   - 0.50
   - 0.50
 
-  - 0.25
-  - 0.25
-  - 0.25
-  - 0.25
-  - 0.25
+  - 0.50
+  - 0.50
 
   - 0.25
   - 0.25
@@ -72,15 +63,13 @@ data:
   - 0.25
 
 
-  batch_size: 64
+  batch_size: 16
   crop_size: 256
   dataset_fpcs:
   - 64
   - 64
 
-  - 64
-  - 64
-  - 64
+  - 64  
   - 64
   - 64
   - 64
@@ -91,10 +80,7 @@ data:
   
   - 64
   - 64
-  
-  - 64
-  - 64
-  - 64
+
   - 64
   - 64
 
@@ -158,25 +144,27 @@ meta:
   seed: 239
   use_sdpa: true
 model:
-  model_name: vit_large
+  model_name: vit_giant_xformers
   pred_depth: 12
   pred_embed_dim: 384
+  pred_is_frame_causal: true
   pred_num_heads: 12
   uniform_power: true
   use_activation_checkpointing: true
   use_mask_tokens: true
   use_rope: true
   zero_init_mask_tokens: true
-  cpt_ckeckpoint: ckpts/vitl.pt 
+  cpt_ckeckpoint: logs/cpt_vitg-256px-16f_100epoch/latest.pt
+  use_extrinsics: false
 optimization:
   anneal_ckpt: None
   ema:
   - 0.99925
   - 0.99925
-  epochs: 20
-  final_lr: 1.0e-07
+  epochs: 4
+  final_lr: 1.0e-06
   final_weight_decay: 0.04
-  ipe: 300
+  ipe: 30
   ipe_scale: 1.25
   lr: 0.000525
   start_lr: 0.0001

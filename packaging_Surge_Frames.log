@@ -1,0 +1,12 @@
+[2025-11-18 17:29:43] 开始打包任务，共 4 个数据集
+[2025-11-18 17:29:43] 目标目录: data/CAIR_SDS
+[2025-11-18 17:29:43] START: Atlas_labeled
+[2025-11-18 17:40:09] COMPLETED: Atlas_labeled (文件大小: 15G)
+[2025-11-18 17:40:09] START: Private_pumch_labeled
+[2025-11-18 17:42:03] COMPLETED: Private_pumch_labeled (文件大小: 3.3G)
+[2025-11-18 17:42:03] START: Private_pwh_labeled
+[2025-11-18 17:43:20] COMPLETED: Private_pwh_labeled (文件大小: 1.9G)
+[2025-11-18 17:43:20] START: Private_TSS_labeled
+[2025-11-18 17:45:06] COMPLETED: Private_TSS_labeled (文件大小: 2.6G)
+[2025-11-18 17:45:06] 打包任务完成!
+[2025-11-18 17:45:06] 总数: 4, 完成: 4, 跳过: 0, 失败: 0

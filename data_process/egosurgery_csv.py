@@ -21,9 +21,9 @@ phase2id = {
 }
 
 # === 视频划分 ===
-TRAIN_VIDEOS = range(1, 15)
-VAL_VIDEOS = range(15, 17)
-TEST_VIDEOS = range(17, 22)
+TRAIN_VIDEOS =  [1, 2, 3, 4, 8, 9, 11, 13, 14, 15, 17, 20, 21]
+VAL_VIDEOS = [5, 19]
+TEST_VIDEOS = [6,7,10,12,18]
 
 def get_split(case_id):
     """根据视频编号确定所属数据集划分"""
