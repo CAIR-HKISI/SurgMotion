@@ -643,8 +643,12 @@ def main(args, resume_preempt=False):
         logger.info("avg. loss %.3f" % loss_meter.avg)
         # -- Save Last
         if (epoch + 1) % CHECKPOINT_FREQ == 0 or epoch == (num_epochs - 1):
-            save_checkpoint(epoch + 1, latest_path)
-            if save_every_freq > 0 and epoch % save_every_freq == 0:
-                save_every_file = f"e{epoch}.pt"
-                save_every_path = os.path.join(folder, save_every_file)
-                save_checkpoint(epoch + 1, save_every_path)
+            # 这里不再主动清理 DataLoader，只负责安全地保存 checkpoint
+            try:
+                save_checkpoint(epoch + 1, latest_path)
+                if save_every_freq > 0 and epoch % save_every_freq == 0:
+                    save_every_file = f"e{epoch}.pt"
+                    save_every_path = os.path.join(folder, save_every_file)
+                    save_checkpoint(epoch + 1, save_every_path)
+            except Exception as e:
+                logger.error(f"Error saving checkpoint at epoch {epoch + 1}: {e}")

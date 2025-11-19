@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# ==========================================
+# 全局配置 (在这里修改模型和路径)
+# ==========================================
+# 日志根目录
+LOG_ROOT="logs"
+
+# Checkpoint 文件夹名称
+CKPTL_NAME="cooldown_vitg-256px-64f_4epoch"
+
+# 模型架构名称
+MODEL_NAME="vit_gain_xformers"
+
+# ==========================================
+# 任务配置列表
+# ==========================================
+CONFIGS=(
+    "grasp_probe_attentive_64f.yaml"
+    "polypdiag_probe_attentive_64f.yaml"
+    "jigsaws_probe_attentive_64f.yaml"
+    "autolaparo_probe_attentive_64f.yaml"
+    "m2cai_probe_attentive_64f.yaml"
+    "ophnet_probe_attentive_64f.yaml"
+    "cholec80_probe_attentive_64f.yaml"
+    "pitvis_probe_attentive_64f.yaml"
+    "surgicalactions160_probe_attentive_64f.yaml"
+    "egosurgery_probe_attentive_64f.yaml"
+    "pmlr50_probe_attentive_64f.yaml"
+)
+
+# ==========================================
+# 循环提交任务
+# ==========================================
+for FNAME in "${CONFIGS[@]}"; do
+    # 提取数据集名称 (例如 aIxsuture)
+    DATA_NAME=$(echo ${FNAME} | cut -d'_' -f1)
+    
+    # 构造作业名称
+    JOB_NAME="prb_${DATA_NAME}"
+
+    echo "Submitting task for: ${FNAME}"
+    echo "  -> Job Name: ${JOB_NAME}"
+    echo "  -> Model: ${CKPTL_NAME}"
+
+    # 使用 sbatch 提交
+    # --export: 将变量传递给 run_probing.sh
+    sbatch \
+        --job-name="${JOB_NAME}" \
+        --export=ALL,FNAME="${FNAME}",LOG_ROOT="${LOG_ROOT}",CKPTL_NAME="${CKPTL_NAME}",MODEL_NAME="${MODEL_NAME}" \
+        run_probing.sh
+done
+
+echo "All jobs submitted."
