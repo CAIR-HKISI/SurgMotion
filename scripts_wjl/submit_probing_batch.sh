@@ -1,8 +1,13 @@
 #!/bin/bash
 
+#!/bin/bash
+
 # ==========================================
 # 全局配置 (在这里修改模型和路径)
 # ==========================================
+# 获取当前脚本所在目录，确保 sbatch 能找到 run_probing.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # 日志根目录
 LOG_ROOT="logs"
 
@@ -45,10 +50,11 @@ for FNAME in "${CONFIGS[@]}"; do
 
     # 使用 sbatch 提交
     # --export: 将变量传递给 run_probing.sh
+    # 使用绝对路径调用 run_probing.sh，避免在其他目录运行时报错
     sbatch \
         --job-name="${JOB_NAME}" \
         --export=ALL,FNAME="${FNAME}",LOG_ROOT="${LOG_ROOT}",CKPTL_NAME="${CKPTL_NAME}",MODEL_NAME="${MODEL_NAME}" \
-        run_probing.sh
+        "${SCRIPT_DIR}/run_probing.sh"
 done
 
 echo "All jobs submitted."
