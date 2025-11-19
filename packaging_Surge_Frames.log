@@ -1,12 +1,17 @@
-[2025-11-18 17:29:43] 开始打包任务，共 4 个数据集
-[2025-11-18 17:29:43] 目标目录: data/CAIR_SDS
-[2025-11-18 17:29:43] START: Atlas_labeled
-[2025-11-18 17:40:09] COMPLETED: Atlas_labeled (文件大小: 15G)
-[2025-11-18 17:40:09] START: Private_pumch_labeled
-[2025-11-18 17:42:03] COMPLETED: Private_pumch_labeled (文件大小: 3.3G)
-[2025-11-18 17:42:03] START: Private_pwh_labeled
-[2025-11-18 17:43:20] COMPLETED: Private_pwh_labeled (文件大小: 1.9G)
-[2025-11-18 17:43:20] START: Private_TSS_labeled
-[2025-11-18 17:45:06] COMPLETED: Private_TSS_labeled (文件大小: 2.6G)
-[2025-11-18 17:45:06] 打包任务完成!
-[2025-11-18 17:45:06] 总数: 4, 完成: 4, 跳过: 0, 失败: 0
+[2025-11-19 15:10:14] 开始打包任务，共 2 个数据集
+[2025-11-19 15:10:14] 目标目录: data/CAIR_SDS/Surgery_frames
+[2025-11-19 15:10:14] START: PmLR50 → PmLR50_v2.tar
+[2025-11-19 15:10:50] COMPLETED: PmLR50 (文件: PmLR50_v2.tar, 大小: 458M)
+[2025-11-19 15:10:50] START: EgoSurgery → EgoSurgery_v2.tar
+[2025-11-19 15:17:59] COMPLETED: EgoSurgery (文件: EgoSurgery_v2.tar, 大小: 5.0G)
+[2025-11-19 15:17:59] 打包任务完成!
+[2025-11-19 15:17:59] 总数: 2, 完成: 2, 失败: 0
+[2025-11-19 17:56:13] 开始打包任务，共 1 个数据集
+[2025-11-19 17:56:13] 目标目录: data/CAIR_SDS/Surgery_frames
+[2025-11-19 17:56:13] START: SurgAction160 → SurgAction160.tar
+tar: data/CAIR_SDS/Surgery_frames/SurgAction160.tar: Cannot open: No such file or directory
+tar: Error is not recoverable: exiting now
+[2025-11-19 17:56:13] ERROR: SurgAction160 (tar文件为空或创建失败)
+[2025-11-19 17:56:13] 打包任务完成!
+[2025-11-19 17:56:13] 总数: 1, 完成: 0, 失败: 1
+[2025-11-19 17:56:13] 失败的数据集可以重新运行脚本继续打包
