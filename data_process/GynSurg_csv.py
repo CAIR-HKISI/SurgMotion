@@ -107,6 +107,11 @@ def gather_metadata(frame_root, class2id, dataname, out_dir,
                 index += 1
 
     # 保存到 train/val/test csv
+    # 若当前数据集未收集到任何样本，避免 KeyError: 'Split'，并给出提示
+    if len(records) == 0:
+        print(f"{dataname}: 在 {frame_root} 未找到任何有效帧，跳过生成 CSV（请检查路径和类别文件夹是否正确）")
+        return
+
     ensure_dir(out_dir)
     df = pd.DataFrame(records)
     for split in ['train', 'val', 'test']:

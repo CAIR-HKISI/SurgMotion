@@ -1,13 +1,13 @@
 cpus_per_task: 2
 eval_name: surgical_phase_probing
-dataset: autolaparo_phases  # Dataset name for wandb logging
+dataset: aIxsuture_phases  # Dataset name for wandb logging
 folder: logs/surgical_ntp_vitl16-256px-64f_lr1e-4_epoch-10_21-dataset_20epoch_window_predict/autolapro
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 num_workers: 8
 resume_checkpoint: true
-tag: autolaparo-probing
+tag: aIxsuture-probing
 tasks_per_node: 1
 
 # Bootstrap configuration (default: enabled)
@@ -19,13 +19,13 @@ bootstrap_seed: 42
 wandb:
   project: nsjepa-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: autolaparo_probing  # Run name (optional, wandb will generate if null)
+  name: aIxsuture_probing  # Run name (optional, wandb will generate if null)
   tags:
-    - autolaparo
-    - phase-probing
+    - aIxsuture
+    - skill level recognition
     - vitl
   group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on autolaparo dataset with bootstrap uncertainty estimation"
+  notes: "Multi-head probing on aIxsuture dataset with bootstrap uncertainty estimation"
 
 experiment:
   classifier:
@@ -34,16 +34,16 @@ experiment:
   data:
     dataset_type: surgical_videodataset
 
-    # Single dataset (OphNet2024_phase)
+    # Single dataset (aIxsuture)
     dataset_train:
-    - data/Surge_Frames/Atlas_labeled/train_metadata.csv
+    - data/Surge_Frames/AIxsuture/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
-    - data/Surge_Frames/Atlas_labeled/test_metadata.csv
+    - data/Surge_Frames/AIxsuture/clips_64f/test_dense_64f_detailed.csv
 
-    # Number of classes for OphNet2024_phase
+    # Number of classes for aIxsuture
     num_classes:
-    - 15   # OphNet2024_phase has 15 steps
+    - 15   # aIxsuture has 15 steps
 
     frames_per_clip: 64
     num_segments: 1
