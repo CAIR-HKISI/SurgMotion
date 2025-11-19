@@ -13,7 +13,7 @@ LOG_ROOT="logs"
 CKPTL_NAME="cooldown_vitg-256px-64f_20epoch"
 
 # 模型架构名称
-MODEL_NAME="vit_gaint_xformers"
+MODEL_NAME="vit_giant_xformers"
 
 # ==========================================
 # 任务配置列表
