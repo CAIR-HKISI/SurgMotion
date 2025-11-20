@@ -2,12 +2,12 @@ import os
 import pandas as pd
 
 # 根目录
-BASE_DIR = "data/Surge_Frames/AIxsuture/clips_64f"
+BASE_DIR = "data/Surge_Frames/AIxsuture"
 # 三个文件名
 CSV_FILES = [
-    "train_dense_64f_detailed.csv",
-    "val_dense_64f_detailed.csv",
-    "test_dense_64f_detailed.csv",
+    "train_metadata.csv",
+    "val_metadata.csv",
+    "test_metadata.csv",
 ]
 
 # 标签列名，如果你的列名是 'label' 就改成 'label'
