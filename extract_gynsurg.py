@@ -3,9 +3,9 @@
 """
 clean_and_extract.py
 -------------------------------------
-1. 遍历 data/Landscopy/GynSurg_Action_Segments/*/*.mp4
+1. 遍历 data/Landscopy/[name]_dataset/*/*.mp4
 2. 将视频复制并重命名为连续数字：
-   data/Landscopy/GynSurg_Action_Segments_Clean/{子文件夹}/{00001.mp4, 00002.mp4, ...}
+   data/Landscopy/[name]_dataset_renumbered/{子文件夹}/{00001.mp4, 00002.mp4, ...}
 3. 使用更兼容的 ffmpeg 参数进行抽帧。
 """
 
@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 import shutil
 from tqdm import tqdm
+import argparse
 
 
 # 🧩 Step 1: 拷贝并重命名视频
@@ -49,7 +50,7 @@ def clean_videos(
 # 🧩 Step 2: 抽帧
 def videos_to_frames(input_path,
                      output_path,
-                     fps=10,
+                     fps=30,
                      pattern="*.mp4",
                      debug=False,
                      save_failed=True):
@@ -127,17 +128,25 @@ def videos_to_frames(input_path,
 
 # 🧩 Step 3: 主逻辑
 if __name__ == "__main__":
-    SRC = "data/Landscopy/GynSurg_Action_Segments"
-    DST_CLEAN = "data/Landscopy/GynSurg_Action_Segments_Clean"
-    DST_FRAMES = "data/Surge_Frames/GynSurg_Action/frames"
+    parser = argparse.ArgumentParser(description="GynSurg dataset clean and frame extraction")
+    parser.add_argument('--name', type=str, default='GynSurg_action', help='数据集名 (例如 GynSurg_action)')
+    parser.add_argument('--fps', type=int, default=30, help='抽帧帧率')
+    parser.add_argument('--debug', action='store_true', help='打印调试信息')
+    args = parser.parse_args()
 
-    # # ✅ ① 拷贝并重命名视频
-    # clean_videos(SRC, DST_CLEAN)
+    name = args.name
+    SRC = f"data/Landscopy/{name}_dataset"
+    DST_CLEAN = f"data/Landscopy/{name}_dataset_renumbered"
+    DST_FRAMES = f"data/Surge_Frames/{name}/frames"
+
+    # ✅ ① 拷贝并重命名视频
+    clean_videos(SRC, DST_CLEAN)
 
     # ✅ ② 执行抽帧
     videos_to_frames(
         input_path=DST_CLEAN,
         output_path=DST_FRAMES,
-        fps=15,
-        debug=False
+        fps=args.fps,
+        debug=args.debug
     )
+
