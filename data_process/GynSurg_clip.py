@@ -38,7 +38,9 @@ def generate_txt_file(video_dir: Path, txt_path: Path, base_dir: Path) -> int:
 
     with txt_path.open("w") as f:
         for frame_path in frame_files:
-            rel_path = frame_path.relative_to(base_dir)
+            # 直接写入相对于项目根目录的路径（通常以 "data/..." 开头）
+            # 这样在项目根目录下运行时，路径可以被直接找到
+            rel_path = frame_path  # 例如：data/Surge_Frames/GynSurg_action/frames/xxx/yyy.jpg
             f.write(str(rel_path).replace("\\", "/") + "\n")
 
     return len(frame_files)
@@ -72,8 +74,9 @@ def build_metadata(frames_root: Path, clips_info_dir: Path, base_dir: Path):
                 # 没有帧的 clip 直接跳过
                 continue
 
-            # clip_path 以 BASE_DIR 为根的相对路径
-            clip_rel_path = txt_path.relative_to(base_dir)
+            # 这里直接使用相对项目根目录的路径（含 data/... 前缀），
+            # 方便在项目根目录下通过该路径直接找到 txt 文件
+            clip_rel_path = txt_path
 
             metadata.append(
                 {
@@ -144,7 +147,7 @@ def main():
     print(f"发现 {len(metadata)} 个视频 clip，将写入 metadata.csv 和 4-fold 划分。")
 
     # 2. 保存总的 metadata.csv
-    metadata_csv_path = clips_info_dir / "metadata.csv"
+    metadata_csv_path = base_dir / "metadata.csv"
     save_csv(metadata_csv_path, metadata)
     print(f"保存总 metadata 到: {metadata_csv_path}")
 
@@ -158,8 +161,8 @@ def main():
         train_meta = [metadata[j] for j in train_indices]
         test_meta = [metadata[j] for j in test_indices]
 
-        train_csv = clips_info_dir / f"train_metadata_fold{i}.csv"
-        test_csv = clips_info_dir / f"test_metadata_fold{i}.csv"
+        train_csv = base_dir / f"train_metadata_fold{i}.csv"
+        test_csv = base_dir / f"test_metadata_fold{i}.csv"
 
         save_csv(train_csv, train_meta)
         save_csv(test_csv, test_meta)

@@ -1,0 +1,5 @@
+[2025-11-22 01:23:28] 开始打包任务，共 6 个数据集
+[2025-11-22 01:23:28] 目标目录: data/CAIR_SDS/Surgery_frames
+[2025-11-22 01:23:28] START: GynSurg_action → GynSurg_action.tar
+[2025-11-22 01:33:39] COMPLETED: GynSurg_action (文件: GynSurg_action.tar, 大小: 9.1G)
+[2025-11-22 01:33:39] START: GynSurg_smoke → GynSurg_smoke.tar

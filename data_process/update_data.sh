@@ -6,9 +6,12 @@
 
 DATA_LIST=(
     # "SurgAction160"
-    "GynSurg_Action"
-    "GynSurg_Smoke"
-    "GynSurg_Bleeding"
+    "GynSurg_action"
+    "GynSurg_smoke"
+    "GynSurg_bleeding"
+    "SurgicalActions160"
+    "PolypDiag"
+    "AIxsuture"
 )
 SOURCE_ROOT="data/Surge_Frames"
 TARGET_ROOT="data/CAIR_SDS/Surgery_frames"
