@@ -34,16 +34,16 @@ experiment:
   data:
     dataset_type: surgical_videodataset
 
-    # Single dataset (OphNet2024_phase)
+    # Single dataset (PmLR50_phase)
     dataset_train:
     - data/Surge_Frames/PmLR50/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
     - data/Surge_Frames/PmLR50/clips_64f/test_dense_64f_detailed.csv
 
-    # Number of classes for OphNet2024_phase
+    # Number of classes for PmLR50_phase
     num_classes:
-    - 7   # OphNet2024_phase has 15 steps
+    - 7   # PmLR50 has 7 phases
 
     frames_per_clip: 64
     num_segments: 1
