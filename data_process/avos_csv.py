@@ -1,39 +1,42 @@
 import os
 import random
+from pathlib import Path
+
 import pandas as pd
 from tqdm import tqdm
 
 # ===============================
 # 基础路径
 # ===============================
-FRAME_DIR = "data/Surge_Frames/AVOS/frames"
-ANNO_FILE = "data/Open_surgery/AVOS/anno_meta.txt"
-OUT_DIR = "data/Surge_Frames/AVOS"
+FRAME_DIR = Path("data/Surge_Frames/AVOS/frames")
+ANNO_FILE = Path("data/Open_surgery/AVOS/anno_meta.txt")
+OUT_DIR = Path("data/Surge_Frames/AVOS")
+CLIPS_INFO_DIR = OUT_DIR / "clips_info"  # 用来存放每个视频片段的帧列表 txt
 
 # ===============================
-# 参数
+# 参数（按“片段级别”划分 train/val/test）
 # ===============================
 SPLIT_RATIOS = {"train": 0.7, "val": 0.15, "test": 0.15}
 RANDOM_SEED = 42
 random.seed(RANDOM_SEED)
 
 
-def parse_annotations(anno_file):
-    """读取标注文件 anno_meta.txt"""
+def parse_annotations(anno_file: Path):
+    """读取标注文件 anno_meta.txt，返回 {clip_name(去掉.mp4): label_name}"""
     anno_dict = {}
-    with open(anno_file, 'r', encoding='utf-8') as f:
+    with anno_file.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or "\t" not in line:
                 continue
-            fn, label = line.split('\t')
+            fn, label = line.split("\t")
             clip_name = fn.replace(".mp4", "")
             anno_dict[clip_name] = label
     print(f"✅ Parsed {len(anno_dict)} annotation items.")
     return anno_dict
 
 
-def extract_case_id(clip_name):
+def extract_case_id(clip_name: str) -> str:
     """
     从类似 '_3B8K5blJes_0_16' 的目录名提取 Case_ID。
     去掉前缀 '_'，然后取第一段字符串。
@@ -43,63 +46,98 @@ def extract_case_id(clip_name):
     return name.split("_")[0]
 
 
-def collect_clips(frame_dir, anno_dict):
-    """遍历帧文件夹并匹配标注"""
-    all_items = []
-    global_idx = 0
+def generate_txt_for_clip(clip_dir: Path, txt_path: Path) -> int:
+    """
+    为单个 clip 生成一个 txt，里面写入所有帧的路径（相对于项目根目录，如 data/...）。
+    返回该 clip 的帧数。
+    """
+    frame_files = sorted(
+        [p for p in clip_dir.iterdir() if p.is_file() and p.suffix.lower() in [".jpg", ".png"]],
+        key=lambda p: p.name,
+    )
 
-    for clip_name in tqdm(sorted(os.listdir(frame_dir)), desc="Collecting clips"):
-        clip_path = os.path.join(frame_dir, clip_name)
-        if not os.path.isdir(clip_path):
+    if not frame_files:
+        return 0
+
+    txt_path.parent.mkdir(parents=True, exist_ok=True)
+    with txt_path.open("w") as f:
+        for fp in frame_files:
+            # 保留以 data/... 开头的路径，便于在项目根目录下直接读取
+            f.write(str(fp).replace("\\", "/") + "\n")
+
+    return len(frame_files)
+
+
+def collect_clips(frame_dir: Path, anno_dict):
+    """
+    遍历 AVOS 帧文件夹，按【视频片段】构建一条样本：
+    - 为每个 clip 生成一个 txt（帧列表）
+    - metadata 中一行对应一个 clip，而不是一帧
+
+    输出字段（与 SurgicalVideoDataset 兼容）：
+    - Index      : clip 索引（从 0 开始）
+    - clip_path  : txt 文件路径（例如 data/Surge_Frames/AVOS/clips_info/XXX.txt）
+    - label      : 整数动作 id（稍后由 label_to_id_map 统一映射）
+    - label_name : 文本标签（原始动作名）
+    - case_id    : 病例/视频 id（从 clip 目录名中提取）
+    """
+    items = []
+    index = 0
+
+    for clip_name in tqdm(sorted(os.listdir(frame_dir)), desc="Collecting clip-level samples"):
+        clip_path = frame_dir / clip_name
+        if not clip_path.is_dir():
             continue
 
         normalized_name = clip_name.lstrip("_")
-        label = anno_dict.get(normalized_name)
-        if label is None:
-            print(f"⚠️ {clip_name} not in annotation list")
+        label_name = anno_dict.get(normalized_name)
+        if label_name is None:
+            print(f"⚠️ {clip_name} not in annotation list, skip")
             continue
 
-        frame_files = sorted([
-            os.path.join(clip_path, f)
-            for f in os.listdir(clip_path)
-            if f.endswith((".jpg", ".png"))
-        ])
-        if not frame_files:
+        # 1) 为该 clip 生成一个 txt，里面列出所有帧
+        txt_path = CLIPS_INFO_DIR / f"{clip_name}.txt"
+        num_frames = generate_txt_for_clip(clip_path, txt_path)
+        if num_frames == 0:
+            print(f"⚠️ {clip_name} has no frames, skip")
             continue
 
+        # 2) 提取 case_id（可选，用于后续按病例统计/划分）
         case_id = extract_case_id(clip_name)
 
-        for frame_file in frame_files:
-            all_items.append({
-                "index": global_idx,
-                "DataName": "AVOS",
-                "Year": 2022,
-                "Case_ID": case_id,
-                "Case_Name": clip_name,
-                "Frame_Path": frame_file,
-                "Phase_Name": label,
-            })
-            global_idx += 1
+        items.append(
+            {
+                "Index": index,
+                "clip_path": str(txt_path).replace("\\", "/"),
+                "label_name": label_name,
+                "case_id": case_id,
+                "num_frames": num_frames,
+            }
+        )
+        index += 1
 
-    print(f"✅ Total {len(all_items)} frames collected.")
-    return pd.DataFrame(all_items)
-
-
-def label_to_id_map(df):
-    """生成动作名称到ID的映射"""
-    unique_labels = sorted(df["Phase_Name"].unique())
-    phase2id = {name: idx for idx, name in enumerate(unique_labels)}
-    print("🧩 Phase → ID mapping:")
-    for k, v in phase2id.items():
-        print(f"   {v}: {k}")
-    return phase2id
+    print(f"✅ Total {len(items)} clip-level samples collected.")
+    return pd.DataFrame(items)
 
 
-def split_dataset(df):
-    """每个动作类别按比例划分 train/val/test"""
+def label_to_id_map(df: pd.DataFrame):
+    """生成 动作名称 → 整数ID 的映射，并打印出来。"""
+    unique_labels = sorted(df["label_name"].unique())
+    label2id = {name: idx for idx, name in enumerate(unique_labels)}
+    print("🧩 Action label → ID mapping:")
+    for name, idx in label2id.items():
+        print(f"   {idx}: {name}")
+    return label2id
+
+
+def split_dataset(df: pd.DataFrame):
+    """
+    按 clip（而不是帧）做 train/val/test 划分；
+    为了类别均衡，仍然是“每个类别内按比例切分”。
+    """
     df["Split"] = ""
-    for label in df["Phase_Name"].unique():
-        sub_df = df[df["Phase_Name"] == label]
+    for label_id in df["label"].unique():
+        sub_df = df[df["label"] == label_id]
         idxs = list(sub_df.index)
         random.shuffle(idxs)
 
@@ -108,36 +146,55 @@ def split_dataset(df):
         n_val = int(n * SPLIT_RATIOS["val"])
 
         df.loc[idxs[:n_train], "Split"] = "train"
-        df.loc[idxs[n_train:n_train + n_val], "Split"] = "val"
-        df.loc[idxs[n_train + n_val:], "Split"] = "test"
+        df.loc[idxs[n_train : n_train + n_val], "Split"] = "val"
+        df.loc[idxs[n_train + n_val :], "Split"] = "test"
 
-        print(f"{label:20s} → train:{n_train}, val:{n_val}, test:{n - n_train - n_val}")
+        print(
+            f"label {label_id:3d} → train:{n_train}, "
+            f"val:{n_val}, test:{n - n_train - n_val}"
+        )
 
     return df
 
 
-def save_csv(df):
-    """保存为3个CSV文件"""
+def save_csv(df: pd.DataFrame):
+    """
+    保存为 3 个 CSV 文件（clip-level），文件名加上 _clip 后缀，
+    避免和以前“逐帧标注”的 metadata 命名冲突：
+    - data/Surge_Frames/AVOS/train_clip_metadata.csv
+    - data/Surge_Frames/AVOS/val_clip_metadata.csv
+    - data/Surge_Frames/AVOS/test_clip_metadata.csv
+    """
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     for split in ["train", "val", "test"]:
         subset = df[df["Split"] == split]
         if subset.empty:
             continue
-        out_path = os.path.join(OUT_DIR, f"{split}_metadata.csv")
+        out_path = OUT_DIR / f"{split}_clip_metadata.csv"
         subset.to_csv(out_path, index=False)
-        print(f"💾 Saved {len(subset)} samples → {out_path}")
+        print(f"💾 Saved {len(subset)} clip samples → {out_path}")
 
 
 def main():
+    if not FRAME_DIR.exists():
+        print(f"❌ FRAME_DIR not found: {FRAME_DIR}")
+        return
+    if not ANNO_FILE.exists():
+        print(f"❌ ANNO_FILE not found: {ANNO_FILE}")
+        return
+
     anno_dict = parse_annotations(ANNO_FILE)
     df = collect_clips(FRAME_DIR, anno_dict)
 
     if df.empty:
-        print("❌ Error: No frames collected. Check paths or folder names.")
+        print("❌ Error: No clip-level samples collected. Check paths or folder names.")
         return
 
-    phase2id = label_to_id_map(df)
-    df["Phase_GT"] = df["Phase_Name"].map(phase2id)
+    # 映射 label_name → 整数 label
+    label2id = label_to_id_map(df)
+    df["label"] = df["label_name"].map(label2id)
 
+    # 片段级别划分 train/val/test
     df = split_dataset(df)
     save_csv(df)
 
