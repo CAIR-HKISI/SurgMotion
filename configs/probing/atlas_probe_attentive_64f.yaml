@@ -36,10 +36,10 @@ experiment:
 
     # Single dataset (OphNet2024_phase)
     dataset_train:
-    - data/Surge_Frames/Atlas/train_metadata.csv
+    - data/Surge_Frames/Atlas/clips_64f/train_dense_64f_detailed.csv
 
     dataset_val:
-    - data/Surge_Frames/Atlas/test_metadata.csv
+    - data/Surge_Frames/Atlas/clips_64f/test_dense_64f_detailed.csv
 
     # Number of classes for OphNet2024_phase
     num_classes:
