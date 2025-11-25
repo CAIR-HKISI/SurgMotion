@@ -364,43 +364,67 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
 
 
 if __name__ == "__main__":
-    # # 示例用法，确保frame_step被正确传递
+    """
+    简单的命令行测试入口，通过超参数传入数据路径等配置。
 
-    # aixsuture="data/Surge_Frames/AIxsuture/test_clip_metadata.csv"
-    # atlas = "data/Surge_Frames/Atlas/clips_64f/test_dense_64f_detailed.csv"
-    # avos = "data/Surge_Frames/AVOS/clips_64f/test_dense_64f_detailed.csv"
-    # autolaparo = "data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv"
-    # bernbypass70 = "data/Surge_Frames/BernBypass70/clips_64f/test_dense_64f_detailed.csv"
-    gynsurg_action = "data/Surge_Frames/PitVis/clips_64f/test_dense_64f_detailed.csv"
-    # surgaction160 = "data/Surge_Frames/PmLR50/clips_64f/test_dense_64f_detailed.csv"
-    # cholec80 = "data/Surge_Frames/Cholec80/clips_64f/test_dense_64f_detailed.csv"
-    # egosurgery = "data/Surge_Frames/EgoSurgery/clips_64f/test_dense_64f_detailed.csv"
-    
+    用法示例：
+      python -m src.datasets.video_surgical \\
+        --data_paths data/Surge_Frames/GynSurg_action/train_metadata_fold0.csv \\
+        --frames_per_clip 64 \\
+        --frame_step 1
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description="SurgicalVideoDataset 调试入口")
+    parser.add_argument(
+        "--data_paths",
+        nargs="+",
+        required=True,
+        help="一个或多个数据文件路径（csv / npy / txt 列表文件）",
+    )
+    parser.add_argument(
+        "--frames_per_clip",
+        type=int,
+        default=64,
+        help="每个 clip 的帧数",
+    )
+    parser.add_argument(
+        "--frame_step",
+        type=int,
+        default=1,
+        help="采样步长 frame_step（间隔多少帧采一帧）",
+    )
+    parser.add_argument(
+        "--num_clips",
+        type=int,
+        default=1,
+        help="每个样本划分的 clip 数量",
+    )
+    args = parser.parse_args()
+
     data = SurgicalVideoDataset(
-        # data_paths=[alxutue,jigasws,autolaparo,cholec80,bernbypass70,strasbypass70,egosurgery,avos,cataract,ophnet2024,endofmprivate,endofmcolonoscopic,privatekch,privatesysu,pitvis],
-        # datasets_weights=[0.08,0.08,0.04,0.04,0.04,0.04,0.08,0.08,0.08,0.08,0.03,0.03,0.03,0.03,0.13],
-        # data_paths=[tss, gynsurg, pmr50,polypdiag,privatepwh,pumch, surgaction160],
-        data_paths=[gynsurg_action],
-        datasets_weights=[1.0],
-        frames_per_clip=64,
-        fps=None,
+        data_paths=args.data_paths,
+        datasets_weights=None,
+        frames_per_clip=args.frames_per_clip,
+        fps=1,
         dataset_fpcs=None,
-        frame_step=1,  # 显式指定frame_step
-        num_clips=1,
+        frame_step=args.frame_step,
+        num_clips=args.num_clips,
         transform=None,
         shared_transform=None,
         random_clip_sampling=True,
         allow_clip_overlap=True,
         filter_short_videos=False,
         filter_long_videos=int(10**9),
-        duration=None,  # duration in seconds
+        duration=None,
     )
+
     print(f"数据集长度: {len(data)}")
-    
+
     # 查看前几个样本的标签格式
-    for i in range(1, 5):
+    for i in range(min(4, len(data))):
         item = data[i]
         buffer, label, clip_indices = item
-        print(f"样本 {i} 的标签: {label} (格式: [label, case_id, idx])")
+        print(f"样本 {i} 的标签: {label} (格式: [label, case_id, idx, dataset_idx])")
         print(f"标签类型: {type(label)}, 元素类型: {type(label[0])}, {type(label[1])}")
     print(f"标签分布: {data.class_counts}")
