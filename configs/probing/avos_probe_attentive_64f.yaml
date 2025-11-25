@@ -43,7 +43,7 @@ experiment:
 
     # Number of classes for OphNet2024_phase
     num_classes:
-    - 9   # AVOS has 9 actions
+    - 8   # AVOS has 8 actions
 
     frames_per_clip: 64
     num_segments: 1
