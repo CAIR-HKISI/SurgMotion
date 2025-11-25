@@ -39,7 +39,7 @@ experiment:
     - data/Surge_Frames/PolypDiag_v1/train_metadata.csv
 
     dataset_val:
-    - data/Surge_Frames/PolypDiag_v1/test_metadata.csv
+    - data/Surge_Frames/PolypDiag_v1/val_metadata.csv
 
     # Number of classes for PolypDiag
     num_classes:
