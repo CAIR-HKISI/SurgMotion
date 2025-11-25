@@ -20,6 +20,7 @@ SPLIT_RATIOS = {"train": 0.7, "val": 0.15, "test": 0.15}
 RANDOM_SEED = 42
 random.seed(RANDOM_SEED)
 MIN_SAMPLES_PER_SPLIT = 10  # 若某类在 train 或 test 中少于该阈值，则整体丢弃
+EXCLUDE_LABEL_NAMES = {"Others"}  # 这些文本标签无论样本多少都直接丢弃
 
 
 def parse_annotations(anno_file: Path):
@@ -163,6 +164,11 @@ def filter_rare_classes(df: pd.DataFrame, min_samples: int = MIN_SAMPLES_PER_SPL
     - 先基于 (label_name, Split) 统计每类在各 split 中的数量
     - 若某个 label 在 train 或 test 中任意一个 split 的数量 < min_samples，则从所有 split 中移除该 label
     """
+    # 先直接丢弃显式指定要排除的标签（如 "Others"）
+    if EXCLUDE_LABEL_NAMES:
+        print(f"\n🚫 Explicitly excluding labels (by name): {sorted(EXCLUDE_LABEL_NAMES)}")
+        df = df[~df["label_name"].isin(EXCLUDE_LABEL_NAMES)].copy()
+
     # 只统计当前已经分好 Split 的样本
     stats = df.groupby(["label_name", "Split"]).size().unstack(fill_value=0)
 
