@@ -18,19 +18,28 @@ MODEL_NAME="vit_giant_xformers"
 # ==========================================
 # 任务配置列表
 # ==========================================
+# CONFIGS=(
+#     "jigsaws_probe_attentive_64f.yaml"
+#     "autolaparo_probe_attentive_64f.yaml"
+#     "m2cai_probe_attentive_64f.yaml"
+#     "ophnet_probe_attentive_64f.yaml"
+#     "cholec80_probe_attentive_64f.yaml"
+#     "pitvis_probe_attentive_64f.yaml"
+#     "egosurgery_probe_attentive_64f.yaml"
+#     "pmlr50_probe_attentive_64f.yaml"
+# )
+
 CONFIGS=(
-    "grasp_probe_attentive_64f.yaml"
+    "aIxsuture_probe_attentive_64f.yaml"
+    "aIxsuture-5s_probe_attentive_64f.yaml"
+    "avos_probe_attentive_64f.yaml"
+    "gynsurg-action_probe_attentive_64f.yaml"
+    "gynsurg-bleed_probe_attentive_64f.yaml"
+    "gynsurg-smoke_probe_attentive_64f.yaml"
     "polypdiag_probe_attentive_64f.yaml"
-    "jigsaws_probe_attentive_64f.yaml"
-    "autolaparo_probe_attentive_64f.yaml"
-    "m2cai_probe_attentive_64f.yaml"
-    "ophnet_probe_attentive_64f.yaml"
-    "cholec80_probe_attentive_64f.yaml"
-    "pitvis_probe_attentive_64f.yaml"
     "surgicalactions160_probe_attentive_64f.yaml"
-    "egosurgery_probe_attentive_64f.yaml"
-    "pmlr50_probe_attentive_64f.yaml"
 )
+
 
 # ==========================================
 # 循环提交任务
