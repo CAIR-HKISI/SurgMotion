@@ -33,7 +33,7 @@ unset __conda_setup
 
 conda deactivate
 conda activate jepa_torch
-wandb offline
+export WANDB_DISABLED=true
 
 export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 
