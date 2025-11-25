@@ -81,6 +81,7 @@ def build_metadata(frames_root: Path, clips_info_dir: Path, base_dir: Path):
             metadata.append(
                 {
                     "Index": index,
+                    "case_id": index,  # 显式增加 case_id，与 Index 保持一致
                     "clip_path": str(clip_rel_path).replace("\\", "/"),
                     "label": label_id,
                     "label_name": label_name,

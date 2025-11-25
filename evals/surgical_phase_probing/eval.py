@@ -573,6 +573,41 @@ def main(args_eval, resume_preempt=False):
         num_workers=num_workers,
         normalization=normalization,
     )
+
+    # ----------------------
+    # 按类别频数计算 class weights（中位数 / 频数）
+    # 只在分类任务下使用，用于提升少数类表现
+    # ----------------------
+    class_weights = None
+    if task_type == "classification":
+        if hasattr(train_loader.dataset, "class_counts"):
+            # 假设类别索引为 [0, 1, ..., C-1]
+            cls_counts = [
+                train_loader.dataset.class_counts[i]
+                for i in range(len(train_loader.dataset.class_counts))
+            ]
+            median = np.median(cls_counts)
+            class_weights = (median / cls_counts).astype(np.float32)
+            logger.info(f"Class weights (median/freq): {class_weights}")
+
+            # 校验类别数是否与配置一致（只用第一个 num_classes，兼容多数据集场景）
+            if isinstance(num_classes, int):
+                expected_num_classes = num_classes
+            elif isinstance(num_classes, list) and len(num_classes) > 0:
+                expected_num_classes = num_classes[0]
+            else:
+                expected_num_classes = None
+
+            if expected_num_classes is not None:
+                assert len(class_weights) == expected_num_classes, (
+                    f"class_weights 长度 {len(class_weights)} 与 num_classes "
+                    f"{expected_num_classes} 不一致"
+                )
+        else:
+            logger.warning(
+                "train_loader.dataset 没有 class_counts 属性，将使用默认均匀类别权重"
+            )
+
     ipe = len(train_loader)
 
     # 多头优化器
@@ -629,10 +664,11 @@ def main(args_eval, resume_preempt=False):
                 scaler=scaler,
                 optimizer=optimizer,
                 scheduler=scheduler,
-                wd_scheduler=wd_scheduler,
+                wjind_scheduler=wd_scheduler,
                 data_loader=train_loader,
                 use_bfloat16=use_bfloat16,
                 num_classes=num_classes,
+                class_weights=class_weights,
                 epoch=epoch,
                 head_to_dataset_map=head_to_dataset_map,
                 rank=rank,
@@ -652,6 +688,7 @@ def main(args_eval, resume_preempt=False):
             data_loader=val_loader,
             use_bfloat16=use_bfloat16,
             num_classes=num_classes,
+            class_weights=class_weights,
             epoch=epoch,
             save_predictions=True,
             folder=folder,
@@ -684,11 +721,29 @@ def main(args_eval, resume_preempt=False):
 # 单个 epoch 训练/验证
 # ----------------------
 def run_one_epoch(
-    device, training, encoder, classifiers, scaler, optimizer,
-    scheduler, wd_scheduler, data_loader, use_bfloat16, num_classes,
-    epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20,
-    head_to_dataset_map=None, use_bootstrap=False, n_bootstrap=1000, bootstrap_seed=None,
-    rank=0, train_loader_len=None
+    device,
+    training,
+    encoder,
+    classifiers,
+    scaler,
+    optimizer,
+    scheduler,
+    wd_scheduler,
+    data_loader,
+    use_bfloat16,
+    num_classes,
+    class_weights=None,
+    epoch=0,
+    folder=None,
+    save_predictions=False,
+    fps=1.0,
+    log_interval=20,
+    head_to_dataset_map=None,
+    use_bootstrap=False,
+    n_bootstrap=1000,
+    bootstrap_seed=None,
+    rank=0,
+    train_loader_len=None,
 ):
     for c in classifiers:
         c.train(mode=training)
@@ -696,7 +751,16 @@ def run_one_epoch(
     # Select loss function based on task type
     task_type = getattr(run_one_epoch, 'task_type', 'classification')
     if task_type == "classification":
-        criterion = torch.nn.CrossEntropyLoss()
+        if class_weights is not None:
+            # 始终使用 float32 存储和计算类别权重，避免在半精度下的数值不稳定
+            # （即使启用 use_bfloat16 也保持为 FP32）
+            weight_dtype = torch.float32
+            weight_tensor = torch.tensor(
+                class_weights, dtype=weight_dtype, device=device
+            )
+            criterion = torch.nn.CrossEntropyLoss(weight=weight_tensor)
+        else:
+            criterion = torch.nn.CrossEntropyLoss()
     else:  # regression
         criterion = torch.nn.MSELoss()
 

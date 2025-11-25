@@ -24,6 +24,10 @@ PHASE_MAPPING = {
 # 需要过滤的标签
 FILTERED_PHASES = [-1, 11, 13]
 
+# 过滤后保留的阶段，并为其重新编号到 0 ~ N-1
+VALID_PHASES = sorted([p for p in PHASE_MAPPING.keys() if p not in FILTERED_PHASES])
+PHASE_REMAP = {phase: idx for idx, phase in enumerate(VALID_PHASES)}
+
 # 数据集划分
 TRAIN_VIDEOS = ['01', '03', '04', '05', '07', '08', '09', '10', '11', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '25']
 VAL_VIDEOS = ['02', '06', '12', '13', '24']
@@ -79,6 +83,8 @@ def process_video_annotations(video_id):
         
         # 获取阶段名称
         phase_name = PHASE_MAPPING.get(int_step, f"unknown_{int_step}")
+        # 将阶段标签重新映射为从 0 开始的连续标签
+        phase_id = PHASE_REMAP.get(int_step, -1)
         
         processed_data.append({
             'index': frame_index,
@@ -87,7 +93,10 @@ def process_video_annotations(video_id):
             'Case_Name': f"video_{video_id}",
             'Case_ID': video_id,
             'Frame_Path': frame_path,
-            'Phase_GT': int_step,
+            # 保留原始标签，方便之后对照
+            'Phase_Orig': int_step,
+            # 重新编号后的阶段标签，从 0 ~ N-1
+            'Phase_GT': phase_id,
             'Phase_Name': phase_name
         })
     
