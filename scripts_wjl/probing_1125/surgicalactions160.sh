@@ -16,7 +16,7 @@ FNAME="surgicalactions160_probe_attentive_64f.yaml"
 
 CKPTL_NAME="${CKPTL_NAME:-${1:-cooldown_vitg-256px-64f_4epoch}}"
 MODEL_NAME="${MODEL_NAME:-${2:-vit_giant_xformers}}"
-LOG_ROOT="${LOG_ROOT:-logs_test}"
+LOG_ROOT="${LOG_ROOT:-logs}"
 
 conda_path="/lustre/projects/med-multi-llm/jinlin_wu/miniconda3"
 __conda_setup="$('${conda_path}/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
