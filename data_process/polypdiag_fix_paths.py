@@ -4,9 +4,10 @@
 """
 批量把指定目录下所有 csv / txt 文件中的旧数据集路径，替换为 *_v1 路径。
 
-内置两条规则:
+内置三条规则:
   1) "data/Surge_Frames/PolypDiag/"          -> "data/Surge_Frames/PolypDiag_v1/"
   2) "data/Surge_Frames/SurgicalActions160/" -> "data/Surge_Frames/SurgicalActions160_v1/"
+  3) "data/Surge_Frames/AIxsuture/"          -> "data/Surge_Frames/AIxsuture_v1/"
 
 你也可以通过命令行参数自由指定自定义规则。
 
@@ -14,7 +15,7 @@
     data/Surge_Frames
 
 用法示例（在项目根目录运行）:
-    # 使用默认两条规则，在 data/Surge_Frames 下递归替换
+    # 使用默认三条规则，在 data/Surge_Frames 下递归替换
     python data_process/polypdiag_fix_paths.py
 
 只查看将要替换的数量（不真正改文件）:
@@ -26,7 +27,8 @@
 自定义规则（可以多次指定 --rule old,new）:
     python data_process/polypdiag_fix_paths.py \\
         --rule data/Surge_Frames/PolypDiag/,data/Surge_Frames/PolypDiag_v1/ \\
-        --rule data/Surge_Frames/SurgicalActions160/,data/Surge_Frames/SurgicalActions160_v1/
+        --rule data/Surge_Frames/SurgicalActions160/,data/Surge_Frames/SurgicalActions160_v1/ \\
+        --rule data/Surge_Frames/AIxsuture/,data/Surge_Frames/AIxsuture_v1/
 """
 
 import argparse
@@ -117,6 +119,7 @@ def main():
     default_rules = [
         ("data/Surge_Frames/PolypDiag/", "data/Surge_Frames/PolypDiag_v1/"),
         ("data/Surge_Frames/SurgicalActions160/", "data/Surge_Frames/SurgicalActions160_v1/"),
+        ("data/Surge_Frames/AIxsuture/", "data/Surge_Frames/AIxsuture_v1/"),
     ]
     rules.extend(default_rules)
 
