@@ -355,7 +355,7 @@ def main():
     # 1. 获取 orig_name -> new_name 映射
     #    - 若之前已执行过重命名并生成 polypdiag_name_mapping.csv，则此处直接加载；
     #    - 若未重命名，则退化为 orig_name -> orig_name 的恒等映射。
-    name_mapping = load_or_build_name_mapping(src_videos_dir, dst_videos_dir)
+    # name_mapping = load_or_build_name_mapping(src_videos_dir, dst_videos_dir)
 
     # 2. 抽帧（可选）
     #    如果你已经提前抽好帧，可以注释掉下面这一行；
@@ -366,7 +366,7 @@ def main():
     train_split = load_split_file(splits_dir / "train.txt")
     val_split = load_split_file(splits_dir / "val.txt")
 
-    base_dir = Path("data/Surge_Frames/PolypDiag")
+    base_dir = Path("data/Surge_Frames/PolypDiag_v1")
     clip_infos_dir = base_dir / "clip_infos"
 
     train_meta, val_meta = build_metadata_from_splits(
