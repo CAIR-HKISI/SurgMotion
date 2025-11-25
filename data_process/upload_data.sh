@@ -4,10 +4,7 @@
 # 目标：将每个数据集主目录(data/Surge_Frames/下的级目录)分别打成tar包放到data/CAIR_SDS下，重复运行会跳过已成功的。
 
 DATA_LIST=(
-    "Atlas_labeled"
-    "Private_pumch_labeled"
-    "Private_pwh_labeled"
-    "Private_TSS_labeled"
+
 )
 SOURCE_ROOT="data/Surge_Frames"
 TARGET_ROOT="data/CAIR_SDS"

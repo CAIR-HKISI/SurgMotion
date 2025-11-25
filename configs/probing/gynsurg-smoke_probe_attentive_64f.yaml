@@ -36,10 +36,10 @@ experiment:
 
     # Single dataset (GynSurg_Action)
     dataset_train:
-    - data/Surge_Frames/GynSurg_action/train_metadata_fold0.csv
+    - data/Surge_Frames/GynSurg_smoke/train_metadata_fold0.csv
 
     dataset_val:
-    - data/Surge_Frames/GynSurg_action/test_metadata_fold0.csv
+    - data/Surge_Frames/GynSurg_smoke/test_metadata_fold0.csv
     
     # Number of classes for GynSurg_Action
     num_classes:
