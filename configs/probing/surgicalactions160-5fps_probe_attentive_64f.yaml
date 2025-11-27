@@ -1,13 +1,13 @@
 cpus_per_task: 2
-eval_name: surgical_phase_probing
-dataset: gynsurg_action  # Dataset name for wandb logging
-folder: logs/cpt_gynsurg/gynsurg_vitl16-256px-64f_multi-head
+eval_name: surgical_action_probing
+folder: logs/cpt_surgaction160/surgaction160_vitl16-256px-64f_multi-head
+dataset: surgaction160_action
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 num_workers: 8
 resume_checkpoint: false
-tag: gynsurg-action-probing
+tag: surgaction160-action-recognition
 tasks_per_node: 1
 
 # Bootstrap configuration (default: enabled)
@@ -19,13 +19,13 @@ bootstrap_seed: 42
 wandb:
   project: nsjepa-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: gynsurg_action_probing  # Run name (optional, wandb will generate if null)
+  name: surgaction160_action_recognition  # Run name (optional, wandb will generate if null)
   tags:
-    - gynsurg
-    - action-probing
+    - surgaction160
+    - action-recognition
     - vitl
   group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on GynSurg_Action dataset with bootstrap uncertainty estimation"
+  notes: "Multi-head probing on SurgAction160 dataset for action recognition with bootstrap uncertainty estimation"
 
 experiment:
   classifier:
@@ -34,16 +34,16 @@ experiment:
   data:
     dataset_type: surgical_videodataset
 
-    # Single dataset (GynSurg_Action)
+    # SurgAction160 dataset paths
     dataset_train:
-    - data/Surge_Frames/GynSurg_action/train_metadata_fold0_fps5.csv
+    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps5.csv
 
     dataset_val:
-    - data/Surge_Frames/GynSurg_action/test_metadata_fold0_fps5.csv
+    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0_fps5.csv
 
-    # Number of classes for GynSurg_Action
+    # Number of classes for SurgAction160
     num_classes:
-    - 5   # GynSurg_Action has 5 actions (labels 0-4)
+    - 16   # SurgAction160 has 16 action classes
 
     frames_per_clip: 64
     num_segments: 1

@@ -1,5 +1,5 @@
 cpus_per_task: 2
-eval_name: surgical_phase_probing
+eval_name: surgical_action_probing
 folder: logs/cpt_surgaction160/surgaction160_vitl16-256px-64f_multi-head
 dataset: surgaction160_action
 mem_per_gpu: 220G
@@ -36,10 +36,10 @@ experiment:
 
     # SurgAction160 dataset paths
     dataset_train:
-    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps10.csv
+    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps1.csv
 
     dataset_val:
-    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0_fps10.csv
+    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0_fps1.csv
 
     # Number of classes for SurgAction160
     num_classes:

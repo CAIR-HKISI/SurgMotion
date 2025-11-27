@@ -10,6 +10,7 @@ from sklearn.metrics import (
     accuracy_score,
     precision_score,
     recall_score,
+    f1_score,
     jaccard_score
 )
 
@@ -56,6 +57,7 @@ def calculate_head_metrics(csv_path):
         # macro: 每个类别单独计算后平均
         precision = precision_score(y_true, y_pred, average='macro', zero_division=0) * 100
         recall = recall_score(y_true, y_pred, average='macro', zero_division=0) * 100
+        f1 = f1_score(y_true, y_pred, average='macro', zero_division=0) * 100
         
         # Jaccard score (IoU)
         jaccard = jaccard_score(y_true, y_pred, average='macro', zero_division=0) * 100
@@ -65,6 +67,7 @@ def calculate_head_metrics(csv_path):
             'accuracy': accuracy,
             'precision': precision,
             'recall': recall,
+            'f1': f1,
             'jaccard': jaccard,
             'num_samples': len(y_true)
         })
@@ -73,13 +76,14 @@ def calculate_head_metrics(csv_path):
         print(f"  Accuracy: {accuracy:.4f}%")
         print(f"  Precision: {precision:.4f}%")
         print(f"  Recall: {recall:.4f}%")
+        print(f"  F1 Score: {f1:.4f}%")
         print(f"  Jaccard: {jaccard:.4f}%")
         print(f"  样本数: {len(y_true)}")
     
     # 保存结果到CSV
     output_path = csv_path.replace('.csv', '_metrics.csv')
     with open(output_path, 'w', newline='') as f:
-        fieldnames = ['head', 'accuracy', 'precision', 'recall', 'jaccard', 'num_samples']
+        fieldnames = ['head', 'accuracy', 'precision', 'recall', 'f1', 'jaccard', 'num_samples']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(results)
@@ -96,11 +100,13 @@ def calculate_head_metrics(csv_path):
     avg_accuracy = mean([r['accuracy'] for r in results])
     avg_precision = mean([r['precision'] for r in results])
     avg_recall = mean([r['recall'] for r in results])
+    avg_f1 = mean([r['f1'] for r in results])
     avg_jaccard = mean([r['jaccard'] for r in results])
     
     print(f"平均 Accuracy: {avg_accuracy:.4f}%")
     print(f"平均 Precision: {avg_precision:.4f}%")
     print(f"平均 Recall: {avg_recall:.4f}%")
+    print(f"平均 F1 Score: {avg_f1:.4f}%")
     print(f"平均 Jaccard: {avg_jaccard:.4f}%")
     
     return results
@@ -121,9 +127,9 @@ if __name__ == '__main__':
     print("\n" + "="*60)
     print("详细结果表格:")
     print("="*60)
-    print(f"{'Head':<6} {'Accuracy':<12} {'Precision':<12} {'Recall':<12} {'Jaccard':<12} {'Samples':<8}")
+    print(f"{'Head':<6} {'Accuracy':<12} {'Precision':<12} {'Recall':<12} {'F1':<12} {'Jaccard':<12} {'Samples':<8}")
     print("-" * 70)
     for r in results:
         print(f"{r['head']:<6} {r['accuracy']:<12.4f} {r['precision']:<12.4f} {r['recall']:<12.4f} "
-              f"{r['jaccard']:<12.4f} {r['num_samples']:<8}")
+              f"{r['f1']:<12.4f} {r['jaccard']:<12.4f} {r['num_samples']:<8}")
 

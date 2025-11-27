@@ -95,12 +95,14 @@ experiment:
       start_lr: 0.0001
       warmup: 0.0
       weight_decay: 0.1
+    ## head-8
     - final_lr: 0.0
       final_weight_decay: 0.1
       lr: 5.0e-05
       start_lr: 5.0e-05
       warmup: 0.0
       weight_decay: 0.1
+    ## head-9
     - final_lr: 0.0
       final_weight_decay: 0.4
       lr: 0.001
