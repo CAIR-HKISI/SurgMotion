@@ -19,24 +19,21 @@ MODEL_NAME="vit_giant_xformers"
 # 任务配置列表
 # ==========================================
 CONFIGS=(
-    configs/probing/pmlr50_probe_attentive_64f_epoch2.yaml
-    configs/probing/aIxsuture-8s_probe_attentive_64f.yaml
-    configs/probing/atlas_probe_attentive_64f.yaml
-
-    configs/probing/surgicalactions160-1fps_probe_attentive_64f.yaml
-    configs/probing/gynsurg-action-1fps_probe_attentive_64f.yaml
-    configs/probing/gynsurg-bleed-1fps_probe_attentive_64f.yaml
-    configs/probing/gynsurg-smok-1fps_probe_attentive_64f.yaml
-
-    configs/probing/gynsurg-smok-5fps_probe_attentive_64f.yaml
-    configs/probing/gynsurg-action-5fps_probe_attentive_64f.yaml
-    configs/probing/gynsurg-bleed-5fps_probe_attentive_64f.yaml
-    configs/probing/surgicalactions160-5fps_probe_attentive_64f.yaml
-
-    configs/probing/gynsurg-action-10fps_probe_attentive_64f.yaml
-    configs/probing/gynsurg-bleed-10fps_probe_attentive_64f.yaml
-    configs/probing/gynsurg-smok-10fps_probe_attentive_64f.yaml
-    configs/probing/surgicalactions160-10fps_probe_attentive_64f.yaml
+    surgicalactions160-1fps_probe_attentive_64f.yaml
+    gynsurg-action-1fps_probe_attentive_64f.yaml
+    gynsurg-bleed-1fps_probe_attentive_64f.yaml
+    gynsurg-smok-1fps_probe_attentive_64f.yaml
+    gynsurg-smok-5fps_probe_attentive_64f.yaml
+    gynsurg-action-5fps_probe_attentive_64f.yaml
+    gynsurg-bleed-5fps_probe_attentive_64f.yaml
+    surgicalactions160-5fps_probe_attentive_64f.yaml
+    gynsurg-action-10fps_probe_attentive_64f.yaml
+    gynsurg-bleed-10fps_probe_attentive_64f.yaml
+    gynsurg-smok-10fps_probe_attentive_64f.yaml
+    surgicalactions160-10fps_probe_attentive_64f.yaml
+    pmlr50_probe_attentive_64f_epoch2.yaml
+    aIxsuture-8s_probe_attentive_64f.yaml
+    atlas_probe_attentive_64f.yaml
 )
 
 # CONFIGS=(
