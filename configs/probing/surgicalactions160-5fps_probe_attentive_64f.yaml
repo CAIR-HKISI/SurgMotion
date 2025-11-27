@@ -1,5 +1,5 @@
 cpus_per_task: 2
-eval_name: surgical_action_probing
+eval_name: surgical_video_probing
 folder: logs/cpt_surgaction160/surgaction160_vitl16-256px-64f_multi-head
 dataset: surgaction160_action
 mem_per_gpu: 220G

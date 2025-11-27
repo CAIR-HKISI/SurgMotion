@@ -1,13 +1,13 @@
 cpus_per_task: 2
 eval_name: surgical_video_probing
-folder: logs/cpt_surgaction160/surgaction160_vitl16-256px-64f_multi-head
-dataset: surgaction160_action
+dataset: aIxsuture_phases  # Dataset name for wandb logging
+folder: logs/surgical_ntp_vitl16-256px-64f_lr1e-4_epoch-10_21-dataset_20epoch_window_predict/autolapro
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 num_workers: 8
 resume_checkpoint: false
-tag: surgaction160-action-recognition
+tag: aIxsuture-probing
 tasks_per_node: 1
 
 # Bootstrap configuration (default: enabled)
@@ -19,13 +19,13 @@ bootstrap_seed: 42
 wandb:
   project: nsjepa-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: surgaction160_action_recognition  # Run name (optional, wandb will generate if null)
+  name: aIxsuture_probing  # Run name (optional, wandb will generate if null)
   tags:
-    - surgaction160
-    - action-recognition
+    - aIxsuture
+    - skill level recognition
     - vitl
   group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on SurgAction160 dataset for action recognition with bootstrap uncertainty estimation"
+  notes: "Multi-head probing on aIxsuture dataset with bootstrap uncertainty estimation"
 
 experiment:
   classifier:
@@ -34,24 +34,24 @@ experiment:
   data:
     dataset_type: surgical_videodataset
 
-    # SurgAction160 dataset paths
+    # Single dataset (aIxsuture)
     dataset_train:
-    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps1.csv
+    - data/Surge_Frames/AIxsuture_v1/train_clip_metadata.csv
 
     dataset_val:
-    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0_fps1.csv
+    - data/Surge_Frames/AIxsuture_v1/test_clip_metadata.csv
 
-    # Number of classes for SurgAction160
+    # Number of classes for aIxsuture
     num_classes:
-    - 16   # SurgAction160 has 16 action classes
+    - 3   # aIxsuture has 3 skill levels
 
     frames_per_clip: 64
-    num_segments: 1
+    num_segments: 8
     num_views_per_segment: 1
     resolution: 256
 
   optimization:
-    batch_size: 8
+    batch_size: 2
     multihead_kwargs:
     - final_lr: 0.0
       final_weight_decay: 0.01
@@ -130,7 +130,7 @@ experiment:
     use_pos_embed: false
 
 model_kwargs:
-  checkpoint: /home/jinlin_wu/NSJepa/logs9/surgical_cpt_vitl16-256px-64f_lr1e-20_epoch_21-dataset/latest.pt
+  checkpoint: logs/surgical_ntp_vitl16-256px-64f_lr1e-4_epoch-10_21-dataset_20epoch_window_predict/latest.pt
   module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
   pretrain_kwargs:
     encoder:

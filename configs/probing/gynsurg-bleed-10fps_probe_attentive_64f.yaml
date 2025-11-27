@@ -1,5 +1,5 @@
 cpus_per_task: 2
-eval_name: surgical_phase_probing
+eval_name: surgical_video_probing
 dataset: gynsurg_bleed  # Dataset name for wandb logging
 folder: logs/cpt_gynsurg/gynsurg_vitl16-256px-64f_multi-head
 mem_per_gpu: 220G
@@ -125,7 +125,7 @@ experiment:
       start_lr: 5.0e-05
       warmup: 0.0
       weight_decay: 0.4
-    num_epochs: 40
+    num_epochs: 10
     use_bfloat16: true
     use_pos_embed: false
 

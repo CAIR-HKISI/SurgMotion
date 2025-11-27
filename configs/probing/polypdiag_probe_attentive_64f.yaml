@@ -1,5 +1,5 @@
 cpus_per_task: 2
-eval_name: surgical_phase_probing
+eval_name: surgical_video_probing
 dataset: polypdiag_diagnosis  # Dataset name for wandb logging
 folder: logs/cpt_polypdiag/polypdiag_vitl16-256px-64f_multi-head
 mem_per_gpu: 220G

@@ -1,5 +1,5 @@
 cpus_per_task: 2
-eval_name: surgical_phase_probing
+eval_name: surgical_video_probing
 dataset: aIxsuture_phases  # Dataset name for wandb logging
 folder: logs/surgical_ntp_vitl16-256px-64f_lr1e-4_epoch-10_21-dataset_20epoch_window_predict/autolapro
 mem_per_gpu: 220G

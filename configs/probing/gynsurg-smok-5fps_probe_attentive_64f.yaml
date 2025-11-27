@@ -1,13 +1,13 @@
 cpus_per_task: 2
 eval_name: surgical_video_probing
-folder: logs/cpt_surgaction160/surgaction160_vitl16-256px-64f_multi-head
-dataset: surgaction160_action
+dataset: gynsurg_smoke  # Dataset name for wandb logging
+folder: logs/cpt_gynsurg/gynsurg_vitl16-256px-64f_multi-head
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 num_workers: 8
 resume_checkpoint: false
-tag: surgaction160-action-recognition
+tag: gynsurg-smoke-probing
 tasks_per_node: 1
 
 # Bootstrap configuration (default: enabled)
@@ -19,13 +19,13 @@ bootstrap_seed: 42
 wandb:
   project: nsjepa-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: surgaction160_action_recognition  # Run name (optional, wandb will generate if null)
+  name: gynsurg_smoke_probing  # Run name (optional, wandb will generate if null)
   tags:
-    - surgaction160
-    - action-recognition
+    - gynsurg
+    - smoke-probing
     - vitl
   group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on SurgAction160 dataset for action recognition with bootstrap uncertainty estimation"
+  notes: "Multi-head probing on GynSurg_Action dataset with bootstrap uncertainty estimation"
 
 experiment:
   classifier:
@@ -34,16 +34,16 @@ experiment:
   data:
     dataset_type: surgical_videodataset
 
-    # SurgAction160 dataset paths
+    # Single dataset (GynSurg_Action)
     dataset_train:
-    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps1.csv
+    - data/Surge_Frames/GynSurg_smoke/train_metadata_fold0.csv
 
     dataset_val:
-    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0_fps1.csv
-
-    # Number of classes for SurgAction160
+    - data/Surge_Frames/GynSurg_smoke/test_metadata_fold0.csv
+    
+    # Number of classes for GynSurg_Action
     num_classes:
-    - 16   # SurgAction160 has 16 action classes
+    - 2   # GynSurg_smoke has 2 smoke classes (labels 0-1)
 
     frames_per_clip: 64
     num_segments: 1
@@ -125,7 +125,7 @@ experiment:
       start_lr: 5.0e-05
       warmup: 0.0
       weight_decay: 0.4
-    num_epochs: 40
+    num_epochs: 10
     use_bfloat16: true
     use_pos_embed: false
 
