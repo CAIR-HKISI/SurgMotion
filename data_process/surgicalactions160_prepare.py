@@ -6,12 +6,12 @@ SurgicalActions160 预处理脚本
 功能一：对 data/Landscopy/SurgicalActions160 下所有视频进行数字编号并拷贝到
        data/Landscopy/SurgicalActions160_renumbered
 功能二：对重命名后的视频进行抽帧，帧保存到
-       data/Surge_Frames/SurgicalActions160/frames/fps{fps}
+       data/Surge_Frames/SurgicalActions160_v1/frames/fps{fps}
 功能三：基于帧目录结构，为每个“视频帧文件夹”生成一个 txt（写入所有帧的路径），
        txt 统一放在
-       data/Surge_Frames/SurgicalActions160/clip_infos_fps{fps}
+       data/Surge_Frames/SurgicalActions160_v1/clip_infos_fps{fps}
        同时生成：
-         - metadata_fps{fps}.csv（Index, clip_path, label, label_name, case_id, clip_idx）
+         - data/Surge_Frames/SurgicalActions160_v1/metadata_fps{fps}.csv
          - 4-fold 划分：train_metadata_fold{i}_fps{fps}.csv / test_metadata_fold{i}_fps{fps}.csv
 """
 
@@ -24,6 +24,8 @@ from pathlib import Path
 
 import pandas as pd
 from tqdm import tqdm
+
+BASE_DIR = Path("data/Surge_Frames/SurgicalActions160_v1")
 
 
 # 🧩 Step 1: 拷贝并重命名视频（与 extract_gynsurg.py 的逻辑保持一致风格）
@@ -184,9 +186,11 @@ def build_metadata(frames_root: Path, clip_infos_dir: Path):
         )
 
         for video_dir in video_dirs:
-            video_name = video_dir.name
-
-            txt_path = clip_infos_dir / f"{video_name}.txt"
+            # clip_infos 目录按“动作/视频”保留层级，避免不同动作下的同名视频互相覆盖
+            rel_video = video_dir.relative_to(frames_root)
+            txt_parent = clip_infos_dir / rel_video.parent
+            txt_parent.mkdir(parents=True, exist_ok=True)
+            txt_path = txt_parent / f"{video_dir.name}.txt"
             num_frames = generate_txt_file(video_dir, txt_path)
             if num_frames == 0:
                 continue
@@ -261,7 +265,7 @@ def main():
     parser.add_argument(
         "--frames_root",
         type=str,
-        default="data/Surge_Frames/SurgicalActions160/frames",
+        default=str(BASE_DIR / "frames"),
         help="抽帧保存目录（默认会自动追加 fps 子目录）",
     )
     parser.add_argument(
@@ -289,9 +293,9 @@ def main():
     dst_clean = clean_videos(args.src_root, args.dst_root)
 
     # 2. 抽帧
-    default_frames_root = parser.get_default("frames_root")
+    default_frames_root = Path(parser.get_default("frames_root"))
     frames_dir = Path(args.frames_root)
-    if args.frames_root == default_frames_root:
+    if frames_dir == default_frames_root:
         frames_dir = frames_dir / fps_tag
 
     videos_to_frames(
@@ -302,7 +306,8 @@ def main():
     )
 
     # 3. 生成 txt & metadata & 4-fold
-    base_dir = Path("data/Surge_Frames/SurgicalActions160")
+    base_dir = BASE_DIR
+    base_dir.mkdir(parents=True, exist_ok=True)
     clip_infos_dir = base_dir / f"clip_infos_{fps_tag}"
     clip_infos_dir.mkdir(parents=True, exist_ok=True)
 
