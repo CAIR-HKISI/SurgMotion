@@ -31,9 +31,9 @@ CONFIGS=(
     # gynsurg-bleed-10fps_probe_attentive_64f.yaml
     # gynsurg-smok-10fps_probe_attentive_64f.yaml
     # surgicalactions160-10fps_probe_attentive_64f.yaml
-    pmlr50_probe_attentive_64f_epoch2.yaml
+    # pmlr50_probe_attentive_64f_epoch2.yaml
     aIxsuture-8s_probe_attentive_64f.yaml
-    atlas_probe_attentive_64f.yaml
+    # atlas_probe_attentive_64f.yaml
 )
 
 # CONFIGS=(
