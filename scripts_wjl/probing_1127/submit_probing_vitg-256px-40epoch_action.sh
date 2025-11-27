@@ -21,6 +21,7 @@ MODEL_NAME="vit_giant_xformers"
 CONFIGS=(
     configs/probing/pmlr50_probe_attentive_64f_epoch2.yaml
     configs/probing/aIxsuture-8s_probe_attentive_64f.yaml
+    configs/probing/atlas_probe_attentive_64f.yaml
 
     configs/probing/surgicalactions160-1fps_probe_attentive_64f.yaml
     configs/probing/gynsurg-action-1fps_probe_attentive_64f.yaml
