@@ -14,8 +14,8 @@
 
 FNAME="pmlr50_probe_attentive_64f.yaml"
 
-CKPTL_NAME="${CKPTL_NAME:-${1:-cooldown_vitg-256px-64f_4epoch}}"
-MODEL_NAME="${MODEL_NAME:-${2:-vit_giant_xformers}}"
+CKPTL_NAME="cooldown_vitg-256px-64f_40epoch"
+MODEL_NAME="vit_giant_xformers"
 LOG_ROOT="${LOG_ROOT:-logs}"
 
 conda_path="/lustre/projects/med-multi-llm/jinlin_wu/miniconda3"
