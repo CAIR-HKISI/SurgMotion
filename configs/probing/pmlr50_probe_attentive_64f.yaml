@@ -43,7 +43,7 @@ experiment:
 
     # Number of classes for PmLR50_phase
     num_classes:
-    - 7   # PmLR50 has 7 phases
+    - 5  # PmLR50 has 5 phases
 
     frames_per_clip: 64
     num_segments: 1

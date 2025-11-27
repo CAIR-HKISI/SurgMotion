@@ -43,7 +43,7 @@ experiment:
 
     # Number of classes for OphNet2024_phase
     num_classes:
-    - 15   # OphNet2024_phase has 15 steps
+    - 15   # PitVis has 15 steps
 
     frames_per_clip: 64
     num_segments: 1
