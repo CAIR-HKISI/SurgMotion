@@ -12,7 +12,7 @@
 
 # surgicalactions160 probing 独立脚本
 
-FNAME="configs/probing/surgicalactions160-1fps_probe_attentive_64f_epoch1.yaml"
+FNAME="surgicalactions160-1fps_probe_attentive_64f_epoch1.yaml"
 
 CKPTL_NAME="cooldown_vitg-256px-64f_40epoch"
 MODEL_NAME="vit_giant_xformers"
