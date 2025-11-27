@@ -36,10 +36,10 @@ experiment:
 
     # SurgAction160 dataset paths
     dataset_train:
-    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0.csv
+    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps10.csv
 
     dataset_val:
-    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0.csv
+    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0_fps10.csv
 
     # Number of classes for SurgAction160
     num_classes:
