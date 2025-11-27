@@ -6,13 +6,13 @@ SurgicalActions160 预处理脚本
 功能一：对 data/Landscopy/SurgicalActions160 下所有视频进行数字编号并拷贝到
        data/Landscopy/SurgicalActions160_renumbered
 功能二：对重命名后的视频进行抽帧，帧保存到
-       data/Surge_Frames/SurgicalActions160/frames
+       data/Surge_Frames/SurgicalActions160/frames/fps{fps}
 功能三：基于帧目录结构，为每个“视频帧文件夹”生成一个 txt（写入所有帧的路径），
        txt 统一放在
-       data/Surge_Frames/SurgicalActions160/clip_infos
+       data/Surge_Frames/SurgicalActions160/clip_infos_fps{fps}
        同时生成：
-         - metadata.csv（Index, clip_path, label, label_name）
-         - 4-fold 划分：train_metadata_fold{i}.csv / test_metadata_fold{i}.csv
+         - metadata_fps{fps}.csv（Index, clip_path, label, label_name, case_id, clip_idx）
+         - 4-fold 划分：train_metadata_fold{i}_fps{fps}.csv / test_metadata_fold{i}_fps{fps}.csv
 """
 
 import argparse
@@ -262,7 +262,7 @@ def main():
         "--frames_root",
         type=str,
         default="data/Surge_Frames/SurgicalActions160/frames",
-        help="抽帧保存目录",
+        help="抽帧保存目录（默认会自动追加 fps 子目录）",
     )
     parser.add_argument(
         "--fps",
@@ -283,28 +283,35 @@ def main():
     )
 
     args = parser.parse_args()
+    fps_tag = f"fps{args.fps}"
 
-    # # 1. 重命名并拷贝视频
-    # dst_clean = clean_videos(args.src_root, args.dst_root)
+    # 1. 重命名并拷贝视频
+    dst_clean = clean_videos(args.src_root, args.dst_root)
 
-    # # 2. 抽帧
-    # videos_to_frames(
-    #     input_path=str(dst_clean),
-    #     output_path=args.frames_root,
-    #     fps=args.fps,
-    #     debug=args.debug,
-    # )
+    # 2. 抽帧
+    default_frames_root = parser.get_default("frames_root")
+    frames_dir = Path(args.frames_root)
+    if args.frames_root == default_frames_root:
+        frames_dir = frames_dir / fps_tag
+
+    videos_to_frames(
+        input_path=str(dst_clean),
+        output_path=str(frames_dir),
+        fps=args.fps,
+        debug=args.debug,
+    )
 
     # 3. 生成 txt & metadata & 4-fold
     base_dir = Path("data/Surge_Frames/SurgicalActions160")
-    frames_dir = Path(args.frames_root)
-    clip_infos_dir = base_dir / "clip_infos"
+    clip_infos_dir = base_dir / f"clip_infos_{fps_tag}"
     clip_infos_dir.mkdir(parents=True, exist_ok=True)
 
     metadata = build_metadata(frames_dir, clip_infos_dir)
-    print(f"发现 {len(metadata)} 个视频 clip，将写入 metadata.csv 和 4-fold 划分。")
+    print(
+        f"发现 {len(metadata)} 个视频 clip，将写入 metadata_{fps_tag}.csv 和 4-fold 划分。"
+    )
 
-    metadata_csv_path = base_dir / "metadata.csv"
+    metadata_csv_path = base_dir / f"metadata_{fps_tag}.csv"
     save_csv(metadata_csv_path, metadata)
     print(f"保存总 metadata 到: {metadata_csv_path}")
 
@@ -317,8 +324,8 @@ def main():
         train_meta = [metadata[j] for j in train_indices]
         test_meta = [metadata[j] for j in test_indices]
 
-        train_csv = base_dir / f"train_metadata_fold{i}.csv"
-        test_csv = base_dir / f"test_metadata_fold{i}.csv"
+        train_csv = base_dir / f"train_metadata_fold{i}_{fps_tag}.csv"
+        test_csv = base_dir / f"test_metadata_fold{i}_{fps_tag}.csv"
 
         save_csv(train_csv, train_meta)
         save_csv(test_csv, test_meta)
