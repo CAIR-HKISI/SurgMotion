@@ -58,11 +58,15 @@ CONFIGS=(
 # )
 
 
+# CONFIGS=(
+# "gynsurg-action-5fps_probe_attentive_16f.yaml"
+# "surgicalactions160-5fps_probe_attentive_16f.yaml"
+# "pmlr50_probe_attentive_64f_epoch3.yaml"
+# "pitvis_probe_attentive_64f.yaml"
+# )
+
 CONFIGS=(
-"gynsurg-action-5fps_probe_attentive_16f.yaml"
-"surgicalactions160-5fps_probe_attentive_16f.yaml"
-"pmlr50_probe_attentive_64f_epoch3.yaml"
-"pitvis_probe_attentive_64f.yaml"
+"surgicalactions160-5fps_probe_attentive_16f_epoch100.yaml"
 )
 
 
