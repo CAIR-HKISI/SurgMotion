@@ -46,7 +46,7 @@ experiment:
     - 3   # aIxsuture has 3 skill levels
 
     frames_per_clip: 64
-    num_segments: 10
+    num_segments: 8
     num_views_per_segment: 1
     resolution: 256
 

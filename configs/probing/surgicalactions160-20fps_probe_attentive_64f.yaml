@@ -1,13 +1,13 @@
 cpus_per_task: 2
-eval_name: surgical_phase_probing
-dataset: pmlr50_phase  # Dataset name for wandb logging
-folder: logs9/neuro_cpt_vitl16-256px-64f_lr1e-4_epoch-10_neurosurgical
+eval_name: surgical_video_probing
+folder: logs/cpt_surgaction160/surgaction160_vitl16-256px-64f_multi-head
+dataset: surgaction160_action
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 num_workers: 8
 resume_checkpoint: false
-tag: pmlr50-probing
+tag: surgaction160-action-recognition
 tasks_per_node: 1
 
 # Bootstrap configuration (default: enabled)
@@ -19,13 +19,13 @@ bootstrap_seed: 42
 wandb:
   project: nsjepa-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: pmlr50_probing  # Run name (optional, wandb will generate if null)
+  name: surgaction160_action_recognition  # Run name (optional, wandb will generate if null)
   tags:
-    - pmlr50
-    - phase-probing
+    - surgaction160
+    - action-recognition
     - vitl
   group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on pmlr50 dataset with bootstrap uncertainty estimation"
+  notes: "Multi-head probing on SurgAction160 dataset for action recognition with bootstrap uncertainty estimation"
 
 experiment:
   classifier:
@@ -34,16 +34,16 @@ experiment:
   data:
     dataset_type: surgical_videodataset
 
-    # Single dataset (PmLR50_phase)
+    # SurgAction160 dataset paths
     dataset_train:
-    - data/Surge_Frames/PmLR50/clips_64f/train_dense_64f_detailed.csv
+    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps20.csv
 
     dataset_val:
-    - data/Surge_Frames/PmLR50/clips_64f/test_dense_64f_detailed.csv
+    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0_fps20.csv
 
-    # Number of classes for PmLR50_phase
+    # Number of classes for SurgAction160
     num_classes:
-    - 5  # PmLR50 has 5 phases
+    - 16   # SurgAction160 has 16 action classes
 
     frames_per_clip: 64
     num_segments: 1
@@ -125,12 +125,12 @@ experiment:
       start_lr: 5.0e-05
       warmup: 0.0
       weight_decay: 0.4
-    num_epochs: 2
+    num_epochs: 40
     use_bfloat16: true
     use_pos_embed: false
 
 model_kwargs:
-  checkpoint: logs9/neuro_cpt_vitl16-256px-64f_lr1e-4_epoch-10_neurosurgical/latest.pt
+  checkpoint: /home/jinlin_wu/NSJepa/logs9/surgical_cpt_vitl16-256px-64f_lr1e-20_epoch_21-dataset/latest.pt
   module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
   pretrain_kwargs:
     encoder:

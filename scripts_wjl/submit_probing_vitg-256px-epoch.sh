@@ -15,9 +15,6 @@ CKPTL_NAME="cooldown_vitg-256px-64f_40epoch"
 # 模型架构名称
 MODEL_NAME="vit_giant_xformers"
 
-# 指定要加载的 checkpoint（例如 e500.pt；留空则 run_probing 默认 latest）
-CKPT_EPOCH="latest.pt"
-
 # ==========================================
 # 任务配置列表
 # ==========================================
@@ -56,14 +53,6 @@ CONFIGS=(
 #     "polypdiag_probe_attentive_64f.yaml"
 #     "surgicalactions160_probe_attentive_64f.yaml"
 # )
-
-
-CONFIGS=(
-"gynsurg-action-5fps_probe_attentive_16f.yaml"
-"surgicalactions160-5fps_probe_attentive_16f.yaml"
-"pmlr50_probe_attentive_64f_epoch3.yaml"
-"pitvis_probe_attentive_64f.yaml"
-)
 
 
 # ==========================================

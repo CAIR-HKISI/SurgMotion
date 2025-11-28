@@ -3,7 +3,6 @@
 #SBATCH --error=log/%x_%j.err
 #SBATCH --time=48:00:00
 #SBATCH --partition=AISS2025073101
-#SBATCH --nodelist=klb-dgx-011,klb-dgx-120,klb-dgx-015
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
@@ -67,7 +66,31 @@ export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
 
 # 动态路径：logs/模型名/数据集名
 folder="${LOG_ROOT}/${CKPTL_NAME}/${DATA_NAME}"
-checkpoint="${LOG_ROOT}/${CKPTL_NAME}/latest.pt"
+if [ -n "${CKPT_EPOCH}" ]; then
+  if [[ "${CKPT_EPOCH}" =~ ^[0-9]+$ ]]; then
+    checkpoint_file="e${CKPT_EPOCH}.pt"
+  else
+    checkpoint_file="${CKPT_EPOCH}"
+    if [[ "${checkpoint_file}" != *.pt ]]; then
+      checkpoint_file="${checkpoint_file}.pt"
+    fi
+  fi
+  checkpoint="${LOG_ROOT}/${CKPTL_NAME}/${checkpoint_file}"
+else
+  checkpoint="${LOG_ROOT}/${CKPTL_NAME}/latest.pt"
+fi
+
+# 确认配置与 checkpoint 路径
+CONFIG_PATH="configs/${TASK}/${FNAME}"
+if [ ! -f "${CONFIG_PATH}" ]; then
+  echo "Error: Config file not found -> ${CONFIG_PATH}"
+  exit 1
+fi
+
+if [ ! -f "${checkpoint}" ]; then
+  echo "Error: Checkpoint file not found -> ${checkpoint}"
+  exit 1
+fi
 
 # 确保目录存在
 mkdir -p "${folder}"
@@ -85,11 +108,10 @@ echo "Model Checkpoint: ${CKPTL_NAME}"
 echo "Output Folder: ${folder}"
 
 srun python -m evals.main \
-  --fname "configs/${TASK}/${FNAME}" \
+  --fname "${CONFIG_PATH}" \
   --folder "${folder}" \
   --checkpoint "${checkpoint}" \
   --model_name "${MODEL_NAME}" \
   --devices ${DEVICES} \
   --override_config_folder \
   > "${LOG_FILE}" 2>&1
-
