@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_ROOT="logs"
 
 # Checkpoint 文件夹名称
-CKPTL_NAME="cooldown_vitl-256px-64f_40epoch"
+CKPTL_NAME="cooldown_vitl-256px-64f_21-dataset_40epoch"
 
 # 模型架构名称
 MODEL_NAME="vit_large"
