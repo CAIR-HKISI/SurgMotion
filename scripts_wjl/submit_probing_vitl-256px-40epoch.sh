@@ -10,30 +10,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_ROOT="logs"
 
 # Checkpoint 文件夹名称
-CKPTL_NAME="cooldown_vitg-256px-64f_40epoch"
+CKPTL_NAME="cooldown_vitl-256px-64f_40epoch"
 
 # 模型架构名称
-MODEL_NAME="vit_giant_xformers"
+MODEL_NAME="vit_large"
 
 # ==========================================
 # 任务配置列表
 # ==========================================
 CONFIGS=(
-    # surgicalactions160-1fps_probe_attentive_64f.yaml
-    # gynsurg-action-1fps_probe_attentive_64f.yaml
-    # gynsurg-bleed-1fps_probe_attentive_64f.yaml
-    # gynsurg-smok-1fps_probe_attentive_64f.yaml
-    # gynsurg-smok-5fps_probe_attentive_64f.yaml
-    # gynsurg-action-5fps_probe_attentive_64f.yaml
-    # gynsurg-bleed-5fps_probe_attentive_64f.yaml
-    # surgicalactions160-5fps_probe_attentive_64f.yaml
-    # gynsurg-action-10fps_probe_attentive_64f.yaml
-    # gynsurg-bleed-10fps_probe_attentive_64f.yaml
-    # gynsurg-smok-10fps_probe_attentive_64f.yaml
-    # surgicalactions160-10fps_probe_attentive_64f.yaml
-    # pmlr50_probe_attentive_64f_epoch2.yaml
-    # aIxsuture-8s_probe_attentive_64f.yaml
-    # atlas_probe_attentive_64f.yaml
+    # "jigsaws_probe_attentive_64f.yaml"
+    "autolaparo_probe_attentive_64f.yaml"
+    "m2cai_probe_attentive_64f.yaml"
+    "ophnet_probe_attentive_64f.yaml"
+    "cholec80_probe_attentive_64f.yaml"
+    "pitvis_probe_attentive_64f.yaml"
+    "egosurgery_probe_attentive_64f.yaml"
+    "pmlr50_probe_attentive_64f.yaml"
+    "surgicalactions160-20fps_probe_attentive_64f.yaml"
 )
 
 # CONFIGS=(
