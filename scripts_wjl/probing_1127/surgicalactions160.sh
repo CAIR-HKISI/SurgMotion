@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --output=log/%x_%j.out
-#SBATCH --error=log/%x_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #SBATCH --time=48:00:00
 #SBATCH --partition=AISS2025073101
 #SBATCH --nodelist=klb-dgx-011,klb-dgx-120
@@ -12,7 +12,7 @@
 
 # surgicalactions160 probing 独立脚本
 
-FNAME="surgicalactions160-1fps_probe_attentive_64f_epoch1.yaml"
+FNAME="surgicalactions160-15fps_probe_attentive_64f.yaml"
 
 CKPTL_NAME="cooldown_vitg-256px-64f_40epoch"
 MODEL_NAME="vit_giant_xformers"
@@ -31,11 +31,19 @@ else
 fi
 unset __conda_setup
 
+
 conda deactivate
 conda activate jepa_torch
-wandb offline
 
+# 2. 设置代理 (建议 http 和 https 都设置，以防万一)
+export http_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+export HTTP_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+export HTTPS_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+
+# 3. 强制 WandB 为在线模式 (确保上传)
+export WANDB_MODE=online
+
 
 TASK=probing
 DEVICES=$CUDA_VISIBLE_DEVICES
