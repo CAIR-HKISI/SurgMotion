@@ -15,22 +15,14 @@ CKPTL_NAME="cooldown_vitl-256px-64f_40epoch"
 # 模型架构名称
 MODEL_NAME="vit_large"
 
+# 指定要加载的 checkpoint（例如 e500.pt；留空则 run_probing 默认 latest）
+CKPT_EPOCH="latest.pt"
+
 # ==========================================
 # 任务配置列表
 # ==========================================
-CONFIGS=(
-    # "jigsaws_probe_attentive_64f.yaml"
-    "autolaparo_probe_attentive_64f.yaml"
-    "m2cai_probe_attentive_64f.yaml"
-    "ophnet_probe_attentive_64f.yaml"
-    "cholec80_probe_attentive_64f.yaml"
-    "pitvis_probe_attentive_64f.yaml"
-    "egosurgery_probe_attentive_64f.yaml"
-    "pmlr50_probe_attentive_64f.yaml"
-    "surgicalactions160-20fps_probe_attentive_64f.yaml"
-)
-
 # CONFIGS=(
+#     # "jigsaws_probe_attentive_64f.yaml"
 #     "autolaparo_probe_attentive_64f.yaml"
 #     "m2cai_probe_attentive_64f.yaml"
 #     "ophnet_probe_attentive_64f.yaml"
@@ -38,15 +30,18 @@ CONFIGS=(
 #     "pitvis_probe_attentive_64f.yaml"
 #     "egosurgery_probe_attentive_64f.yaml"
 #     "pmlr50_probe_attentive_64f.yaml"
-#     "aIxsuture_probe_attentive_64f.yaml"
-#     "aIxsuture-5s_probe_attentive_64f.yaml"
-#     "avos_probe_attentive_64f.yaml"
-#     "gynsurg-action_probe_attentive_64f.yaml"
-#     "gynsurg-bleed_probe_attentive_64f.yaml"
-#     "gynsurg-smoke_probe_attentive_64f.yaml"
-#     "polypdiag_probe_attentive_64f.yaml"
-#     "surgicalactions160_probe_attentive_64f.yaml"
+#     "surgicalactions160-20fps_probe_attentive_64f.yaml"
 # )
+
+CONFIGS=(
+    "autolaparo_probe_attentive_64f.yaml"
+    "egosurgery_probe_attentive_64f.yaml"
+    "pmlr50_probe_attentive_64f.yaml"
+    "aIxsuture-5s_probe_attentive_64f.yaml"
+    "avos_probe_attentive_64f.yaml"
+    "polypdiag_probe_attentive_64f.yaml"
+    "surgicalactions160-10fps_probe_attentive_64f.yaml"
+)
 
 
 # ==========================================
@@ -61,7 +56,7 @@ for FNAME in "${CONFIGS[@]}"; do
 
     echo "Submitting task for: ${FNAME}"
     echo "  -> Job Name: ${JOB_NAME}"
-    echo "  -> Model: ${CKPTL_NAME}"
+    echo "  -> Model: ${CKPTL_NAME}/${CKPT_EPOCH}"
 
     # 使用 sbatch 提交
     # --export: 将变量传递给 run_probing.sh
