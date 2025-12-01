@@ -21,22 +21,11 @@ echo "Current working directory: $(pwd)"
 # ========================
 # 任务特定配置
 # ========================
-export FNAME="pmlr50_probe_attentive_64f.yaml"
-export LOG_ROOT="logs"
-export CKPTL_NAME="cooldown_vitl-256px-64f_21-dataset_40epoch"
-export MODEL_NAME="vit_large"
-export CKPT_EPOCH="latest.pt"
-# ========================
-# 检查传入参数
-# ========================
-if [ -z "$FNAME" ] || [ -z "$CKPTL_NAME" ] || [ -z "$MODEL_NAME" ] || [ -z "$CKPT_EPOCH" ]; then
-  echo "Error: Required variables (FNAME, CKPTL_NAME, MODEL_NAME, CKPT_EPOCH) are not set."
-  echo "Please submit via submit_batch.sh"
-  exit 1
-fi
-
-# 设置默认值 (如果 LOG_ROOT 未设置，默认为 logs)
-LOG_ROOT=${LOG_ROOT:-"logs"}
+FNAME="pmlr50_probe_attentive_64f.yaml"
+LOG_ROOT="logs"
+CKPTL_NAME="cooldown_vitl-256px-64f_21-dataset_40epoch"
+MODEL_NAME="vit_large"
+CKPT_EPOCH="latest.pt"
 
 # ========================
 # conda 环境准备
