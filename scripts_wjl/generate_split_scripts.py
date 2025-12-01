@@ -30,15 +30,33 @@ with open(source_script, 'r') as f:
 header = []
 body = []
 in_header = True
+skip_check = False
+
 for line in lines:
     if in_header:
         if line.startswith("#!") or line.startswith("#SBATCH") or line.strip() == "":
             header.append(line)
         else:
             in_header = False
-            body.append(line)
+            # Start of body processing for the first line of body
+            # Check if this is the start of the check block
+            if "if [ -z \"$FNAME\" ]" in line:
+                skip_check = True
+            
+            if not skip_check:
+                body.append(line)
+            elif line.strip() == "fi":
+                skip_check = False
     else:
-        body.append(line)
+        # Continue body processing
+        if "if [ -z \"$FNAME\" ]" in line:
+            skip_check = True
+        
+        if not skip_check:
+            body.append(line)
+        
+        if skip_check and line.strip() == "fi":
+            skip_check = False
 
 for config in configs:
     data_name = config.split('_')[0]
@@ -62,16 +80,15 @@ for config in configs:
         if not line.startswith("#!"):
             new_content.append(line)
             
-
-    # 5. Variables
+    # 5. Variables (WITHOUT export)
     new_content.append("\n# ========================\n")
     new_content.append("# 任务特定配置\n")
     new_content.append("# ========================\n")
-    new_content.append(f'export FNAME="{config}"\n')
+    new_content.append(f'FNAME="{config}"\n')
     for k, v in global_vars.items():
-        new_content.append(f'export {k}={v}\n')
+        new_content.append(f'{k}={v}\n')
         
-    # 6. Body (Original run_probing logic)
+    # 6. Body (Filtered run_probing logic)
     new_content.extend(body)
     
     with open(filepath, 'w') as f:
@@ -81,4 +98,3 @@ for config in configs:
     os.chmod(filepath, 0o755)
 
 print(f"Generated {len(configs)} scripts in {output_dir}")
-
