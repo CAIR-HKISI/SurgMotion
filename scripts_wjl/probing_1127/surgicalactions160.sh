@@ -3,7 +3,7 @@
 #SBATCH --error=logs/%x_%j.err
 #SBATCH --time=48:00:00
 #SBATCH --partition=AISS2025073101
-#SBATCH --nodelist=klb-dgx-011,klb-dgx-120
+#SBATCH --nodelist=klb-dgx-015,klb-dgx-120
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
