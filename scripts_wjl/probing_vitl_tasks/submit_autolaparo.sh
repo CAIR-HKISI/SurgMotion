@@ -13,12 +13,6 @@
 
 
 # ========================
-# 切换到项目根目录
-# ========================
-cd "$(dirname "$0")/../.."
-echo "Current working directory: $(pwd)"
-
-# ========================
 # 任务特定配置
 # ========================
 export FNAME="autolaparo_probe_attentive_64f.yaml"

@@ -62,12 +62,6 @@ for config in configs:
         if not line.startswith("#!"):
             new_content.append(line)
             
-    # 4. Set Working Directory explicitly to project root (assuming script is in scripts_wjl/probing_vitl_tasks)
-    new_content.append("\n# ========================\n")
-    new_content.append("# 切换到项目根目录\n")
-    new_content.append("# ========================\n")
-    new_content.append('cd "$(dirname "$0")/../.."\n')
-    new_content.append('echo "Current working directory: $(pwd)"\n')
 
     # 5. Variables
     new_content.append("\n# ========================\n")
