@@ -12,8 +12,8 @@
 # ========================
 # 检查传入参数
 # ========================
-if [ -z "$FNAME" ] || [ -z "$CKPTL_NAME" ] || [ -z "$MODEL_NAME" ]; then
-  echo "Error: Required variables (FNAME, CKPTL_NAME, MODEL_NAME) are not set."
+if [ -z "$FNAME" ] || [ -z "$CKPTL_NAME" ] || [ -z "$MODEL_NAME" ] || [ -z "$CKPT_EPOCH" ]; then
+  echo "Error: Required variables (FNAME, CKPTL_NAME, MODEL_NAME, CKPT_EPOCH) are not set."
   echo "Please submit via submit_batch.sh"
   exit 1
 fi
@@ -39,9 +39,15 @@ unset __conda_setup
 
 conda deactivate
 conda activate jepa_torch
-wandb offline
 
+# 2. 设置代理 (建议 http 和 https 都设置，以防万一)
+export http_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+export HTTP_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+export HTTPS_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+
+# 3. 强制 WandB 为在线模式 (确保上传)
+export WANDB_MODE=online
 
 # ========================
 # 路径构建
@@ -64,21 +70,6 @@ export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
 # 预训练模型路径
 # ========================
 
-# 动态路径：logs/模型名/数据集名
-folder="${LOG_ROOT}/${CKPTL_NAME}/${DATA_NAME}"
-if [ -n "${CKPT_EPOCH}" ]; then
-  if [[ "${CKPT_EPOCH}" =~ ^[0-9]+$ ]]; then
-    checkpoint_file="e${CKPT_EPOCH}.pt"
-  else
-    checkpoint_file="${CKPT_EPOCH}"
-    if [[ "${checkpoint_file}" != *.pt ]]; then
-      checkpoint_file="${checkpoint_file}.pt"
-    fi
-  fi
-  checkpoint="${LOG_ROOT}/${CKPTL_NAME}/${checkpoint_file}"
-else
-  checkpoint="${LOG_ROOT}/${CKPTL_NAME}/latest.pt"
-fi
 
 # 确认配置与 checkpoint 路径
 CONFIG_PATH="configs/${TASK}/${FNAME}"
@@ -87,13 +78,7 @@ if [ ! -f "${CONFIG_PATH}" ]; then
   exit 1
 fi
 
-if [ ! -f "${checkpoint}" ]; then
-  echo "Error: Checkpoint file not found -> ${checkpoint}"
-  exit 1
-fi
-
 # 确保目录存在
-mkdir -p "${folder}"
 mkdir -p "$(dirname "${LOG_FILE}")"
 
 # ========================

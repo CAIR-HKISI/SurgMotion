@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=CPT_VITG_384          # 作业名
+#SBATCH --job-name=CPT_VITL          # 作业名
 #SBATCH --output=logs9/%x_%j.out      # 标准输出日志（自动包含作业号）
 #SBATCH --error=logs9/%x_%j.err       # 标准错误日志
 #SBATCH --time=48:00:00               # 最大运行时间
@@ -42,14 +42,13 @@ export HTTPS_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.loca
 
 # 3. 强制 WandB 为在线模式 (确保上传)
 export WANDB_MODE=online
-
 # ========================
 # 参数解析 & 环境准备
 # ========================
 
 # 传入运行参数
-TASK=multidata_cpt_1121     # 例如：classification 或 segmentation
-FNAME=cpt_vitl-256px-16f_600epoch.yaml  # 配置文件名，例如 config.yaml
+TASK=multidata_cpt_1202     # 例如：classification 或 segmentation
+FNAME=cooldown_vitg-xformers-256px-64f-e600.yaml  # 配置文件名，例如 config.yaml
 
 DEVICES=$(echo $CUDA_VISIBLE_DEVICES | tr ',' ' ')
 echo "DEVICES=${DEVICES}"

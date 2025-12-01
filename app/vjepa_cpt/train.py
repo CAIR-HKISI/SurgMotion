@@ -26,6 +26,12 @@ import torch.multiprocessing as mp
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
+
 from app.vjepa.transforms import make_transforms
 from app.vjepa.utils import init_opt, init_video_model
 from src.datasets.data_manager import init_data
@@ -34,6 +40,7 @@ from src.masks.utils import apply_masks
 from src.utils.distributed import init_distributed
 from src.utils.logging import AverageMeter, CSVLogger, get_logger, gpu_timer
 from src.utils.checkpoint_loader import robust_checkpoint_loader
+import torch.distributed as dist
 # --
 log_timings = True
 log_freq = 10
@@ -255,6 +262,57 @@ def main(args, resume_preempt=False):
     # -- init torch distributed backend
     world_size, rank = init_distributed()
     logger.info(f"Initialized (rank/world-size) {rank}/{world_size}")
+
+    # -- Initialize wandb (only on rank 0)
+    wandb_initialized = False
+    if WANDB_AVAILABLE:
+        cfgs_wandb = args.get("wandb", None)
+        if cfgs_wandb is not None and rank == 0:
+            wandb_project = cfgs_wandb.get("project", "nsjepa-training")
+            wandb_entity = cfgs_wandb.get("entity", None)
+            wandb_name = cfgs_wandb.get("name", None)
+            wandb_tags = cfgs_wandb.get("tags", [])
+            wandb_group = cfgs_wandb.get("group", None)
+            wandb_notes = cfgs_wandb.get("notes", None)
+            
+            # Prepare config dict for wandb
+            wandb_run_config = {
+                "model_name": model_name,
+                "batch_size": batch_size,
+                "num_epochs": num_epochs,
+                "lr": lr,
+                "start_lr": start_lr,
+                "final_lr": final_lr,
+                "weight_decay": wd,
+                "final_weight_decay": final_wd,
+                "warmup": warmup,
+                "crop_size": crop_size,
+                "patch_size": patch_size,
+                "tubelet_size": tubelet_size,
+                "max_num_frames": max_num_frames,
+                "ipe": ipe,
+                "ipe_scale": ipe_scale,
+                "dtype": which_dtype,
+                "seed": seed,
+                "folder": folder,
+            }
+            
+            wandb.init(
+                project=wandb_project,
+                entity=wandb_entity,
+                name=wandb_name,
+                config=wandb_run_config,
+                tags=wandb_tags,
+                group=wandb_group,
+                notes=wandb_notes,
+                resume="allow"
+            )
+            wandb_initialized = True
+            logger.info(f"wandb initialized: {wandb.run.url}")
+        elif cfgs_wandb is not None and rank != 0:
+            logger.info("wandb will be initialized only on rank 0")
+    elif args.get("wandb") is not None:
+        logger.warning("wandb configuration found but wandb package is not installed. Install with: pip install wandb")
 
     # -- set device
     if not torch.cuda.is_available():
@@ -597,6 +655,18 @@ def main(args, resume_preempt=False):
                 _new_wd,
             ), gpu_etime_ms = gpu_timer(train_step)
             iter_elapsed_time_ms = (time.time() - itr_start_time) * 1000.0
+            
+            # Synchronize loss across all ranks only when needed for logging
+            # This minimizes communication overhead while ensuring accurate logging
+            should_log = (itr % log_freq == 0) or (itr == ipe - 1) or np.isnan(loss) or np.isinf(loss)
+            if should_log and torch.distributed.is_available() and torch.distributed.is_initialized():
+                loss_tensor = torch.tensor(loss, device=device)
+                dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
+                loss_synced = loss_tensor.item() / world_size  # Average across all ranks
+            else:
+                loss_synced = loss  # Use local loss when not logging
+            
+            # Update meter with local loss (for internal tracking)
             loss_meter.update(loss)
             iter_time_meter.update(iter_elapsed_time_ms)
             gpu_time_meter.update(gpu_etime_ms)
@@ -635,12 +705,40 @@ def main(args, resume_preempt=False):
                             data_elapsed_time_meter.avg,
                         )
                     )
+                    
+                    # Log to wandb (only on rank 0)
+                    if wandb_initialized and rank == 0:
+                        global_step = epoch * ipe + itr
+                        wandb_metrics = {
+                            "train/loss": loss_meter.avg,
+                            "train/current_loss": loss_synced,  # Use synchronized loss for accurate logging
+                            "train/lr": _new_lr,
+                            "train/weight_decay": _new_wd,
+                            "train/iter_time_ms": iter_time_meter.avg,
+                            "train/gpu_time_ms": gpu_time_meter.avg,
+                            "train/data_time_ms": data_elapsed_time_meter.avg,
+                            "train/memory_mb": torch.cuda.max_memory_allocated() / 1024.0**2,
+                            "train/epoch": epoch + 1,
+                            "train/iteration": itr + 1,
+                        }
+                        # Add mask metrics
+                        for k, v in mask_meters.items():
+                            wandb_metrics[f"train/mask_ratio_{k}f"] = v.avg
+                        wandb.log(wandb_metrics, step=global_step)
 
             log_stats()
             assert not np.isnan(loss), "loss is nan"
 
         # -- Save Checkpoint
         logger.info("avg. loss %.3f" % loss_meter.avg)
+        
+        # Log epoch-level metrics to wandb (only on rank 0)
+        if wandb_initialized and rank == 0:
+            wandb.log({
+                "epoch/loss": loss_meter.avg,
+                "epoch": epoch + 1,
+            }, step=(epoch + 1) * ipe)
+        
         # -- Save Last
         if (epoch + 1) % CHECKPOINT_FREQ == 0 or epoch == (num_epochs - 1):
             # 这里不再主动清理 DataLoader，只负责安全地保存 checkpoint

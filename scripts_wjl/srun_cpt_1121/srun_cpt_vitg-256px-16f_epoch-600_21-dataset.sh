@@ -33,10 +33,15 @@ unset __conda_setup
 
 conda deactivate
 conda activate jepa_torch
-wandb offline
 
+# 2. 设置代理 (建议 http 和 https 都设置，以防万一)
+export http_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+export HTTP_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+export HTTPS_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 
+# 3. 强制 WandB 为在线模式 (确保上传)
+export WANDB_MODE=online
 
 # ========================
 # 参数解析 & 环境准备

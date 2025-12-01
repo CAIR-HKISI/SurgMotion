@@ -21,7 +21,7 @@ wandb:
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
   name: surgaction160_action_recognition  # Run name (optional, wandb will generate if null)
   tags:
-    - surgaction160
+    - surgaction160-25fps-40epochs
     - action-recognition
     - vitl
   group: null  # Group name for grouping related runs (optional)
@@ -36,16 +36,16 @@ experiment:
 
     # SurgAction160 dataset paths
     dataset_train:
-    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps5.csv
+    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps25.csv
 
     dataset_val:
-    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0_fps5.csv
+    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0_fps25.csv
 
     # Number of classes for SurgAction160
     num_classes:
     - 16   # SurgAction160 has 16 action classes
 
-    frames_per_clip: 16
+    frames_per_clip: 64
     num_segments: 1
     num_views_per_segment: 1
     resolution: 256
@@ -125,7 +125,7 @@ experiment:
       start_lr: 5.0e-05
       warmup: 0.0
       weight_decay: 0.4
-    num_epochs: 100
+    num_epochs: 40
     use_bfloat16: true
     use_pos_embed: false
 

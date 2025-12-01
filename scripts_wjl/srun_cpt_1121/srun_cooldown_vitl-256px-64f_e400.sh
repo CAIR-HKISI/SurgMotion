@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=CPT_VITG_384          # 作业名
+#SBATCH --job-name=CPT_VITL          # 作业名
 #SBATCH --output=logs9/%x_%j.out      # 标准输出日志（自动包含作业号）
 #SBATCH --error=logs9/%x_%j.err       # 标准错误日志
 #SBATCH --time=48:00:00               # 最大运行时间
@@ -33,18 +33,22 @@ unset __conda_setup
 
 conda deactivate
 conda activate jepa_torch
-wandb offline
 
+# 2. 设置代理 (建议 http 和 https 都设置，以防万一)
+export http_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+export HTTP_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+export HTTPS_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 
-
+# 3. 强制 WandB 为在线模式 (确保上传)
+export WANDB_MODE=online
 # ========================
 # 参数解析 & 环境准备
 # ========================
 
 # 传入运行参数
-TASK=multidata_cpt_1117     # 例如：classification 或 segmentation
-FNAME=cooldown_vitg-384px-64f_40epoch.yaml # 配置文件名，例如 config.yaml
+TASK=multidata_cpt_1202     # 例如：classification 或 segmentation
+FNAME=cooldown_vitl-256px-64f-e400.yaml  # 配置文件名，例如 config.yaml
 
 DEVICES=$(echo $CUDA_VISIBLE_DEVICES | tr ',' ' ')
 echo "DEVICES=${DEVICES}"

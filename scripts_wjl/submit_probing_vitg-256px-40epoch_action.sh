@@ -66,7 +66,9 @@ CONFIGS=(
 # )
 
 CONFIGS=(
-"surgicalactions160-5fps_probe_attentive_16f_epoch100.yaml"
+"surgicalactions160-15fps_probe_attentive_64f.yaml"
+"surgicalactions160-20fps_probe_attentive_64f.yaml"
+"surgicalactions160-25fps_probe_attentive_64f.yaml"
 )
 
 
@@ -82,7 +84,7 @@ for FNAME in "${CONFIGS[@]}"; do
 
     echo "Submitting task for: ${FNAME}"
     echo "  -> Job Name: ${JOB_NAME}"
-    echo "  -> Model: ${CKPTL_NAME}"
+    echo "  -> Model: ${CKPTL_NAME}/${CKPT_EPOCH}"
 
     # 使用 sbatch 提交
     # --export: 将变量传递给 run_probing.sh
