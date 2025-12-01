@@ -3,6 +3,7 @@
 #SBATCH --error=log/%x_%j.err
 #SBATCH --time=48:00:00
 #SBATCH --partition=AISS2025073101
+#SBATCH --nodelist=klb-dgx-015,klb-dgx-120
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
@@ -45,6 +46,11 @@ export http_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local
 export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 export HTTP_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
 export HTTPS_PROXY="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
+
+
+# 2. [新增] 忽略 SSL 证书验证错误 (解决 x509 报错的关键)
+export WANDB_INSECURE_DISABLE_SSL=true
+
 
 # 3. 强制 WandB 为在线模式 (确保上传)
 export WANDB_MODE=online
