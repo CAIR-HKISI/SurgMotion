@@ -88,8 +88,17 @@ for config in configs:
     for k, v in global_vars.items():
         new_content.append(f'{k}={v}\n')
         
-    # 6. Body (Filtered run_probing logic)
-    new_content.extend(body)
+    # 6. Body (with inserted commands)
+    for line in body:
+        new_content.append(line)
+        # 插入 folder 和 checkpoint 定义
+        if line.strip().startswith('LOG_FILE='):
+            new_content.append('\nfolder="${LOG_ROOT}/${CKPTL_NAME}/${DATA_NAME}"\n')
+            new_content.append('checkpoint="${LOG_ROOT}/${CKPTL_NAME}/latest.pt"\n')
+            new_content.append('\n')
+            new_content.append('mkdir -p "${folder}"\n')
+            new_content.append('mkdir -p "$(dirname "${LOG_FILE}")"\n')
+            new_content.append('\n')
     
     with open(filepath, 'w') as f:
         f.writelines(new_content)

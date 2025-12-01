@@ -74,6 +74,13 @@ DATA_NAME=$(echo ${FNAME} | cut -d'_' -f1)
 # Slurm 日志路径
 LOG_FILE="${LOG_ROOT}/${CKPTL_NAME}/${TIME}_${TASK}_${DATA_NAME}.log"
 
+folder="${LOG_ROOT}/${CKPTL_NAME}/${DATA_NAME}"
+checkpoint="${LOG_ROOT}/${CKPTL_NAME}/latest.pt"
+
+mkdir -p "${folder}"
+mkdir -p "$(dirname "${LOG_FILE}")"
+
+
 # 设置端口
 export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
 
