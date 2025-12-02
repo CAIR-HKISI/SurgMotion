@@ -53,7 +53,7 @@ export WANDB_MODE=online
 # ========================
 
 # 传入运行参数
-TASK=multidata_cpt_12012    # 例如：classification 或 segmentation
+TASK=multidata_cpt_1202    # 例如：classification 或 segmentation
 FNAME=cooldown_vitg-384px-64f-e100.yaml # 配置文件名，例如 config.yaml
 
 DEVICES=$(echo $CUDA_VISIBLE_DEVICES | tr ',' ' ')
