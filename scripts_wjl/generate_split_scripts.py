@@ -7,7 +7,7 @@ configs = [
     "aIxsuture-5s_probe_attentive_64f.yaml",
     "avos_probe_attentive_64f.yaml",
     "polypdiag_probe_attentive_64f.yaml",
-    "surgicalactions160-10fps_probe_attentive_64f.yaml"
+    "surgicalactions160-25fps_probe_attentive_64f.yaml"
 ]
 
 global_vars = {

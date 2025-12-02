@@ -1,6 +1,6 @@
 app: vjepa_cpt
 cpus_per_task: 16
-folder: logs/cooldown_vitg-256px-64f_80epoch
+folder: logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e400
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
@@ -174,7 +174,7 @@ optimization:
 wandb:
   project: nsjepa-cooldown-cpt  # wandb 项目名
   entity: nsjepa  # 团队或用户名，可为空
-  name: cooldown-40epoches_vitl-256px-64f_e300  # 运行名称
+  name: cooldown-e40_vitl-256px-64f-e400  # 运行名称
   tags:
     - cooldown
     - vitl
