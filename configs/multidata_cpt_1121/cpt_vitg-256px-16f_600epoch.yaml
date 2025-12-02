@@ -147,7 +147,6 @@ model:
   model_name: vit_giant_xformers
   pred_depth: 12
   pred_embed_dim: 384
-  pred_is_frame_causal: true
   pred_num_heads: 12
   uniform_power: true
   use_activation_checkpointing: true
