@@ -10,19 +10,21 @@ configs = [
     "surgicalactions160-25fps_probe_attentive_64f.yaml"
 ]
 
-# global_vars = {
-#     "CKPTL_DIR": "logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e600",
-#     "CKPT_EPOCH": "latest.pt",
-#     "MODEL_NAME": "vit_giant_xformers"
-# }
 
+# global_vars = {
+#     "CKPTL_DIR": "logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e400/",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_large",
+#     "timestamp": "1203"
+# }
 
 global_vars = {
     "CKPTL_DIR": "logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e400/",
     "CKPT_EPOCH": "latest.pt",
-    "MODEL_NAME": "vit_large",
+    "MODEL_NAME": "vit_giant_xformers",
     "timestamp": "1203"
 }
+
 
 ckptl_name = os.path.basename(global_vars["CKPTL_DIR"].rstrip("/"))
 
