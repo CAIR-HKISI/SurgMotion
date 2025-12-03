@@ -1,6 +1,6 @@
 app: vjepa_cpt
 cpus_per_task: 16
-folder: logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e600
+folder: logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e100
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
@@ -44,9 +44,9 @@ data:
 
   - 0.20
   - 0.20
-  - 0.20
-  - 0.20
-  - 0.20
+  - 0.10
+  - 0.10
+  - 0.40
 
   - 0.50
   - 0.50
@@ -144,7 +144,7 @@ meta:
   seed: 239
   use_sdpa: true
 model:
-  model_name: vit_giant_xformers
+  model_name: vit_large
   pred_depth: 12
   pred_embed_dim: 384
   pred_num_heads: 12
@@ -153,7 +153,7 @@ model:
   use_mask_tokens: true
   use_rope: true
   zero_init_mask_tokens: true
-  cpt_ckeckpoint: logs/cpt_vitg-256px-16f_100epoch/latest.pt
+  cpt_ckeckpoint: logs/cpt_vitl-256px-16f_100epoch/e100.pt
   use_extrinsics: false
 optimization:
   anneal_ckpt: None
@@ -170,14 +170,15 @@ optimization:
   warmup: 0
   weight_decay: 0.04
 
-# wandb configuration for training monitoring
+# wandb configuration for monitoring
 wandb:
-  project: nsjepa-cooldown-cpt  # Your wandb project name
-  entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: cooldown-e40_vitg-xformers-256px-64f-e600  # Run name (optional, wandb will generate if null)
+  project: nsjepa-cooldown-cpt  # wandb 项目名
+  entity: nsjepa  # 团队或用户名，可为空
+  name: cooldown-e40_vitl-256px-64f-e100  # 运行名称
   tags:
     - cooldown
-    - vitg-xformers-256px
+    - vitl
+    - 256px
     - 64f
-  group: null  # Group name for grouping related runs (optional)
-  notes: "Cooldown training for ViT-G with xformers at 256px 64 frames at 600 epochs"
+  group: null  # 可选分组
+  notes: "Cooldown training for ViT-L at 256px 64f at 100 epochs"

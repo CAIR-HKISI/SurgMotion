@@ -1,6 +1,6 @@
 app: vjepa_cpt
 cpus_per_task: 16
-folder: logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e400
+folder: logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e100
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
@@ -44,9 +44,9 @@ data:
 
   - 0.20
   - 0.20
-  - 0.20
-  - 0.20
-  - 0.20
+  - 0.10
+  - 0.10
+  - 0.40
 
   - 0.50
   - 0.50
@@ -153,7 +153,7 @@ model:
   use_mask_tokens: true
   use_rope: true
   zero_init_mask_tokens: true
-  cpt_ckeckpoint: logs/cpt_vitl-256px-16f_100epoch/e400.pt
+  cpt_ckeckpoint: logs/cpt_vitl-256px-16f_100epoch/e100.pt
   use_extrinsics: false
 optimization:
   anneal_ckpt: None
@@ -174,11 +174,11 @@ optimization:
 wandb:
   project: nsjepa-cooldown-cpt  # wandb 项目名
   entity: nsjepa  # 团队或用户名，可为空
-  name: cooldown-e40_vitl-256px-64f-e400  # 运行名称
+  name: cooldown-e40_vitl-256px-64f-e100  # 运行名称
   tags:
     - cooldown
     - vitl
     - 256px
     - 64f
   group: null  # 可选分组
-  notes: "Cooldown training for ViT-L at 256px 64f at 300 epochs"
+  notes: "Cooldown training for ViT-L at 256px 64f at 100 epochs"

@@ -238,6 +238,7 @@ def main(args_eval, resume_preempt=False):
     batch_size = args_opt.get("batch_size")
     num_epochs = args_opt.get("num_epochs")
     use_bfloat16 = args_opt.get("use_bfloat16")
+    use_weighted_loss = args_opt.get("use_weighted_loss", True)
     opt_kwargs = args_opt.get("multihead_kwargs")  # list，每个分类头一个 kwargs
 
     try:
@@ -413,7 +414,7 @@ def main(args_eval, resume_preempt=False):
     # 按类别频数计算 class weights（中位数 / 频数），用于提升少数类表现
     # ----------------------
     class_weights = None
-    if hasattr(train_loader.dataset, "class_counts"):
+    if hasattr(train_loader.dataset, "class_counts") and use_weighted_loss:
         # 假设类别索引为 [0, 1, ..., C-1]
         cls_counts = [
             train_loader.dataset.class_counts[i]

@@ -389,6 +389,7 @@ def main(args_eval, resume_preempt=False):
     batch_size = args_opt.get("batch_size")
     num_epochs = args_opt.get("num_epochs")
     use_bfloat16 = args_opt.get("use_bfloat16")
+    use_weighted_loss = args_opt.get("use_weighted_loss", True)
     opt_kwargs = args_opt.get("multihead_kwargs")  # list，每个分类头一个 kwargs
 
     try:
@@ -579,7 +580,7 @@ def main(args_eval, resume_preempt=False):
     # 只在分类任务下使用，用于提升少数类表现
     # ----------------------
     class_weights = None
-    if task_type == "classification":
+    if task_type == "classification" and use_weighted_loss:
         if hasattr(train_loader.dataset, "class_counts"):
             # 假设类别索引为 [0, 1, ..., C-1]
             cls_counts = [
