@@ -10,15 +10,25 @@ configs = [
     "surgicalactions160-25fps_probe_attentive_64f.yaml"
 ]
 
+# global_vars = {
+#     "CKPTL_DIR": "logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e600",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_giant_xformers"
+# }
+
+
 global_vars = {
-    "LOG_ROOT": '"logs"',
-    "CKPTL_NAME": '"cooldown_vitl-256px-64f_21-dataset_40epoch"',
-    "MODEL_NAME": '"vit_large"',
-    "CKPT_EPOCH": '"latest.pt"'
+    "CKPTL_DIR": "logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e400/",
+    "CKPT_EPOCH": "latest.pt",
+    "MODEL_NAME": "vit_large",
+    "timestamp": "1203"
 }
 
+ckptl_name = os.path.basename(global_vars["CKPTL_DIR"].rstrip("/"))
+
 source_script = "scripts_wjl/run_probing.sh"
-output_dir = "scripts_wjl/probing_vitl_tasks"
+output_dir = f"scripts_wjl/probing_{global_vars['timestamp']}_{global_vars['MODEL_NAME']}_tasks"
+
 
 # 确保输出目录存在
 os.makedirs(output_dir, exist_ok=True)
@@ -86,15 +96,16 @@ for config in configs:
     new_content.append("# ========================\n")
     new_content.append(f'FNAME="{config}"\n')
     for k, v in global_vars.items():
-        new_content.append(f'{k}={v}\n')
+        new_content.append(f'{k}="{v}"\n')
+    new_content.append(f'CKPTL_NAME="{ckptl_name}"\n')
         
     # 6. Body (with inserted commands)
     for line in body:
         new_content.append(line)
         # 插入 folder 和 checkpoint 定义
         if line.strip().startswith('LOG_FILE='):
-            new_content.append('\nfolder="${LOG_ROOT}/${CKPTL_NAME}/${DATA_NAME}"\n')
-            new_content.append('checkpoint="${LOG_ROOT}/${CKPTL_NAME}/latest.pt"\n')
+            new_content.append('\nfolder="${CKPTL_DIR}/${DATA_NAME}"\n')
+            new_content.append('checkpoint="${CKPTL_DIR}/${CKPT_EPOCH}"\n')
             new_content.append('\n')
             new_content.append('mkdir -p "${folder}"\n')
             new_content.append('mkdir -p "$(dirname "${LOG_FILE}")"\n')
