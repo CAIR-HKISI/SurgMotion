@@ -16,11 +16,11 @@
 # 任务特定配置
 # ========================
 FNAME="autolaparo_probe_attentive_64f.yaml"
-CKPTL_DIR="logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e400/"
+CKPTL_DIR="logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e600"
 CKPT_EPOCH="latest.pt"
 MODEL_NAME="vit_giant_xformers"
 timestamp="1203"
-CKPTL_NAME="cooldown-e40_vitl-256px-e400"
+CKPTL_NAME="cooldown-e40_vitg-xformers-256px-64f-e600"
 # ========================
 # 检查传入参数
 # ========================
