@@ -128,7 +128,10 @@ experiment:
     num_epochs: 40
     use_bfloat16: true
     use_pos_embed: false
-    use_weighted_loss: false
+    loss:
+      type: cb_softmax
+      beta: 0.9999
+      gamma: 2.0
 
 model_kwargs:
   checkpoint: /home/jinlin_wu/NSJepa/logs9/surgical_cpt_vitl16-256px-64f_lr1e-20_epoch_21-dataset/latest.pt

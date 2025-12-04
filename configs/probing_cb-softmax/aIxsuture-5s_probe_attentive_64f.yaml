@@ -129,9 +129,10 @@ experiment:
     use_bfloat16: true
     use_pos_embed: false
 
-    loss_type: cb_softmax
-    loss_beta: 0.9999
-    loss_gamma: 2.0
+    loss:
+      type: cb_softmax
+      beta: 0.9999
+      gamma: 2.0
 
 model_kwargs:
   checkpoint: logs/surgical_ntp_vitl16-256px-64f_lr1e-4_epoch-10_21-dataset_20epoch_window_predict/latest.pt
