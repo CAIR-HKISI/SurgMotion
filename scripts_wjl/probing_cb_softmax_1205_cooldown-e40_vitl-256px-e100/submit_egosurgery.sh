@@ -74,7 +74,7 @@ TIME=$(date +"%Y%m%d_%H%M")
 DATA_NAME=$(echo ${FNAME} | cut -d'_' -f1)
 
 # Slurm 日志路径
-LOG_FILE="${LOG_ROOT}/${CKPTL_NAME}/${TIME}_${TASK}_${DATA_NAME}.log"
+LOG_FILE="${CKPTL_DIR}/${TIME}_${TASK}_${DATA_NAME}.log"
 
 folder="${CKPTL_DIR}/${DATA_NAME}"
 checkpoint="${CKPTL_DIR}/${CKPT_EPOCH}"

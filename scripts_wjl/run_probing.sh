@@ -13,7 +13,7 @@
 # ========================
 # 检查传入参数
 # ========================
-if [ -z "$FNAME" ] || [ -z "$CKPTL_NAME" ] || [ -z "$MODEL_NAME" ] || [ -z "$CKPT_EPOCH" ]; then
+if [ -z "$FNAME" ] || [ -z "$CKPTL_DIR" ] || [ -z "$MODEL_NAME" ] || [ -z "$CKPT_EPOCH" ]; then
   echo "Error: Required variables (FNAME, CKPTL_NAME, MODEL_NAME, CKPT_EPOCH) are not set."
   echo "Please submit via submit_batch.sh"
   exit 1
@@ -67,7 +67,7 @@ TIME=$(date +"%Y%m%d_%H%M")
 DATA_NAME=$(echo ${FNAME} | cut -d'_' -f1)
 
 # Slurm 日志路径
-LOG_FILE="${LOG_ROOT}/${CKPTL_NAME}/${TIME}_${TASK}_${DATA_NAME}.log"
+LOG_FILE="${CKPTL_DIR}/${TIME}_${TASK}_${DATA_NAME}.log"
 
 # 设置端口
 export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}

@@ -25,13 +25,13 @@ configs = [
 #     "timestamp": "1203"
 # }
 
-# global_vars = {
-#     "CKPTL_DIR": "logs/cpt_vitg-384px-16f_100epoch/cooldown-e40_vitg-384px-64f-e100",
-#     "CKPT_EPOCH": "latest.pt",
-#     "MODEL_NAME": "vit_giant",
-#     "timestamp": "1205",
-#     "TASK": "probing_cb_softmax"
-# }
+global_vars = {
+    "CKPTL_DIR": "logs/cpt_vitg-384px-16f_100epoch/cooldown-e40_vitg-384px-64f-e100",
+    "CKPT_EPOCH": "latest.pt",
+    "MODEL_NAME": "vit_giant",
+    "timestamp": "1205",
+    "TASK": "probing_cb_softmax"
+}
 
 
 # global_vars = {
@@ -58,13 +58,13 @@ configs = [
 #     "TASK": "probing_cb_softmax"
 # }
 
-global_vars = {
-    "CKPTL_DIR": "logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e200",
-    "CKPT_EPOCH": "latest.pt",
-    "MODEL_NAME": "vit_giant_xformers",
-    "timestamp": "1205",
-    "TASK": "probing_cb_softmax"
-}
+# global_vars = {
+#     "CKPTL_DIR": "logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e200",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_giant_xformers",
+#     "timestamp": "1205",
+#     "TASK": "probing_cb_softmax"
+# }
 
 task = global_vars["TASK"]
 ckptl_name = os.path.basename(global_vars["CKPTL_DIR"].rstrip("/"))
