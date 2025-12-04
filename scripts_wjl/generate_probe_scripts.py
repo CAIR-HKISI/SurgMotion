@@ -18,11 +18,18 @@ configs = [
 #     "timestamp": "1203"
 # }
 
+# global_vars = {
+#     "CKPTL_DIR": "logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e600",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_giant_xformers",
+#     "timestamp": "1203"
+# }
+
 global_vars = {
-    "CKPTL_DIR": "logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e600",
+    "CKPTL_DIR": "logs/cpt_vitg-384px-16f_100epoch/cooldown-e40_vitg-384px-64f-e100",
     "CKPT_EPOCH": "latest.pt",
-    "MODEL_NAME": "vit_giant_xformers",
-    "timestamp": "1203"
+    "MODEL_NAME": "vit_giant",
+    "timestamp": "1204"
 }
 
 
