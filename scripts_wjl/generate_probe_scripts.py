@@ -25,18 +25,52 @@ configs = [
 #     "timestamp": "1203"
 # }
 
+# global_vars = {
+#     "CKPTL_DIR": "logs/cpt_vitg-384px-16f_100epoch/cooldown-e40_vitg-384px-64f-e100",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_giant",
+#     "timestamp": "1205",
+#     "TASK": "probing_cb_softmax"
+# }
+
+
+# global_vars = {
+#     "CKPTL_DIR": "logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e200",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_large",
+#     "timestamp": "1205",
+#     "TASK": "probing_cb_softmax"
+# }
+
+# global_vars = {
+#     "CKPTL_DIR": "logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e300",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_large",
+#     "timestamp": "1205",
+#     "TASK": "probing_cb_softmax"
+# }
+
+# global_vars = {
+#     "CKPTL_DIR": "logs/cpt_vitl-256px-16f_100epoch/cooldown-e40_vitl-256px-e100",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_large",
+#     "timestamp": "1205",
+#     "TASK": "probing_cb_softmax"
+# }
+
 global_vars = {
-    "CKPTL_DIR": "logs/cpt_vitg-384px-16f_100epoch/cooldown-e40_vitg-384px-64f-e100",
+    "CKPTL_DIR": "logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e200",
     "CKPT_EPOCH": "latest.pt",
-    "MODEL_NAME": "vit_giant",
-    "timestamp": "1204"
+    "MODEL_NAME": "vit_giant_xformers",
+    "timestamp": "1205",
+    "TASK": "probing_cb_softmax"
 }
 
-
+task = global_vars["TASK"]
 ckptl_name = os.path.basename(global_vars["CKPTL_DIR"].rstrip("/"))
 
 source_script = "scripts_wjl/run_probing.sh"
-output_dir = f"scripts_wjl/probing_{global_vars['timestamp']}_{global_vars['MODEL_NAME']}_tasks"
+output_dir = f"scripts_wjl/{task}_{global_vars['timestamp']}_{ckptl_name}"
 
 
 # 确保输出目录存在
@@ -104,7 +138,10 @@ for config in configs:
     new_content.append("# 任务特定配置\n")
     new_content.append("# ========================\n")
     new_content.append(f'FNAME="{config}"\n')
+    new_content.append(f'TASK="{task}"\n')
     for k, v in global_vars.items():
+        if k == "TASK":
+            continue
         new_content.append(f'{k}="{v}"\n')
     new_content.append(f'CKPTL_NAME="{ckptl_name}"\n')
         

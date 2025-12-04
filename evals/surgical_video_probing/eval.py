@@ -21,6 +21,43 @@ from src.utils.logging import AverageMeter
 
 import torch.distributed as dist
 
+
+class FocalLoss(torch.nn.Module):
+    """
+    Focal Loss for multi-class classification.
+    Args:
+        weight (tensor, optional): A manual rescaling weight given to each class (alpha).
+        gamma (float, optional): Focusing parameter (default=2.0).
+        reduction (str, optional): 'mean' | 'sum' | 'none' (default='mean').
+    """
+    def __init__(self, weight=None, gamma=2.0, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.weight = weight
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        # Calculate Cross Entropy without reduction to get per-sample loss
+        ce_loss = F.cross_entropy(inputs, targets, reduction='none', weight=None)
+        pt = torch.exp(-ce_loss) # pt is the probability of the true class
+
+        # Calculate Focal Loss term: (1 - pt)^gamma * log(pt)
+        focal_loss = ((1 - pt) ** self.gamma) * ce_loss
+
+        # Apply class weights (alpha) if provided
+        if self.weight is not None:
+            if self.weight.device != inputs.device:
+                self.weight = self.weight.to(inputs.device)
+            # Get the weight for each target sample
+            at = self.weight.gather(0, targets.view(-1))
+            focal_loss = focal_loss * at
+
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        return focal_loss
+
 logging.basicConfig()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -238,7 +275,24 @@ def main(args_eval, resume_preempt=False):
     batch_size = args_opt.get("batch_size")
     num_epochs = args_opt.get("num_epochs")
     use_bfloat16 = args_opt.get("use_bfloat16")
-    use_weighted_loss = args_opt.get("use_weighted_loss", True)
+    
+    # Parse loss configuration
+    # Expected format:
+    # optimization:
+    #   loss:
+    #     type: "cb_focal"
+    #     beta: 0.9999
+    #     gamma: 2.0
+    loss_config = args_opt.get("loss", {})
+    # Fallback to flat parameters for backward compatibility
+    loss_type = loss_config.get("type", args_opt.get("loss_type", "ce"))
+    if loss_type is None:
+        loss_type = "ce"
+    loss_type = loss_type.lower()
+
+    loss_beta = loss_config.get("beta", args_opt.get("loss_beta", 0.9999))
+    loss_gamma = loss_config.get("gamma", args_opt.get("loss_gamma", 2.0))
+    
     opt_kwargs = args_opt.get("multihead_kwargs")  # list，每个分类头一个 kwargs
 
     try:
@@ -411,36 +465,67 @@ def main(args_eval, resume_preempt=False):
     )
 
     # ----------------------
-    # 按类别频数计算 class weights（中位数 / 频数），用于提升少数类表现
+    # 按类别频数计算 class weights，用于提升少数类表现
     # ----------------------
     class_weights = None
-    if hasattr(train_loader.dataset, "class_counts") and use_weighted_loss:
-        # 假设类别索引为 [0, 1, ..., C-1]
-        cls_counts = [
-            train_loader.dataset.class_counts[i]
-            for i in range(len(train_loader.dataset.class_counts))
-        ]
-        median = np.median(cls_counts)
-        class_weights = (median / cls_counts).astype(np.float32)
-        logger.info(f"Class weights (median/freq): {class_weights}")
+    # Determine if we need to calculate weights based on loss_type
+    needs_weights = "weighted" in loss_type or "cb" in loss_type
+    
+    if needs_weights:
+        if hasattr(train_loader.dataset, "class_counts"):
+            # 假设类别索引为 [0, 1, ..., C-1]
+            cls_counts = [
+                train_loader.dataset.class_counts[i]
+                for i in range(len(train_loader.dataset.class_counts))
+            ]
+            
+            if "cb" in loss_type:
+                # ----------------------
+                # Class-Balanced Loss Based on Effective Number of Samples (CVPR 2019)
+                # Supports: "cb_softmax", "cb_focal"
+                # ----------------------
+                # beta: 0.9, 0.99, 0.999, 0.9999
+                # 对于长尾数据集，推荐 0.9999
+                beta = loss_beta
+                effective_num = 1.0 - np.power(beta, cls_counts)
+                per_cls_weights = (1.0 - beta) / np.array(effective_num)
+                logger_msg = f"Class weights (CB-Loss, beta={beta})"
+            else:
+                # ----------------------
+                # Standard Inverse Frequency (Fallback)
+                # ----------------------
+                median = np.median(cls_counts)
+                per_cls_weights = median / np.array(cls_counts)
+                logger_msg = "Class weights (Median/Freq)"
 
-        # 校验类别数是否与配置一致（只用第一个 num_classes，兼容多数据集场景）
-        if isinstance(num_classes, int):
-            expected_num_classes = num_classes
-        elif isinstance(num_classes, list) and len(num_classes) > 0:
-            expected_num_classes = num_classes[0]
+            # 归一化：使权重均值为 1，保持 Loss 整体 Scale 不变
+            per_cls_weights = per_cls_weights / np.sum(per_cls_weights) * len(cls_counts)
+            
+            class_weights = per_cls_weights.astype(np.float32)
+            logger.info(f"{logger_msg}: {class_weights}")
+
+            # 校验类别数是否与配置一致（只用第一个 num_classes，兼容多数据集场景）
+            if isinstance(num_classes, int):
+                expected_num_classes = num_classes
+            elif isinstance(num_classes, list) and len(num_classes) > 0:
+                expected_num_classes = num_classes[0]
+            else:
+                expected_num_classes = None
+
+            if expected_num_classes is not None:
+                assert len(class_weights) == expected_num_classes, (
+                    f"class_weights 长度 {len(class_weights)} 与 num_classes "
+                    f"{expected_num_classes} 不一致"
+                )
         else:
-            expected_num_classes = None
-
-        if expected_num_classes is not None:
-            assert len(class_weights) == expected_num_classes, (
-                f"class_weights 长度 {len(class_weights)} 与 num_classes "
-                f"{expected_num_classes} 不一致"
+            logger.warning(
+                "train_loader.dataset 没有 class_counts 属性，无法计算权重。将退化为不加权 Loss。"
             )
-    else:
-        logger.warning(
-            "train_loader.dataset 没有 class_counts 属性，将使用默认均匀类别权重"
-        )
+            # Reset loss_type to basic versions if weights cannot be calculated
+            if "focal" in loss_type:
+                loss_type = "focal"
+            else:
+                loss_type = "ce"
 
     ipe = len(train_loader)
 
@@ -500,6 +585,8 @@ def main(args_eval, resume_preempt=False):
                 use_bfloat16=use_bfloat16,
                 num_classes=num_classes,
                 class_weights=class_weights,
+                loss_type=loss_type,
+                loss_gamma=loss_gamma,
                 epoch=epoch,
                 head_to_dataset_map=head_to_dataset_map,
                 rank=rank,
@@ -517,12 +604,14 @@ def main(args_eval, resume_preempt=False):
             scheduler=scheduler,
             wd_scheduler=wd_scheduler,
             data_loader=val_loader,
-            use_bfloat16=use_bfloat16,
-            num_classes=num_classes,
-            class_weights=class_weights,
-            epoch=epoch,
-            save_predictions=True,
-            folder=folder,
+                use_bfloat16=use_bfloat16,
+                num_classes=num_classes,
+                class_weights=class_weights,
+                loss_type=loss_type,
+                loss_gamma=loss_gamma,
+                epoch=epoch,
+                save_predictions=True,
+                folder=folder,
             head_to_dataset_map=head_to_dataset_map,
             use_bootstrap=use_bootstrap,
             n_bootstrap=n_bootstrap,
@@ -564,6 +653,8 @@ def run_one_epoch(
     use_bfloat16,
     num_classes,
     class_weights=None,
+    loss_type="ce",
+    loss_gamma=2.0,
     epoch=0,
     folder=None,
     save_predictions=False,
@@ -580,11 +671,20 @@ def run_one_epoch(
         c.train(mode=training)
 
     if class_weights is not None:
-        # 使用 float32 存储权重，避免混合精度下的数值不稳定
-        weight_tensor = torch.tensor(class_weights, dtype=torch.float32, device=device)
-        criterion = torch.nn.CrossEntropyLoss(weight=weight_tensor)
+        # 始终使用 float32 存储和计算类别权重
+        weight_dtype = torch.float32
+        weight_tensor = torch.tensor(
+            class_weights, dtype=weight_dtype, device=device
+        )
     else:
-        criterion = torch.nn.CrossEntropyLoss()
+        weight_tensor = None
+
+    if "focal" in loss_type:
+        # Focal Loss (gamma=loss_gamma) or CB-Focal Loss
+        criterion = FocalLoss(weight=weight_tensor, gamma=loss_gamma)
+    else:
+        # Standard CE or CB-Softmax
+        criterion = torch.nn.CrossEntropyLoss(weight=weight_tensor)
 
     acc_meters = [AverageMeter() for _ in classifiers]
     loss_meters = [AverageMeter() for _ in classifiers]

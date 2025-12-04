@@ -1,4 +1,5 @@
 #!/bin/bash
+#SBATCH --job-name=prb_egosurgery
 #SBATCH --output=log/%x_%j.out
 #SBATCH --error=log/%x_%j.err
 #SBATCH --time=48:00:00
@@ -10,14 +11,20 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem=256G
 
+
+# ========================
+# 任务特定配置
+# ========================
+FNAME="egosurgery_probe_attentive_64f.yaml"
+TASK="probing_cb_softmax"
+CKPTL_DIR="logs/cpt_vitg-384px-16f_100epoch/cooldown-e40_vitg-384px-64f-e100"
+CKPT_EPOCH="latest.pt"
+MODEL_NAME="vit_giant"
+timestamp="1205"
+CKPTL_NAME="cooldown-e40_vitg-384px-64f-e100"
 # ========================
 # 检查传入参数
 # ========================
-if [ -z "$FNAME" ] || [ -z "$CKPTL_NAME" ] || [ -z "$MODEL_NAME" ] || [ -z "$CKPT_EPOCH" ]; then
-  echo "Error: Required variables (FNAME, CKPTL_NAME, MODEL_NAME, CKPT_EPOCH) are not set."
-  echo "Please submit via submit_batch.sh"
-  exit 1
-fi
 
 # 设置默认值 (如果 LOG_ROOT 未设置，默认为 logs)
 LOG_ROOT=${LOG_ROOT:-"logs"}
@@ -68,6 +75,13 @@ DATA_NAME=$(echo ${FNAME} | cut -d'_' -f1)
 
 # Slurm 日志路径
 LOG_FILE="${LOG_ROOT}/${CKPTL_NAME}/${TIME}_${TASK}_${DATA_NAME}.log"
+
+folder="${CKPTL_DIR}/${DATA_NAME}"
+checkpoint="${CKPTL_DIR}/${CKPT_EPOCH}"
+
+mkdir -p "${folder}"
+mkdir -p "$(dirname "${LOG_FILE}")"
+
 
 # 设置端口
 export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
