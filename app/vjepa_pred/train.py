@@ -638,6 +638,8 @@ def main(args, resume_preempt=False):
         logger.info("Epoch %d" % (epoch + 1))
 
         loss_meter = AverageMeter()
+        loss_jepa_meter = AverageMeter()
+        loss_motion_meter = AverageMeter()
         mask_meters = {fpc: AverageMeter() for fpc in dataset_fpcs}
         iter_time_meter = AverageMeter()
         gpu_time_meter = AverageMeter()
@@ -787,12 +789,16 @@ def main(args, resume_preempt=False):
 
                 return (
                     float(loss),
+                    float(l_jepa),
+                    float(l_motion),
                     _new_lr,
                     _new_wd,
                 )
 
             (
                 loss,
+                l_jepa,
+                l_motion,
                 _new_lr,
                 _new_wd,
             ), gpu_etime_ms = gpu_timer(train_step)
@@ -810,6 +816,8 @@ def main(args, resume_preempt=False):
             
             # Update meter with local loss (for internal tracking)
             loss_meter.update(loss)
+            loss_jepa_meter.update(l_jepa)
+            loss_motion_meter.update(l_motion)
             iter_time_meter.update(iter_elapsed_time_ms)
             gpu_time_meter.update(gpu_etime_ms)
             data_elapsed_time_meter.update(data_elapsed_time_ms)
@@ -853,6 +861,8 @@ def main(args, resume_preempt=False):
                         global_step = epoch * ipe + itr
                         wandb_metrics = {
                             "train/loss": loss_meter.avg,
+                            "train/loss_jepa": loss_jepa_meter.avg,
+                            "train/loss_motion": loss_motion_meter.avg,
                             "train/current_loss": loss_synced,  # Use synchronized loss for accurate logging
                             "train/lr": _new_lr,
                             "train/weight_decay": _new_wd,
