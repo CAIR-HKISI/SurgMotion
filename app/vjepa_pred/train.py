@@ -538,7 +538,9 @@ def main(args, resume_preempt=False):
 
     # --- 新增：初始化 Motion Head ---
     # 获取 predictor 的输出维度
-    pred_dim = cfgs_model.get("pred_embed_dim", 384) # 默认值，需根据配置确认
+    # predictor 的最终输出维度被投影回 encoder 的 embed_dim
+    # encoder 此时是 MultiSeqWrapper，通过 backbone 访问
+    pred_dim = encoder.backbone.embed_dim
     motion_head = MotionHead(pred_dim).to(device)
     
     # --- 新增：将 Motion Head 的参数加入优化器 ---
