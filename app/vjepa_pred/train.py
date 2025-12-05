@@ -746,7 +746,12 @@ def main(args, resume_preempt=False):
                     
                     # Apply mask to motion target
                     # motion_target_map: [B, N_tokens] -> List[Tensor] matching predictor output
-                    motion_targets_masked = [apply_masks(mt, mi, concat=False) for mt, mi in zip(motion_target_map, masks_pred)]
+                    motion_targets_masked = []
+                    for mt, mi in zip(motion_target_map, masks_pred):
+                        # mt: [B, N_tokens]; apply_masks 需要 [B, N, D]
+                        masked = apply_masks(mt.unsqueeze(-1), mi, concat=False)  # -> List[[B, K, 1]]
+                        masked = [m.squeeze(-1) for m in masked]  # -> List[[B, K]]
+                        motion_targets_masked.append(masked)
                     
                     loss_motion = 0
                     n_m = 0
