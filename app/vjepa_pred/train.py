@@ -82,6 +82,9 @@ def get_motion_target(clips, patch_size, tubelet_size):
     升级版：利用空间梯度解耦，计算'近似物理速度' (Approximate Normal Flow)，
     消除纹理对运动幅度的干扰。
     """
+    if isinstance(clips, list):
+        return [get_motion_target(c, patch_size, tubelet_size) for c in clips]
+
     B, C, T, H, W = clips.shape
     
     # 1. 时间梯度 (I_t): 帧差 [B, C, T, H, W]
@@ -715,7 +718,10 @@ def main(args, resume_preempt=False):
                     for z_k in z:
                         # z_k: [Batch, N_pred, D]
                         # 复用 DDP wrapper 或者直接 call
-                        z_motion_preds.append(motion_head(z_k)) 
+                        if isinstance(z_k, list):
+                            z_motion_preds.append([motion_head(zki) for zki in z_k])
+                        else:
+                            z_motion_preds.append([motion_head(z_k)])
                     
                     return z, z_motion_preds
                     # -------------------------------
@@ -738,7 +744,7 @@ def main(args, resume_preempt=False):
                     
                     # Apply mask to motion target
                     # motion_target_map: [B, N_tokens] -> List[Tensor] matching predictor output
-                    motion_targets_masked = [apply_masks(motion_target_map, mi, concat=False) for mi in masks_pred]
+                    motion_targets_masked = [apply_masks(mt, mi, concat=False) for mt, mi in zip(motion_target_map, masks_pred)]
                     
                     loss_motion = 0
                     n_m = 0
