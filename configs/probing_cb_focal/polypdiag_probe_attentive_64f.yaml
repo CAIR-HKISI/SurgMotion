@@ -131,7 +131,7 @@ experiment:
     use_bfloat16: true
     use_pos_embed: false
     loss:
-      type: cb_softmax
+      type: cb_focal
       beta: 0.9999
       gamma: 2.0
 

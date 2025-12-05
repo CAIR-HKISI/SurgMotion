@@ -170,7 +170,7 @@ experiment:
     use_pos_embed: false
     loss:
       type: cb_softmax
-      beta: 0.9999
+      beta: 0.99999
       gamma: 2.0
 
 model_kwargs:
