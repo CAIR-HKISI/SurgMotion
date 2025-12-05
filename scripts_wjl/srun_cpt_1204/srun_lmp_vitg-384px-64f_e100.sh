@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-nameLMP_VITL          # 作业名
+#SBATCH --job-name=LMP_VITL          # 作业名
 #SBATCH --output=logs9/%x_%j.out      # 标准输出日志（自动包含作业号）
 #SBATCH --error=logs9/%x_%j.err       # 标准错误日志
 #SBATCH --time=48:00:00               # 最大运行时间
