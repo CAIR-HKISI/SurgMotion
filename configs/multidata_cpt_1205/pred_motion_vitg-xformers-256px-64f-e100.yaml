@@ -174,12 +174,12 @@ optimization:
 wandb:
   project: nsjepa-cooldown-cpt
   entity: nsjepa
-  name: pred_motion_vitg-384px-64f-e100
+  name: pred_motion_vitg-xformers-256px-64f-e100
   tags:
     - cooldown
-    - vitg-384px
+    - vitg-xformers-256px
     - 64f
     - motion-pred
   group: null
-  notes: "Motion Prediction Cooldown training for ViT-G at 384px 64f"
+  notes: "Motion Prediction Cooldown training for ViT-G-X at 256px 64f"
 

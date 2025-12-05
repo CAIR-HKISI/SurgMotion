@@ -82,6 +82,9 @@ def get_motion_target(clips, patch_size, tubelet_size):
     升级版：利用空间梯度解耦，计算'近似物理速度' (Approximate Normal Flow)，
     消除纹理对运动幅度的干扰。
     """
+    if isinstance(clips, list):
+        return [get_motion_target(c, patch_size, tubelet_size) for c in clips]
+
     B, C, T, H, W = clips.shape
     
     # 1. 时间梯度 (I_t): 帧差 [B, C, T, H, W]
@@ -535,7 +538,9 @@ def main(args, resume_preempt=False):
 
     # --- 新增：初始化 Motion Head ---
     # 获取 predictor 的输出维度
-    pred_dim = cfgs_model.get("pred_embed_dim", 384) # 默认值，需根据配置确认
+    # predictor 的最终输出维度被投影回 encoder 的 embed_dim
+    # encoder 此时是 MultiSeqWrapper，通过 backbone 访问
+    pred_dim = encoder.backbone.embed_dim
     motion_head = MotionHead(pred_dim).to(device)
     
     # --- 新增：将 Motion Head 的参数加入优化器 ---
@@ -552,7 +557,7 @@ def main(args, resume_preempt=False):
         encoder = DistributedDataParallel(encoder, static_graph=True)
         predictor = DistributedDataParallel(predictor, static_graph=False, find_unused_parameters=True)
         target_encoder = DistributedDataParallel(target_encoder)
-        motion_head = DistributedDataParallel(motion_head, device_ids=[rank])
+        motion_head = DistributedDataParallel(motion_head)
     else:
         logger.info("DDP is not initialized; running without DistributedDataParallel")
     for p in target_encoder.parameters():
@@ -638,6 +643,8 @@ def main(args, resume_preempt=False):
         logger.info("Epoch %d" % (epoch + 1))
 
         loss_meter = AverageMeter()
+        loss_jepa_meter = AverageMeter()
+        loss_motion_meter = AverageMeter()
         mask_meters = {fpc: AverageMeter() for fpc in dataset_fpcs}
         iter_time_meter = AverageMeter()
         gpu_time_meter = AverageMeter()
@@ -713,7 +720,10 @@ def main(args, resume_preempt=False):
                     for z_k in z:
                         # z_k: [Batch, N_pred, D]
                         # 复用 DDP wrapper 或者直接 call
-                        z_motion_preds.append(motion_head(z_k)) 
+                        if isinstance(z_k, list):
+                            z_motion_preds.append([motion_head(zki) for zki in z_k])
+                        else:
+                            z_motion_preds.append([motion_head(z_k)])
                     
                     return z, z_motion_preds
                     # -------------------------------
@@ -736,7 +746,12 @@ def main(args, resume_preempt=False):
                     
                     # Apply mask to motion target
                     # motion_target_map: [B, N_tokens] -> List[Tensor] matching predictor output
-                    motion_targets_masked = [apply_masks(motion_target_map, mi, concat=False) for mi in masks_pred]
+                    motion_targets_masked = []
+                    for mt, mi in zip(motion_target_map, masks_pred):
+                        # mt: [B, N_tokens]; apply_masks 需要 [B, N, D]
+                        masked = apply_masks(mt.unsqueeze(-1), mi, concat=False)  # -> List[[B, K, 1]]
+                        masked = [m.squeeze(-1) for m in masked]  # -> List[[B, K]]
+                        motion_targets_masked.append(masked)
                     
                     loss_motion = 0
                     n_m = 0
@@ -787,12 +802,16 @@ def main(args, resume_preempt=False):
 
                 return (
                     float(loss),
+                    float(l_jepa),
+                    float(l_motion),
                     _new_lr,
                     _new_wd,
                 )
 
             (
                 loss,
+                l_jepa,
+                l_motion,
                 _new_lr,
                 _new_wd,
             ), gpu_etime_ms = gpu_timer(train_step)
@@ -810,6 +829,8 @@ def main(args, resume_preempt=False):
             
             # Update meter with local loss (for internal tracking)
             loss_meter.update(loss)
+            loss_jepa_meter.update(l_jepa)
+            loss_motion_meter.update(l_motion)
             iter_time_meter.update(iter_elapsed_time_ms)
             gpu_time_meter.update(gpu_etime_ms)
             data_elapsed_time_meter.update(data_elapsed_time_ms)
@@ -853,6 +874,8 @@ def main(args, resume_preempt=False):
                         global_step = epoch * ipe + itr
                         wandb_metrics = {
                             "train/loss": loss_meter.avg,
+                            "train/loss_jepa": loss_jepa_meter.avg,
+                            "train/loss_motion": loss_motion_meter.avg,
                             "train/current_loss": loss_synced,  # Use synchronized loss for accurate logging
                             "train/lr": _new_lr,
                             "train/weight_decay": _new_wd,
