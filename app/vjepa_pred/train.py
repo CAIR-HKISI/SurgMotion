@@ -557,7 +557,7 @@ def main(args, resume_preempt=False):
         encoder = DistributedDataParallel(encoder, static_graph=True)
         predictor = DistributedDataParallel(predictor, static_graph=False, find_unused_parameters=True)
         target_encoder = DistributedDataParallel(target_encoder)
-        motion_head = DistributedDataParallel(motion_head, device_ids=[rank])
+        motion_head = DistributedDataParallel(motion_head)
     else:
         logger.info("DDP is not initialized; running without DistributedDataParallel")
     for p in target_encoder.parameters():
