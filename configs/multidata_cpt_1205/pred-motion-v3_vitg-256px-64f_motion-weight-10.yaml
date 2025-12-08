@@ -1,6 +1,6 @@
 app: vjepa_pred
 cpus_per_task: 16
-folder: logs/pred-motion-v3_vitg-256px-64f/
+folder: logs/pred-motion-v3_vitg-256px-64f_motion-weight-10/
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
@@ -93,7 +93,7 @@ data_aug:
   reprob: 0.0
 
 loss:
-  motion_loss_weight: 1.0
+  motion_loss_weight: 5.0
   jepa_loss:
     metric: generalized_mean
     metric_p: 1.0
@@ -161,7 +161,7 @@ wandb:
   project: nsjepa-motion-pred
   entity: nsjepa
   name: motion-pred_vitg-xformers-256px-64f
-  tags: [jepaloss]
-  group: baseline  
-  notes: "Motion Prediction Baseline"
+  tags: [motion-loss, weight-0.5]
+  group: motion
+  notes: "Motion Loss Weight 0.5"
 
