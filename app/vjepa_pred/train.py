@@ -792,7 +792,9 @@ def main(args, resume_preempt=False):
         predictor = DistributedDataParallel(predictor, static_graph=False, find_unused_parameters=True)
         target_encoder = DistributedDataParallel(target_encoder)
         motion_head = DistributedDataParallel(motion_head)
-        multi_layer_proj = DistributedDataParallel(multi_layer_proj)
+        # Check if multi_layer_proj has parameters before wrapping with DDP
+        if any(p.requires_grad for p in multi_layer_proj.parameters()):
+            multi_layer_proj = DistributedDataParallel(multi_layer_proj)
     else:
         logger.info("DDP is not initialized; running without DistributedDataParallel")
     for p in target_encoder.parameters():
