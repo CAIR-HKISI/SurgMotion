@@ -1149,7 +1149,8 @@ def main(args, resume_preempt=False):
                     total_remaining_iters = remaining_iters_in_epoch + (remaining_epochs * ipe)
                     
                     logger.info(
-                        "[Epoch %d/%d, Iter %5d/%d] (Remaining: %d iters) loss: %.3f "
+                        "[Epoch %d/%d, Iter %5d/%d] (Remaining: %d iters) "
+                        "loss: total=%.3f jepa=%.3f motion=%.3f "
                         "masks: %s "
                         "[wd: %.2e] [lr: %.2e] "
                         "[mem: %.2e] "
@@ -1163,6 +1164,8 @@ def main(args, resume_preempt=False):
                             ipe,
                             total_remaining_iters,
                             loss_meter.avg,
+                            loss_jepa_meter.avg,
+                            loss_motion_meter.avg,
                             "[" + ", ".join([f"{k}: " + "%.1f" % mask_meters[k].avg for k in mask_meters]) + "]",
                             _new_wd,
                             _new_lr,
@@ -1204,7 +1207,10 @@ def main(args, resume_preempt=False):
             assert not np.isnan(loss), "loss is nan"
 
         # -- Save Checkpoint
-        logger.info("avg. loss %.3f" % loss_meter.avg)
+        logger.info(
+            "avg. loss total=%.3f jepa=%.3f motion=%.3f"
+            % (loss_meter.avg, loss_jepa_meter.avg, loss_motion_meter.avg)
+        )
         
         # Log epoch-level metrics to wandb (only on rank 0)
         if wandb_initialized and rank == 0:

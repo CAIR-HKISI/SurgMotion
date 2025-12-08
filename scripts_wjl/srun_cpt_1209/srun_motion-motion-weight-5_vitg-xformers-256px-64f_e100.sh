@@ -53,7 +53,7 @@ export WANDB_MODE=online
 
 # 传入运行参数
 TASK=multidata_cpt_1205     # 例如：classification 或 segmentation
-FNAME=pred-motion-v3_vitg-256px-64f_motion-weight-0.5.yaml # 配置文件名，例如 config.yaml
+FNAME=pred-motion-v3_vitg-256px-64f_motion-weight-5.yaml # 配置文件名，例如 config.yaml
 
 DEVICES=$(echo $CUDA_VISIBLE_DEVICES | tr ',' ' ')
 echo "DEVICES=${DEVICES}"

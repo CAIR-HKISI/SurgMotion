@@ -93,7 +93,7 @@ data_aug:
   reprob: 0.0
 
 loss:
-  motion_loss_weight: 0.1
+  motion_loss_weight: 1.0
   jepa_loss:
     metric: l_p
     metric_p: 1.0
