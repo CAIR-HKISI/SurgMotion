@@ -52,7 +52,9 @@ class JepaLoss(torch.nn.Module):
         Loss方式
         """
         # 1. Apply weights
-        if isinstance(weights, torch.Tensor) or weights != 1.0:
+        if torch.is_tensor(weights):
+            loss_per_token = metric * weights
+        elif weights != 1.0:
             loss_per_token = metric * weights
         else:
             loss_per_token = metric
@@ -134,7 +136,9 @@ class MotionLoss(torch.nn.Module):
             return metric
             
         # Others return tensor
-        if weights != 1.0:
+        if torch.is_tensor(weights):
+            metric = metric * weights
+        elif weights != 1.0:
             metric = metric * weights
             
         return metric.mean()

@@ -143,7 +143,7 @@ model:
   use_mask_tokens: true
   use_rope: true
   zero_init_mask_tokens: true
-  cpt_ckeckpoint: logs/cpt_vitg-256px-16f_100epoch/latest.pt
+  cpt_ckeckpoint: logs/cpt_vitg-256px-16f_100epoch/e100.pt
   use_extrinsics: false
 optimization:
   anneal_ckpt: None
@@ -158,10 +158,10 @@ optimization:
   warmup: 0
   weight_decay: 0.04
 wandb:
-  project: nsjepa-innov
+  project: nsjepa-motion-pred
   entity: nsjepa
-  name: innov_multiscale_only_vitg-256px-64f
-  tags: [multiscale-only, ablation]
-  group: ablation
-  notes: "Ablation: Multiscale JEPA ONLY"
+  name: motion-pred_vitg-xformers-256px-64f
+  tags: [jepalos, multiscale]
+  group: jepaloss
+  notes: "JEPA Loss Multiscale"
 
