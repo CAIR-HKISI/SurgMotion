@@ -41,6 +41,7 @@ from src.utils.distributed import init_distributed
 from src.utils.logging import AverageMeter, CSVLogger, get_logger, gpu_timer
 from src.utils.checkpoint_loader import robust_checkpoint_loader
 import torch.distributed as dist
+from app.vjepa_pred.losses import JepaLoss, MotionLoss
 # --
 log_timings = True
 log_freq = 10
@@ -58,32 +59,65 @@ torch.backends.cudnn.benchmark = True
 logger = get_logger(__name__, force=True)
 
 
+from scipy.optimize import linear_sum_assignment
+
 class MotionHead(torch.nn.Module):
     """
-    一个极轻量的 MLP，用于从 Latent Feature 预测运动强度（帧差均值）。
+    Simple Dense Predictor for Motion Intensity.
+    Enhanced with 3 layers and LayerNorm for better stability.
+    Input: [B, N, D]
+    Output: [B, N] in [0, 1]
     """
-    def __init__(self, embed_dim):
+    def __init__(self, embed_dim, hidden_dim=None, dropout=0.1):
         super().__init__()
+        if hidden_dim is None:
+            hidden_dim = embed_dim
+            
         self.mlp = torch.nn.Sequential(
-            torch.nn.Linear(embed_dim, embed_dim // 4),
+            torch.nn.Linear(embed_dim, hidden_dim),
+            torch.nn.LayerNorm(hidden_dim),
             torch.nn.GELU(),
-            torch.nn.Linear(embed_dim // 4, 1),
+            torch.nn.Dropout(dropout),
+            
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.LayerNorm(hidden_dim),
+            torch.nn.GELU(),
+            
+            torch.nn.Linear(hidden_dim, 1),
             torch.nn.Sigmoid()
         )
 
     def forward(self, x):
         # x: [B, N_pred, D]
-        return self.mlp(x).squeeze(-1) # [B, N_pred]
+        return self.mlp(x).squeeze(-1)
 
 
-def get_motion_target(clips, patch_size, tubelet_size):
+class MultiLayerProjector(torch.nn.Module):
     """
-    计算 Patch 级别的运动指标。
-    升级版：利用空间梯度解耦，计算'近似物理速度' (Approximate Normal Flow)，
-    消除纹理对运动幅度的干扰。
+    Projector for Hierarchical Feature Alignment.
+    Maps predictor output to multiple target layers.
+    """
+    def __init__(self, in_dim, out_dim, target_layer_ids):
+        super().__init__()
+        self.target_layer_ids = target_layer_ids
+        # Last layer usually aligns directly, others need projection
+        self.heads = torch.nn.ModuleList([
+            torch.nn.Linear(in_dim, out_dim) if i != target_layer_ids[-1] else torch.nn.Identity()
+            for i in target_layer_ids
+        ])
+
+    def forward(self, z):
+        # z: [B, N, D]
+        # Return list of projected features corresponding to target_layer_ids
+        return [head(z) for head in self.heads]
+
+
+def get_motion_target(clips, patch_size, tubelet_size, sigma=1.0, threshold=0.2):
+    """
+    计算 Patch 级别的运动指标，并应用高斯平滑以获得更稳健的分布 Target。
     """
     if isinstance(clips, list):
-        return [get_motion_target(c, patch_size, tubelet_size) for c in clips]
+        return [get_motion_target(c, patch_size, tubelet_size, sigma, threshold) for c in clips]
 
     B, C, T, H, W = clips.shape
     
@@ -104,30 +138,96 @@ def get_motion_target(clips, patch_size, tubelet_size):
     # 加上一个小常数防止开根号梯度消失
     spatial_grad = torch.sqrt(dx**2 + dy**2 + 1e-6)
     
-    # 3. 解耦: 计算物理速度 (Speed)
-    # Speed ~ Diff / Gradient
-    # alpha 是平滑项，防止在平坦区域(梯度接近0)产生极大的噪声值
-    # 纹理越弱区域，我们对计算出的速度越不自信，alpha 起到抑制作用
+    # 3. 计算物理速度 (Speed)
     alpha = 0.05 
     speed_map = diffs / (spatial_grad + alpha)
     
-    # 4. 平均通道并降采样
-    speed_map = speed_map.mean(dim=1, keepdim=True) # [B, 1, T, H, W]
+    # 过滤低纹理区域 (Low Texture Filtering)
+    # 在纹理极弱的区域(如纯黑背景、反光过曝)，空间梯度接近0，会导致计算出的速度极不稳定(噪点)。
+    # 我们将这些区域的速度置零，避免脏数据干扰。
+    valid_texture = spatial_grad > 0.01
+    speed_map = speed_map * valid_texture.float()
     
+    # --- 关键步骤 3.1: Global Motion Estimation & Removal ---
+    # 手术场景假设：
+    # 1. 背景(Global Motion)占据大部分面积，且运动一致性较高。
+    # 2. 器械(Local Motion)占据小部分面积，且运动强度通常显著高于背景。
+    # 我们使用 Median 来稳健估计 Global Motion (相机运动)。
+    # speed_map: [B, C, T, H, W]
+    
+    # 计算每帧的全局运动基准 (Median over H, W)
+    flat_speed = speed_map.view(B, C, T, -1) # [B, C, T, H*W]
+    global_motion_est = torch.quantile(flat_speed, 0.5, dim=-1, keepdim=True) # [B, C, T, 1]
+    global_motion_est = global_motion_est.view(B, C, T, 1, 1)
+    
+    # --- 策略调整：分级幅度控制 (Hierarchical Amplitude) ---
+    # 目的：防止剧烈的相机运动(Global)导致全图饱和(变为全1)，掩盖了器械(Local)
+    # 方案：
+    # 1. Global Base: 限制最大贡献度 (例如 max 0.3)
+    # 2. Local Motion: 允许贡献剩余的幅度 (0.7)
+    
+    # Global Base Compression:
+    # 使用 tanh 压缩，但乘以较小的系数，并强制截断
+    # 这里的 5.0 是灵敏度，0.3 是最大底噪亮度 (灰度)
+    global_base_map = torch.tanh(global_motion_est * 5.0).clamp(max=0.3)
+    global_base_map = global_base_map.expand_as(speed_map)
+    
+    # Local Motion Compression:
+    # 我们不再硬性扣除，而是将其分离并作为平缓的底噪叠加回来
+    # Local Motion: 显著高于背景的部分
+    # 计算 local_motion_map 时，我们希望它是 relative signal
+    local_motion_map = torch.relu(speed_map - (global_motion_est * 1.2))
+    
+    # 对 Local 进行归一化，使其占据 0.0 ~ 0.7 的动态范围
+    # 注意：Local Motion 是极其稀疏的，我们希望显著的峰值接近 0.7
+    local_motion_map = torch.tanh(local_motion_map * 5.0) * 0.7
+    
+    # 合成 Target: Target = Base(max 0.3) + Local(max 0.7) -> Total max 1.0
+    # 即使相机剧烈运动，global_base_map 也止步于 0.3，器械依然能叠加出更亮的值
+    combined_map = local_motion_map + global_base_map
+    
+    # 使用 combined_map 进行后续的平均
+    combined_map = combined_map.mean(dim=1, keepdim=True) # [B, 1, T, H, W]
+
+    # --- 关键步骤 3.5: 局部阈值去噪 (仅针对 Local 部分) ---
+    # 这里不需要额外的阈值处理了，因为 relu(speed - 1.2*global) 已经起到了动态阈值的作用
+    
+    # 4. 降采样到 Patch Grid
     t_grid, h_grid, w_grid = T // tubelet_size, H // patch_size, W // patch_size
-    
-    # 使用 adaptive_avg_pool3d 自动处理降采样
     motion_target = F.adaptive_avg_pool3d(
-        speed_map, 
+        combined_map, 
         output_size=(t_grid, h_grid, w_grid)
     ) # [B, 1, t_grid, h_grid, w_grid]
-    motion_target = motion_target.flatten(1) # [B, N_tokens]
     
-    # 可选：简单归一化，让数值分布更适合 Sigmoid/MSE
-    # 这里的 5.0 是一个经验缩放因子，让速度值分布在 0~1 之间更合理的位置
-    motion_target = torch.tanh(motion_target * 5.0)
+    # 5. --- 关键优化：高斯平滑 (Gaussian Smoothing) ---
+    # 这将独立的离散点平滑为混合高斯分布 (Mixture of Gaussians)
+    if sigma > 0:
+        # Dynamic kernel size based on sigma
+        k_size = int(4 * sigma + 1)
+        if k_size % 2 == 0:
+            k_size += 1
+
+        # Create Gaussian kernel
+        x = torch.arange(k_size, device=clips.device, dtype=clips.dtype) - (k_size - 1) / 2
+        k = torch.exp(-0.5 * (x / sigma)**2)
+        k = k / k.sum()
+
+        k_3d = k[:, None, None] * k[None, :, None] * k[None, None, :]
+        k_3d = k_3d[None, None, ...] # [1, 1, k, k, k]
+        
+        # Padding 保持尺寸不变
+        padding = k_size // 2
+        motion_target = F.conv3d(motion_target, k_3d, padding=padding)
+
+    motion_target_flat = motion_target.flatten(1) # [B, N_tokens]
     
-    return motion_target.detach() # 不需要梯度
+    # 6. 归一化到 [0, 1]
+    # 前面的逻辑已经显式控制了数值范围：Base(max 0.3) + Local(max 0.7) -> Max 1.0
+    # 因此这里不再需要激进的 tanh 压缩，直接截断保证数值安全即可。
+    # 这样能保留 0.3(背景) 和 >0.3(前景) 之间的线性差异，让模型更容易区分。
+    motion_target = motion_target_flat.clamp(0.0, 1.0)
+    
+    return motion_target.detach()
 
 
 def load_cpt_checkpoint(encoder, pretrained, checkpoint_key="target_encoder"):
@@ -316,8 +416,89 @@ def main(args, resume_preempt=False):
     use_aa = cfgs_data_aug.get("auto_augment", False)
 
     # -- LOSS
-    cfgs_loss = args.get("loss")
-    loss_exp = cfgs_loss.get("loss_exp")
+    cfgs_loss = args.get("loss", {})
+    motion_loss_weight = float(cfgs_loss.get("motion_loss_weight", 0.1))
+    
+    jepa_loss_cfg = cfgs_loss.get("jepa_loss", {})
+    # Rename 'type' to 'metric' for clarity, fallback to 'type' for backward compatibility
+    jepa_metric_type = jepa_loss_cfg.get("metric", jepa_loss_cfg.get("type", "lp"))
+    # New location for jepa_metric_p (inside jepa_loss)
+    # Fallback to top-level if not found (for backward compatibility)
+    jepa_metric_p = float(jepa_loss_cfg.get("metric_p", cfgs_loss.get("jepa_metric_p", 1.0)))
+    jepa_loss_params = jepa_loss_cfg.get("params") or {}
+    
+    # New location for multiscale config (inside jepa_loss)
+    # Fallback to top-level loss.multiscale if not found
+    multiscale_cfg = jepa_loss_cfg.get("multiscale", cfgs_loss.get("multiscale", {}))
+    
+    motion_loss_cfg = cfgs_loss.get("motion_loss", {})
+    # 默认使用 Smooth L1
+    # Rename 'type' to 'metric', fallback to 'type'
+    motion_metric_type = motion_loss_cfg.get("metric", motion_loss_cfg.get("type", "smooth_l1")).lower()
+    motion_loss_params = motion_loss_cfg.get("params") or {}
+    motion_heatmap_cfg = motion_loss_cfg.get("distribution", {})
+    # 默认开启 Heatmap 模式
+    motion_heatmap_enabled = bool(motion_heatmap_cfg.get("enable", True))
+    # Pred 保持 Logits (为了数值稳定性，在 Loss 里做 LogSoftmax)
+    motion_heatmap_pred_method = motion_heatmap_cfg.get("pred_method", "none").lower()
+    # Target 使用 L1 归一化 (Intensity -> Probability)
+    motion_heatmap_target_method = motion_heatmap_cfg.get("target_method", "l1").lower()
+    motion_heatmap_temperature = float(motion_heatmap_cfg.get("temperature", 1.0)) 
+    motion_heatmap_eps = float(motion_heatmap_cfg.get("eps", 1e-6))
+    motion_heatmap_topk = int(motion_heatmap_cfg.get("topk", 0))
+    motion_heatmap_topk_mode = motion_heatmap_cfg.get("topk_mode", "abs").lower()
+    motion_heatmap_sigma = float(motion_heatmap_cfg.get("sigma", 1.0))
+    jepa_metric_type = jepa_metric_type.lower()
+    motion_metric_type = motion_metric_type.lower()
+
+    # --- New Configs for Innovation ---
+    # 1. Multiscale Feature Reconstruction
+    # Config format: loss.jepa_loss.multiscale: {enable: True, layers: [0.5, 1.0], weights: [0.5, 1.0]}
+    # (Already parsed above into multiscale_cfg)
+    use_multiscale = bool(multiscale_cfg.get("enable", False))
+    # Default to last layer only if not enabled or not specified
+    multiscale_layers_ratio = multiscale_cfg.get("layers", [1.0])
+    multiscale_loss_weights = multiscale_cfg.get("weights", [1.0])
+    assert len(multiscale_layers_ratio) == len(multiscale_loss_weights), "Layers and weights must have same length"
+
+    # 2. Motion Aware JEPA Weighting
+    # Config format: loss.motion_loss: {enable_weighted_jepa: True, weight_factor: 2.0}
+    use_motion_weighted_jepa = bool(motion_loss_cfg.get("enable_weighted_jepa", False))
+    motion_weight_factor = float(motion_loss_cfg.get("weight_factor", 2.0))
+    # ----------------------------------
+
+    # --- Initialize Loss Functions ---
+    # Ensure defaults from jepa_metric_p are propagated
+    if "p" not in jepa_loss_params:
+        jepa_loss_params["p"] = jepa_metric_p
+    if "power" not in jepa_loss_params:
+        jepa_loss_params["power"] = jepa_metric_p
+
+    jepa_loss_fn = JepaLoss(
+        metric_type=jepa_metric_type,
+        loss_params=jepa_loss_params,
+        motion_weight_factor=motion_weight_factor if use_motion_weighted_jepa else 0.0
+    )
+
+    # Construct heatmap config with parsed values
+    motion_heatmap_full_cfg = {
+        "enable": motion_heatmap_enabled,
+        "pred_method": motion_heatmap_pred_method,
+        "target_method": motion_heatmap_target_method,
+        "temperature": motion_heatmap_temperature,
+        "eps": motion_heatmap_eps,
+        "topk": motion_heatmap_topk,
+        "topk_mode": motion_heatmap_topk_mode,
+        "sigma": motion_heatmap_sigma
+    }
+
+    motion_loss_fn = MotionLoss(
+        metric_type=motion_metric_type,
+        loss_params=motion_loss_params,
+        heatmap_cfg=motion_heatmap_full_cfg
+    )
+    # ---------------------------------
+
 
     # -- OPTIMIZATION
     cfgs_opt = args.get("optimization")
@@ -333,7 +514,6 @@ def main(args, resume_preempt=False):
     ema = cfgs_opt.get("ema")
     betas = cfgs_opt.get("betas", (0.9, 0.999))
     eps = cfgs_opt.get("eps", 1.0e-8)
-    # ----------------------------------------------------------------------- #
     # ----------------------------------------------------------------------- #
 
     np.random.seed(seed)
@@ -370,6 +550,10 @@ def main(args, resume_preempt=False):
                 "final_lr": final_lr,
                 "weight_decay": wd,
                 "final_weight_decay": final_wd,
+                "jepa_metric_p": jepa_metric_p,
+                "motion_loss_weight": motion_loss_weight,
+                "jepa_metric_type": jepa_metric_type,
+                "motion_metric_type": motion_metric_type,
                 "warmup": warmup,
                 "crop_size": crop_size,
                 "patch_size": patch_size,
@@ -541,14 +725,64 @@ def main(args, resume_preempt=False):
     # predictor 的最终输出维度被投影回 encoder 的 embed_dim
     # encoder 此时是 MultiSeqWrapper，通过 backbone 访问
     pred_dim = encoder.backbone.embed_dim
-    motion_head = MotionHead(pred_dim).to(device)
+    # Reverted to simple dense MotionHead with bottleneck hidden_dim
+    motion_head = MotionHead(pred_dim, hidden_dim=pred_dim // 2).to(device)
+
+    # --- Hierarchical Feature Alignment ---
+    if hasattr(encoder, "backbone"):
+        enc_depth = encoder.backbone.get_num_layers()
+    else:
+        enc_depth = encoder.module.backbone.get_num_layers()
+        
+    # Determine target layers based on config
+    if use_multiscale:
+        target_layer_ids = []
+        for r in multiscale_layers_ratio:
+            # r is 0.0 ~ 1.0 (relative depth)
+            idx = int(r * enc_depth) - 1
+            idx = max(0, min(idx, enc_depth - 1))
+            target_layer_ids.append(idx)
+        # Ensure unique and sorted
+        target_layer_ids = sorted(list(set(target_layer_ids)))
+        
+        # Adjust weights to match unique sorted layers (simplified: replicate weights logic or trust user input order?)
+        # For simplicity, we assume user input is sorted and unique. If not, we might have mismatch.
+        # Let's rigorously map weights to ids.
+        layer_weight_map = {}
+        for r, w in zip(multiscale_layers_ratio, multiscale_loss_weights):
+            idx = int(r * enc_depth) - 1
+            idx = max(0, min(idx, enc_depth - 1))
+            layer_weight_map[idx] = w
+        
+        # Re-extract weights in sorted order of ids
+        final_layer_weights = [layer_weight_map[i] for i in target_layer_ids]
+    else:
+        # Default: Last layer only
+        target_layer_ids = [enc_depth - 1]
+        final_layer_weights = [1.0]
+
+    # Configure Target Encoder to output these layers
+    # Note: target_encoder is MultiSeqWrapper -> backbone
+    if hasattr(target_encoder, "backbone"):
+        target_encoder.backbone.out_layers = target_layer_ids
+    else:
+        target_encoder.module.backbone.out_layers = target_layer_ids
+
+    # Init Multi-Layer Projector
+    # We assume predictor output dim == embed_dim here
+    multi_layer_proj = MultiLayerProjector(pred_dim, pred_dim, target_layer_ids).to(device)
     
-    # --- 新增：将 Motion Head 的参数加入优化器 ---
+    # --- 新增：将 Motion Head 和 Projector 的参数加入优化器 ---
     # 我们使用与主模型相同的超参数
     optimizer.add_param_group({
         'params': motion_head.parameters(),
         'weight_decay': wd,
         'lr': lr 
+    })
+    optimizer.add_param_group({
+        'params': multi_layer_proj.parameters(),
+        'weight_decay': wd,
+        'lr': lr
     })
     # -----------------------------------------
 
@@ -558,6 +792,7 @@ def main(args, resume_preempt=False):
         predictor = DistributedDataParallel(predictor, static_graph=False, find_unused_parameters=True)
         target_encoder = DistributedDataParallel(target_encoder)
         motion_head = DistributedDataParallel(motion_head)
+        multi_layer_proj = DistributedDataParallel(multi_layer_proj)
     else:
         logger.info("DDP is not initialized; running without DistributedDataParallel")
     for p in target_encoder.parameters():
@@ -645,6 +880,7 @@ def main(args, resume_preempt=False):
         loss_meter = AverageMeter()
         loss_jepa_meter = AverageMeter()
         loss_motion_meter = AverageMeter()
+        loss_jepa_layers_meters = {}  # Dynamic dict for layer-wise losses
         mask_meters = {fpc: AverageMeter() for fpc in dataset_fpcs}
         iter_time_meter = AverageMeter()
         gpu_time_meter = AverageMeter()
@@ -700,80 +936,137 @@ def main(args, resume_preempt=False):
                 # --- 新增：计算 Ground Truth Motion ---
                 with torch.no_grad():
                     # motion_target_map: [B, N_tokens_total]
-                    motion_target_map = get_motion_target(clips, patch_size, tubelet_size)
+                    # Compute once per batch
+                    motion_target_map = get_motion_target(clips, patch_size, tubelet_size, sigma=motion_heatmap_sigma)
                 # ------------------------------------
                 
                 def forward_target(c):
                     with torch.no_grad():
                         h = target_encoder(c)
-                        h = [F.layer_norm(hi, (hi.size(-1),)) for hi in h]
-                        return h
+                        # h is List[List[Tensor]] (Clips -> Layers)
+                        # Normalize each layer
+                        h_norm = []
+                        for clip_layers in h:
+                            # clip_layers: [L1, L2...]
+                            normed = [F.layer_norm(lyr, (lyr.size(-1),)) for lyr in clip_layers]
+                            h_norm.append(normed)
+                        return h_norm
 
                 def forward_context(c):
                     z = encoder(c, masks_enc)
                     z = predictor(z, masks_enc, masks_pred)
                     
-                    # --- 新增：Motion Head Forward ---
-                    # z 是一个 List[Tensor] (针对不同的 mask 策略)
-                    # 我们对每个 mask 策略的输出都做运动预测
+                    # z is List[List[Tensor]] (Clips -> Predictions)
+                    
+                    # 1. Project to Multi-Layer Targets
+                    z_multi_layers = []
+                    for z_clip_preds in z:
+                        z_clip_out = []
+                        for z_p in z_clip_preds:
+                             # z_p: [N_pred, D]
+                             z_clip_out.append(multi_layer_proj(z_p))
+                        z_multi_layers.append(z_clip_out)
+
+                    # 2. Motion Head
                     z_motion_preds = []
-                    for z_k in z:
-                        # z_k: [Batch, N_pred, D]
-                        # 复用 DDP wrapper 或者直接 call
-                        if isinstance(z_k, list):
-                            z_motion_preds.append([motion_head(zki) for zki in z_k])
+                    for z_clip_preds in z:
+                        z_motion_group = []
+                        for z_p in z_clip_preds:
+                            z_motion_group.append(motion_head(z_p))
+                        z_motion_preds.append(z_motion_group)
+                    
+                    return z_multi_layers, z_motion_preds
+
+                def loss_fn(z_layers, z_motion_preds, h, motion_target_map):
+                    # h: List[List[Tensor]] (Clips -> Layers)
+                    # z_layers: List[List[List[Tensor]]] (Clips -> Predictions -> Layers)
+                    
+                    # 1. Prepare Weights
+                    motion_weights_masked = []
+                    # Reuse motion map or zeros if not weighted jepa
+                    if use_motion_weighted_jepa:
+                         for mt, mi in zip(motion_target_map, masks_pred):
+                            masked_w = apply_masks(mt.unsqueeze(-1), mi, concat=False)
+                            masked_w = [m.squeeze(-1) for m in masked_w] 
+                            motion_weights_masked.append(masked_w)
+                    else:
+                         # Fill with None to skip weighting in _compute_jepa_pair_loss
+                         # Structure must match loops below
+                         motion_weights_masked = [[None for _ in mi] for mi in masks_pred]
+                    
+                    # 2. JEPA Main Loss (Hierarchical & Weighted)
+                    jepa_losses = []
+                    # Dictionary to track loss per layer: {layer_idx: [loss_val, ...]}
+                    jepa_layer_losses_tracker = {}
+                    
+                    for clip_idx, (z_preds, h_layers, mask_preds, w_preds) in enumerate(zip(z_layers, h, masks_pred, motion_weights_masked)):
+                        # Iterating over CLIPS
+                        for pred_idx, (z_L_list, mask, w) in enumerate(zip(z_preds, mask_preds, w_preds)):
+                            # Iterating over PREDICTIONS (Masks)
+                            for layer_idx, z_L in enumerate(z_L_list):
+                                h_L_full = h_layers[layer_idx]
+                                # Apply mask to GT
+                                # apply_masks returns List, take [0]
+                                h_L_masked = apply_masks(h_L_full, [mask], concat=False)[0]
+                                
+                                # Compute Loss using JepaLoss class
+                                l_val = jepa_loss_fn(z_L, h_L_masked, motion_map=w)
+                                
+                                # Track raw loss per layer (before weighting) for logging
+                                target_layer_id = target_layer_ids[layer_idx]
+                                if target_layer_id not in jepa_layer_losses_tracker:
+                                    jepa_layer_losses_tracker[target_layer_id] = []
+                                jepa_layer_losses_tracker[target_layer_id].append(l_val)
+
+                                # Apply Layer Weight
+                                # final_layer_weights is available in closure
+                                l_weight = final_layer_weights[layer_idx]
+                                
+                                jepa_losses.append(l_val * l_weight)
+                    
+                    if len(jepa_losses) > 0:
+                        loss_jepa = torch.mean(torch.stack(jepa_losses))
+                    else:
+                        loss_jepa = torch.tensor(0.0, device=device, dtype=z_layers[0][0][0].dtype)
+                    
+                    # Aggregate layer-wise losses (mean)
+                    jepa_layer_losses = {}
+                    for lid, l_vals in jepa_layer_losses_tracker.items():
+                        if len(l_vals) > 0:
+                            jepa_layer_losses[lid] = torch.mean(torch.stack(l_vals))
                         else:
-                            z_motion_preds.append([motion_head(z_k)])
-                    
-                    return z, z_motion_preds
-                    # -------------------------------
+                            jepa_layer_losses[lid] = torch.tensor(0.0, device=device, dtype=loss_jepa.dtype)
 
-                def loss_fn(z, z_motion_preds, h, motion_target_map):
-                    # Assumption: predictor will have returned only masked tokens for z
-                    h = [apply_masks(hi, mi, concat=False) for hi, mi in zip(h, masks_pred)]
+                    # 3. Motion Loss (Auxiliary)
+                    # Prepare motion targets (same as before)
+                    # Re-calculate masked motion targets if we skipped them above for weights
+                    if use_motion_weighted_jepa:
+                         motion_targets_masked = motion_weights_masked
+                    else:
+                         # Need to compute them now
+                         motion_targets_masked = []
+                         for mt, mi in zip(motion_target_map, masks_pred):
+                            masked = apply_masks(mt.unsqueeze(-1), mi, concat=False)  
+                            masked = [m.squeeze(-1) for m in masked]  
+                            motion_targets_masked.append(masked)
 
-                    # 1. JEPA Main Loss
-                    loss_jepa, n = 0, 0
-                    for zi, hi in zip(z, h):
-                        for zij, hij in zip(zi, hi):
-                            loss_jepa += torch.mean(torch.abs(zij - hij) ** loss_exp) / loss_exp
-                            n += 1
-                    loss_jepa /= n
+                    motion_losses = []
+                    for pred_m_clip, target_m_clip in zip(z_motion_preds, motion_targets_masked):
+                         for p_m_ij, t_m_ij in zip(pred_m_clip, target_m_clip):
+                             motion_losses.append(motion_loss_fn(p_m_ij, t_m_ij))
+                             
+                    if len(motion_losses) > 0:
+                        loss_motion = torch.mean(torch.stack(motion_losses))
+                    else:
+                        loss_motion = torch.tensor(0.0, device=device, dtype=z_layers[0][0][0].dtype)
                     
-                    # 2. --- 新增：Auxiliary Motion Loss ---
-                    # 我们的 z_motion_preds 是针对 "Masked Regions" (Predictor的输出) 的预测
-                    # 所以我们需要把 motion_target_map 也 mask 掉，只保留 predictor 预测的部分
-                    
-                    # Apply mask to motion target
-                    # motion_target_map: [B, N_tokens] -> List[Tensor] matching predictor output
-                    motion_targets_masked = []
-                    for mt, mi in zip(motion_target_map, masks_pred):
-                        # mt: [B, N_tokens]; apply_masks 需要 [B, N, D]
-                        masked = apply_masks(mt.unsqueeze(-1), mi, concat=False)  # -> List[[B, K, 1]]
-                        masked = [m.squeeze(-1) for m in masked]  # -> List[[B, K]]
-                        motion_targets_masked.append(masked)
-                    
-                    loss_motion = 0
-                    n_m = 0
-                    for pred_m, target_m in zip(z_motion_preds, motion_targets_masked):
-                         # pred_m, target_m 都是 List (Batch) 或 Tensor
-                         for p_m_ij, t_m_ij in zip(pred_m, target_m):
-                             # p_m_ij: [N_pred], t_m_ij: [N_pred]
-                             # MSE Loss for motion magnitude
-                             loss_motion += F.mse_loss(p_m_ij, t_m_ij)
-                             n_m += 1
-                    if n_m > 0:
-                        loss_motion /= n_m
-                    
-                    # 3. 总 Loss
-                    # 0.1 是辅助任务的权重系数，可以调节
-                    return loss_jepa + 0.1 * loss_motion, loss_jepa, loss_motion
+                    return loss_jepa + motion_loss_weight * loss_motion, loss_jepa, loss_motion, jepa_layer_losses
 
                 # Step 1. Forward
                 with torch.cuda.amp.autocast(dtype=dtype, enabled=mixed_precision):
                     h = forward_target(clips)
                     z, z_motion_preds = forward_context(clips)
-                    loss, l_jepa, l_motion = loss_fn(z, z_motion_preds, h, motion_target_map)
+                    loss, l_jepa, l_motion, l_jepa_layers = loss_fn(z, z_motion_preds, h, motion_target_map)
 
                 # Step 2. Backward & step
 
@@ -804,6 +1097,7 @@ def main(args, resume_preempt=False):
                     float(loss),
                     float(l_jepa),
                     float(l_motion),
+                    {k: float(v) for k, v in l_jepa_layers.items()},
                     _new_lr,
                     _new_wd,
                 )
@@ -812,6 +1106,7 @@ def main(args, resume_preempt=False):
                 loss,
                 l_jepa,
                 l_motion,
+                l_jepa_layers,
                 _new_lr,
                 _new_wd,
             ), gpu_etime_ms = gpu_timer(train_step)
@@ -831,6 +1126,13 @@ def main(args, resume_preempt=False):
             loss_meter.update(loss)
             loss_jepa_meter.update(l_jepa)
             loss_motion_meter.update(l_motion)
+            
+            # Update layer-wise meters
+            for lid, l_val in l_jepa_layers.items():
+                if lid not in loss_jepa_layers_meters:
+                    loss_jepa_layers_meters[lid] = AverageMeter()
+                loss_jepa_layers_meters[lid].update(l_val)
+                
             iter_time_meter.update(iter_elapsed_time_ms)
             gpu_time_meter.update(gpu_etime_ms)
             data_elapsed_time_meter.update(data_elapsed_time_ms)
@@ -889,6 +1191,11 @@ def main(args, resume_preempt=False):
                         # Add mask metrics
                         for k, v in mask_meters.items():
                             wandb_metrics[f"train/mask_ratio_{k}f"] = v.avg
+                            
+                        # Add layer-wise JEPA loss metrics
+                        for lid, meter in loss_jepa_layers_meters.items():
+                            wandb_metrics[f"train/loss_jepa_layer_{lid}"] = meter.avg
+                            
                         wandb.log(wandb_metrics, step=global_step)
 
             log_stats()

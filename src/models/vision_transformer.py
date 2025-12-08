@@ -460,6 +460,18 @@ def vit_gigantic(patch_size=16, **kwargs):
     )
     return model
 
+def vit_giant(patch_size=16, **kwargs):
+    model = VisionTransformer(
+        patch_size=patch_size,
+        embed_dim=1408,
+        depth=40,
+        num_heads=16,
+        mlp_ratio=48 / 11,
+        qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
+    return model
 
 def vit_gigantic_xformers(patch_size=16, **kwargs):
     model = VisionTransformer(

@@ -108,6 +108,24 @@ data_aug:
   reprob: 0.0
 loss:
   loss_exp: 1.0
+  motion_loss_weight: 0.1
+  jepa_loss:
+    type: generalized_mean
+    params:
+      power: 1.0
+      eps: 1.0e-06
+  motion_loss:
+    type: l2
+    params:
+      temperature: 1.0
+    distribution:
+      enable: true
+      pred_method: softmax
+      target_method: l1
+      temperature: 1.0
+      eps: 1.0e-06
+      topk: 16
+      topk_mode: abs
 mask:
 - aspect_ratio:
   - 0.75
