@@ -68,13 +68,13 @@ configs = [
 
 
 
-global_vars = {
-    "CKPTL_DIR": "logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e200",
-    "CKPT_EPOCH": "latest.pt",
-    "MODEL_NAME": "vit_giant",
-    "timestamp": "1205",
-    "TASK": "probing_cb_softmax-0.99999"
-}
+# global_vars = {
+#     "CKPTL_DIR": "logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e200",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_giant",
+#     "timestamp": "1205",
+#     "TASK": "probing_cb_softmax-0.99999"
+# }
 
 # global_vars = {
 #     "CKPTL_DIR": "logs/cpt_vitg-256px-16f_100epoch/cooldown-e40_vitg-xformers-256px-64f-e200",
@@ -83,6 +83,42 @@ global_vars = {
 #     "timestamp": "1205",
 #     "TASK": "probing_cb_focal"
 # }
+
+
+
+# global_vars = {
+#     "CKPTL_DIR": "logs/pred-motion-v3_vitg-256px-64f_motion-weight-5",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_giant_xformers",
+#     "timestamp": "1209",
+#     "TASK": "probing_pred_motion"
+# }
+
+
+# global_vars = {
+#     "CKPTL_DIR": "logs/pred-motion-v3_vitg-256px-64f_motion-pos-weight-10",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_giant_xformers",
+#     "timestamp": "1209",
+#     "TASK": "probing_pred_motion"
+# }
+
+# global_vars = {
+#     "CKPTL_DIR": "logs/pred-motion-v3_vitg-256px-64f_jepaloss-l2",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_giant_xformers",
+#     "timestamp": "1209",
+#     "TASK": "probing_pred_motion"
+# }
+
+global_vars = {
+    "CKPTL_DIR": "pred-motion-v3_vitg-256px-64f_motion-weight-10",
+    "CKPT_EPOCH": "latest.pt",
+    "MODEL_NAME": "vit_giant_xformers",
+    "timestamp": "1209",
+    "TASK": "probing_pred_motion"
+}
+
 
 task = global_vars["TASK"]
 ckptl_name = os.path.basename(global_vars["CKPTL_DIR"].rstrip("/"))
