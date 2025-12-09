@@ -62,9 +62,50 @@ def get_motion_target_heatmap(clips):
     combined_map = local_motion_map + global_base_map
     
     # 使用 combined_map 进行后续的平均
-    combined_map = combined_map.mean(dim=1, keepdim=False) # [B, T, H, W]
+    combined_map = combined_map.mean(dim=1, keepdim=True) # [B, 1, T, H, W]
 
-    return combined_map
+    # --- Downsample & Smooth (Simulate Model Target) ---
+    patch_size = 16
+    tubelet_size = 2
+    sigma = 1.0
+    
+    # Grid sizes
+    t_grid = T // tubelet_size
+    h_grid = H // patch_size
+    w_grid = W // patch_size
+    
+    # Downsample
+    motion_target = F.adaptive_avg_pool3d(
+        combined_map, 
+        output_size=(t_grid, h_grid, w_grid)
+    ) # [B, 1, t_grid, h_grid, w_grid]
+    
+    # Gaussian Smoothing
+    if sigma > 0:
+        k_size = int(4 * sigma + 1)
+        if k_size % 2 == 0:
+            k_size += 1
+
+        # Create Gaussian kernel
+        x = torch.arange(k_size, device=clips.device, dtype=clips.dtype) - (k_size - 1) / 2
+        k = torch.exp(-0.5 * (x / sigma)**2)
+        k = k / k.sum()
+
+        k_3d = k[:, None, None] * k[None, :, None] * k[None, None, :]
+        k_3d = k_3d[None, None, ...] # [1, 1, k, k, k]
+        
+        # Padding
+        padding = k_size // 2
+        motion_target = F.conv3d(motion_target, k_3d, padding=padding)
+
+    # Upsample back to original size for visualization
+    # Trilinear interpolation
+    heatmap_high_res = F.interpolate(motion_target, size=(T, H, W), mode='trilinear', align_corners=False)
+    
+    # 6. 归一化到 [0, 1]
+    heatmap_high_res = heatmap_high_res.clamp(0.0, 1.0)
+    
+    return heatmap_high_res.squeeze(1) # [B, T, H, W]
 
 def apply_heatmap_overlay(img_bgr, heatmap_val, alpha=0.5):
     """
@@ -82,8 +123,8 @@ def apply_heatmap_overlay(img_bgr, heatmap_val, alpha=0.5):
 
 def main():
     # 配置文件路径
-    csv_path = 'data/Surge_Frames/AIxsuture/clips_16f/train_dense_16f_detailed.csv'
-    output_dir = 'vis_results_jepa_motion'
+    csv_path = 'data/Surge_Frames/Cholec80/clips_16f/train_dense_16f_detailed.csv'
+    output_dir = 'vis_results_jepa_motion/cholec80'
     sample_count = 5  # 随机采样的数量
     
     ensure_dir(output_dir)

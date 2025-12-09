@@ -47,3 +47,4 @@ SLURM_Logs/*
 logs10
 wandb
 docs/
+vis_results_jepa_motion/*

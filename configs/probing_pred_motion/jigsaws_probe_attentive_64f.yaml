@@ -1,0 +1,199 @@
+cpus_per_task: 2
+eval_name: surgical_phase_probing
+folder: logs/cpt_jigsaws_regression/jigsaws_vitl16-256px-64f_multi-head
+dataset: jigsaws_skill_regression
+mem_per_gpu: 220G
+nodes: 1
+max_workers: 4
+num_workers: 8
+resume_checkpoint: false
+tag: jigsaws-skill-regression
+tasks_per_node: 1
+
+# TEMPORARY: Quick test run
+quick_run: false
+quick_run_num_videos: 2
+
+# Task type: 'classification' or 'regression'
+task_type: regression
+
+# Bootstrap configuration (default: enabled)
+use_bootstrap: true
+n_bootstrap: 1000
+bootstrap_seed: 42
+
+# wandb configuration
+wandb:
+  project: nsjepa-probing-cb-softmax   # Your wandb project name
+  entity: nsjepa  # Your wandb username or team (optional, uses default if null)
+  name: jigsaws_skill_regression  # Run name (optional, wandb will generate if null)
+  tags:
+    - jigsaws
+    - skill-regression
+    - vitl
+  group: null  # Group name for grouping related runs (optional)
+  notes: "Multi-head regression for skill score prediction on JIGSAWS dataset with bootstrap uncertainty estimation"
+
+experiment:
+  classifier:
+    num_heads: 16
+    num_probe_blocks: 4
+  data:
+    dataset_type: surgical_videodataset
+
+    # JIGSAWS dataset paths
+    dataset_train:
+    - data/Surge_Frames/JIGSAWS/clips_64f/train_dense_64f_detailed.csv
+
+    dataset_val:
+    - data/Surge_Frames/JIGSAWS/clips_64f/test_dense_64f_detailed.csv
+
+    # For regression, num_classes is not used, but kept for compatibility
+    # The label field in CSV will be treated as continuous skill scores
+    num_classes:
+    - 1   # Placeholder for regression (outputs 1 continuous value)
+
+    frames_per_clip: 64
+    num_segments: 1
+    num_views_per_segment: 1
+    resolution: 256
+
+  optimization:
+    batch_size: 4
+    multihead_kwargs:
+    # Regressor 0
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.01
+    # Regressor 1
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.01
+    # Regressor 2
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.01
+    # Regressor 3
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.01
+    # Regressor 4
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.01
+    # Regressor 5
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.1
+    # Regressor 6
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.1
+    # Regressor 7
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.1
+    # Regressor 8
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.1
+    # Regressor 9
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.1
+    # Regressor 10
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.4
+    # Regressor 11
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.4
+    # Regressor 12
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.4
+    # Regressor 13
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.4
+    # Regressor 14
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.4
+    # Regressor 15
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.8
+    num_epochs: 1
+    use_bfloat16: true
+    use_pos_embed: false
+    
+    loss:
+      type: None
+      beta: 0.9999
+      gamma: 2.0
+
+model_kwargs:
+  checkpoint: logs/surgical_cpt_vitl16-256px-64f_lr1e-20_epoch_21-dataset/latest.pt
+  module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
+  pretrain_kwargs:
+    encoder:
+      checkpoint_key: target_encoder
+      img_temporal_dim_size: null
+      model_name: vit_large
+      patch_size: 16
+      tubelet_size: 2
+      uniform_power: true
+      use_rope: true
+  wrapper_kwargs:
+    max_frames: 128
+    use_pos_embed: false
