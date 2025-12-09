@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=prb_egosurgery
+#SBATCH --job-name=prb_surgicalactions160-25fps
 #SBATCH --output=log/%x_%j.out
 #SBATCH --error=log/%x_%j.err
 #SBATCH --time=48:00:00
@@ -15,13 +15,13 @@
 # ========================
 # 任务特定配置
 # ========================
-FNAME="egosurgery_probe_attentive_64f.yaml"
+FNAME="surgicalactions160-25fps_probe_attentive_64f.yaml"
 TASK="probing_pred_motion"
-CKPTL_DIR="logs/pred-motion-v3_vitg-256px-64f_motion-pos-weight-10"
+CKPTL_DIR="logs/pred-motion-v3_vitg-256px-64f-motion-weight-1"
 CKPT_EPOCH="latest.pt"
 MODEL_NAME="vit_giant_xformers"
 timestamp="1209"
-CKPTL_NAME="pred-motion-v3_vitg-256px-64f_motion-pos-weight-10"
+CKPTL_NAME="pred-motion-v3_vitg-256px-64f-motion-weight-1"
 # ========================
 # 检查传入参数
 # ========================

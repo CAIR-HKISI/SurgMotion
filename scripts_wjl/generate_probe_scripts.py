@@ -95,8 +95,16 @@ configs = [
 # }
 
 
+# global_vars = {
+#     "CKPTL_DIR": "logs/pred-motion-v3-multi-scale_vitg-256px-64f",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_giant_xformers",
+#     "timestamp": "1209",
+#     "TASK": "probing_pred_motion"
+# }
+
 global_vars = {
-    "CKPTL_DIR": "logs/pred-motion-v3-multi-scale_vitg-256px-64f",
+    "CKPTL_DIR": "logs/pred-motion-v3_vitg-256px-64f-motion-weight-1",
     "CKPT_EPOCH": "latest.pt",
     "MODEL_NAME": "vit_giant_xformers",
     "timestamp": "1209",
