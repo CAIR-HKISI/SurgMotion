@@ -17,11 +17,11 @@
 # ========================
 FNAME="polypdiag_probe_attentive_64f.yaml"
 TASK="probing_pred_motion"
-CKPTL_DIR="pred-motion-v3_vitg-256px-64f_motion-weight-10"
+CKPTL_DIR="logs/pred-motion-v3-multi-scale_vitg-256px-64f"
 CKPT_EPOCH="latest.pt"
 MODEL_NAME="vit_giant_xformers"
 timestamp="1209"
-CKPTL_NAME="pred-motion-v3_vitg-256px-64f_motion-weight-10"
+CKPTL_NAME="pred-motion-v3-multi-scale_vitg-256px-64f"
 # ========================
 # 检查传入参数
 # ========================
