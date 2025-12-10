@@ -128,29 +128,40 @@ import os
 # }
 
 
+
+# configs = [
+#     "m2cai_probe_attentive_64f.yaml",
+#     "atlas_probe_attentive_64f.yaml",
+#     "cholec80_probe_attentive_64f.yaml",
+#     "jigsaws_probe_attentive_64f.yaml",
+#     "ophnet_probe_attentive_64f.yaml",
+#     "pitvis_probe_attentive_64f.yaml",
+# ]
+
 configs = [
-    "m2cai_probe_attentive_64f.yaml",
-    "atlas_probe_attentive_64f.yaml",
-    "cholec80_probe_attentive_64f.yaml",
-    "jigsaws_probe_attentive_64f.yaml",
-    "ophnet_probe_attentive_64f.yaml",
-    "pitvis_probe_attentive_64f.yaml",
+    "autolaparo_probe_attentive_64f.yaml",
+    "egosurgery_probe_attentive_64f.yaml",
+    "pmlr50_probe_attentive_64f.yaml",
+    "aIxsuture-5s_probe_attentive_64f.yaml",
+    "avos_probe_attentive_64f.yaml",
+    "polypdiag_probe_attentive_64f.yaml",
+    "surgicalactions160-25fps_probe_attentive_64f.yaml"
 ]
 
 global_vars = {
-    "CKPTL_DIR": "logs/pred-motion-v3_vitg-256px-64f_jepaloss-l2",
+    "CKPTL_DIR": "logs/pred-motion-v3_vitg-256px-64f_jepaloss-l2_e600",
     "CKPT_EPOCH": "latest.pt",
     "MODEL_NAME": "vit_giant_xformers",
     "timestamp": "1210",
     "TASK": "probing_pred_motion"
 }
 
-
 task = global_vars["TASK"]
 ckptl_name = os.path.basename(global_vars["CKPTL_DIR"].rstrip("/"))
 
 source_script = "scripts_wjl/run_probing.sh"
 output_dir = f"scripts_wjl/{task}_{global_vars['timestamp']}_{ckptl_name}"
+
 
 
 # 确保输出目录存在
