@@ -13,17 +13,17 @@ data:
   - data/Surge_Frames/JIGSAWS/clips_16f/train_dense_16f_detailed.csv
 
   ## Landscope dataset
-  - data/Surge_Frames/AutoLaparo/clips_16f/train_dense_16f_detailed.csv
-  - data/Surge_Frames/Cholec80/clips_16f/train_dense_16f_detailed.csv
-  - data/Surge_Frames/BernBypass70/clips_16f/train_dense_16f_detailed.csv
-  - data/Surge_Frames/StrasBypass70/clips_16f/train_dense_16f_detailed.csv
-  - data/Surge_Frames/PmLR50/clips_16f/train_dense_16f_detailed.csv
-  - data/Surge_Frames/GynSurg_Action/clips_16f/train_dense_16f_detailed.csv
+  - data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
+  - data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv
+  - data/Surge_Frames/BernBypass70/clips_64f/train_dense_64f_detailed.csv
+  - data/Surge_Frames/StrasBypass70/clips_64f/train_dense_64f_detailed.csv
+  - data/Surge_Frames/PmLR50/clips_64f/train_dense_64f_detailed.csv
+  - data/Surge_Frames/GynSurg_Action/clips_64f/train_dense_64f_detailed.csv
   
   
   ### Open surgery dataset
-  - data/Surge_Frames/EgoSurgery/clips_16f/train_dense_16f_detailed.csv
-  - data/Surge_Frames/AVOS/clips_16f/train_dense_16f_detailed.csv
+  - data/Surge_Frames/EgoSurgery/clips_64f/train_dense_64f_detailed.csv
+  - data/Surge_Frames/AVOS/clips_64f/train_dense_64f_detailed.csv
   
   ### Ophthalmology dataset
   - data/Surge_Frames/CATARACTS/clips_64f/train_dense_64f_detailed.csv
@@ -37,9 +37,9 @@ data:
   - data/Surge_Frames/PolypDiag/clips_64f/train_dense_64f_detailed.csv 
 
   ### NeuroSurgery dataset
-  - data/Surge_Frames/PitVis/clips_16f/train_dense_16f_detailed.csv
+  - data/Surge_Frames/PitVis/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/Private_PWH_TSS_79/clips_64f/unlabeled_dense_64f_detailed.csv
-  - data/Surge_Frames/Private_PUMCH/clips_16f/unlabeled_dense_16f_detailed.csv
+  - data/Surge_Frames/Private_PUMCH/clips_64f/unlabeled_dense_64f_detailed.csv
   - data/Surge_Frames/Private_HKU-TSS/clips_64f/unlabeled_dense_64f_detailed.csv
   - data/Surge_Frames/Private_HKU-SZH_Brain_Open_Surgery/clips_64f/unlabeled_dense_64f_detailed.csv
 
