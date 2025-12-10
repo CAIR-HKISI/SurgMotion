@@ -38,7 +38,7 @@ data:
 
   ### NeuroSurgery dataset
   - data/Surge_Frames/PitVis/clips_16f/train_dense_16f_detailed.csv
-  - data/Surge_Frames/Private_PWH_TSS_79/clips_16f/unlabeled_dense_16f_detailed.csv
+  - data/Surge_Frames/Private_PWH_TSS_79/clips_64f/unlabeled_dense_64f_detailed.csv
   - data/Surge_Frames/Private_PUMCH/clips_16f/unlabeled_dense_16f_detailed.csv
   - data/Surge_Frames/Private_HKU-TSS/clips_64f/unlabeled_dense_64f_detailed.csv
 

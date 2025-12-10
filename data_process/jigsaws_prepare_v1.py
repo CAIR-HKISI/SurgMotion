@@ -33,7 +33,7 @@ SPLIT_PATH = Path(
 )
 
 FRAME_ROOT = Path("data/Surge_Frames/JIGSAWS_v1")
-FPS_LIST = [1, 5, 15, 20]
+FPS_LIST = [1,5,15,20]
 
 LABEL_KEY = "GRS"
 LABEL_RANGE = (6, 30)  # 归一化区间
@@ -44,12 +44,52 @@ def load_splits() -> Dict[str, List[List[str]]]:
     return np.load(SPLIT_PATH, allow_pickle=True).item()
 
 
+def build_video_map() -> Dict[str, List[str]]:
+    """
+    将不带 capture 后缀的基础名映射到实际存在的 <video_id>（含 captureX）。
+    例：Knot_Tying_B001 -> [Knot_Tying_B001_capture1, Knot_Tying_B001_capture2]
+    """
+    mapping: Dict[str, List[str]] = {}
+    for mp4 in VIDEO_DIR.glob("*.mp4"):
+        base = mp4.stem  # 带 capture 后缀
+        if "_capture" in base:
+            root = base.split("_capture")[0]
+        else:
+            root = base
+        mapping.setdefault(root, []).append(base)
+    return mapping
+
+
 def get_all_videos(splits: Dict[str, List[List[str]]]) -> List[str]:
     vids: List[str] = []
     for fold_lists in splits.values():
         for fold in fold_lists:
             vids.extend(fold)
     return sorted(set(vids))
+
+
+def expand_split_ids(split_ids: Iterable[str], video_map: Dict[str, List[str]]) -> List[str]:
+    """将无 capture 的名字展开为实际存在的 video_id 列表。"""
+    expanded: List[str] = []
+    for name in split_ids:
+        matches = video_map.get(name, [])
+        if not matches:
+            print(f"[WARN] no matched video for '{name}' (expecting capture*)")
+        expanded.extend(matches)
+    return expanded
+
+
+def expand_splits(
+    splits: Dict[str, List[List[str]]], video_map: Dict[str, List[str]]
+) -> Dict[str, List[List[str]]]:
+    """对每个折的列表做 capture 展开。"""
+    new_splits: Dict[str, List[List[str]]] = {}
+    for task, fold_lists in splits.items():
+        new_fold_lists: List[List[str]] = []
+        for fold in fold_lists:
+            new_fold_lists.append(expand_split_ids(fold, video_map))
+        new_splits[task] = new_fold_lists
+    return new_splits
 
 
 def parse_case_id(video_id: str) -> int:
@@ -160,7 +200,9 @@ def build_split_csv(
 
 
 def main() -> None:
-    splits = load_splits()
+    raw_splits = load_splits()
+    video_map = build_video_map()
+    splits = expand_splits(raw_splits, video_map)
     all_videos = get_all_videos(splits)
 
     # 1) 抽帧
