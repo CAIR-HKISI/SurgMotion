@@ -26,14 +26,15 @@ data:
   - data/Surge_Frames/AVOS/clips_16f/train_dense_16f_detailed.csv
   
   ### Ophthalmology dataset
-  - data/Surge_Frames/OphNet2024_phase/clips_16f/train_dense_16f_detailed.csv
+  - data/Surge_Frames/CATARACTS/clips_64f/train_dense_64f_detailed.csv
+  - data/Surge_Frames/OphNet2024_phase/clips_64f/train_dense_64f_detailed.csv
   
   ### Gastrointestinal dataset
   - data/Surge_Frames/EndoFM_Private/clips_64f/unlabeled_dense_64f_detailed.csv
-  - data/Surge_Frames/EndoFM_Colonoscopic/clips_16f/unlabeled_dense_16f_detailed.csv
-  - data/Surge_Frames/Private_KCH_Colonscopy_Cut/clips_16f/unlabeled_dense_16f_detailed.csv
-  - data/Surge_Frames/Private_SYSU_Brochiscopy_Cut/clips_16f/unlabeled_dense_16f_detailed.csv
-  - data/Surge_Frames/PolypDiag/clips_16f/train_dense_16f_detailed.csv
+  - data/Surge_Frames/EndoFM_Colonoscopic/clips_64f/unlabeled_dense_64f_detailed.csv
+  - data/Surge_Frames/Private_KCH_Colonscopy_Cut/clips_64f/unlabeled_dense_64f_detailed.csv
+  - data/Surge_Frames/Private_SYSU_Brochiscopy_Cut/clips_64f/unlabeled_dense_64f_detailed.csv
+  - data/Surge_Frames/PolypDiag/clips_64f/train_dense_64f_detailed.csv 
 
   ### NeuroSurgery dataset
   - data/Surge_Frames/PitVis/clips_16f/train_dense_16f_detailed.csv
