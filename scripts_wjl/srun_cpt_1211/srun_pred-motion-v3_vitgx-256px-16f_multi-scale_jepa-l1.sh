@@ -66,8 +66,9 @@ TIME=$(date +"%Y%m%d_%H%M")
 CFG_NAME=${FNAME%.yaml}
 
 # Slurm 日志路径（独立训练日志）
-LOG_FILE="pred-motion-v3_vitgx-256px-16f_multi-scale_jepa-l1/${TIME}_${CFG_NAME}.log"
+LOG_FILE="logs/pred-motion-v3_vitgx-256px-16f_multi-scale_jepa-l1/${TIME}_${CFG_NAME}.log"
 
+mkdir -p "logs/pred-motion-v3_vitgx-256px-16f_multi-scale_jepa-l1"
 
 # 设置端口（可根据需要随机分配）
 export MASTER_PORT=${MASTER_PORT:-$((12000 + RANDOM % 20000))}
