@@ -66,10 +66,8 @@ TIME=$(date +"%Y%m%d_%H%M")
 CFG_NAME=${FNAME%.yaml}
 
 # Slurm 日志路径（独立训练日志）
-LOG_FILE="logs/${CFG_NAME}/${TIME}_${TASK}_${CFG_NAME}.log"
+LOG_FILE="logs/pred_motion_cpt_vitg-xformers-256px-16f/${TIME}_${CFG_NAME}.log"
 
-# 确保日志目录存在
-mkdir -p "logs/${CFG_NAME}"
 
 
 # 设置端口（可根据需要随机分配）
