@@ -32,7 +32,7 @@ SPLIT_PATH = Path(
     "data/Landscopy/JIGSAWS_CVPR2021/Towards-Unified-Surgical-Skill-Assessment/metas/JIGSAWS_split_4_fold.npy"
 )
 
-FRAME_ROOT = Path("data/Surge_Frames/JIGSAWS_v1")
+FRAME_ROOT = Path("data/Surge_Frames/JIGSAWS_v2")
 FPS_LIST = [1,5,15,20]
 
 LABEL_KEY = "GRS"
@@ -108,14 +108,39 @@ def parse_case_id(video_id: str) -> int:
 
 
 def load_label(video_id: str) -> float | None:
-    npy = LABEL_DIR / f"FT-score-{video_id}.npy"
-    if not npy.exists():
-        print(f"[WARN] label missing: {npy}")
+    # 修改为模糊匹配，与参考脚本逻辑一致
+    # 参考：score_file = [i for i in os.listdir(label_dir) if 'FT-score' in i and 'npy' in i and video in i]
+    # 确保只匹配到一个文件
+    candidates = [
+        f for f in LABEL_DIR.iterdir()
+        if f.suffix == ".npy" and "FT-score" in f.name and video_id in f.name
+    ]
+
+    if len(candidates) == 0:
+        print(f"[WARN] label missing for {video_id} (pattern: FT-score...{video_id}...)")
         return None
-    obj = np.load(npy, allow_pickle=True).item()
+    
+    if len(candidates) > 1:
+        # 如果匹配到多个，尝试找精确匹配
+        exact = LABEL_DIR / f"FT-score-{video_id}.npy"
+        if exact in candidates:
+            npy = exact
+        else:
+            print(f"[WARN] multiple label files found for {video_id}: {[f.name for f in candidates]}, skipping")
+            return None
+    else:
+        npy = candidates[0]
+
+    try:
+        obj = np.load(npy, allow_pickle=True).item()
+    except Exception as e:
+        print(f"[WARN] failed to load {npy}: {e}")
+        return None
+
     if LABEL_KEY not in obj:
         print(f"[WARN] label key '{LABEL_KEY}' missing in {npy.name}")
         return None
+    
     raw = float(obj[LABEL_KEY])
     lo, hi = LABEL_RANGE
     norm = (raw - lo) / (hi - lo)
@@ -152,31 +177,43 @@ def extract_frames(video_id: str, fps: int) -> None:
 
 
 def write_clip_txt(video_ids: Iterable[str], fps: int) -> None:
-    lines = []
+    # 修改：clip_info_{fps}fps 是文件夹，下面每个视频一个txt
+    out_dir = FRAME_ROOT / f"clip_info_{fps}fps"
+    ensure_dir(out_dir)
+
     for vid in video_ids:
-        frames_dir = (FRAME_ROOT / f"frames_{fps}" / vid).resolve()
-        if frames_dir.exists():
-            lines.append(f"{vid} {frames_dir}")
-    out_path = FRAME_ROOT / f"clip_{fps}f.txt"
-    ensure_dir(out_path.parent)
-    out_path.write_text("\n".join(lines), encoding="utf-8")
-    print(f"[INFO] clip list saved: {out_path} ({len(lines)} lines)")
+        frames_dir = (FRAME_ROOT / f"frames_{fps}" / vid) # 移除 .resolve() 保持相对路径
+        if frames_dir.exists() and any(frames_dir.iterdir()):
+            # 存相对路径，相对于项目根目录
+            frames = sorted([str(f) for f in frames_dir.glob("*.jpg")])
+            if frames:
+                txt_path = out_dir / f"{vid}.txt"
+                txt_path.write_text("\n".join(frames), encoding="utf-8")
+    
+    print(f"[INFO] clip info txts saved in: {out_dir}")
 
 
 def build_split_csv(
     fps: int,
     fold_idx: int,
     split_name: str,
+    task_name: str,
     video_ids: Iterable[str],
     start_index: int = 0,
 ) -> Tuple[pd.DataFrame, int]:
     rows = []
     idx = start_index
+    # 保持相对路径
+    clip_info_dir = FRAME_ROOT / f"clip_info_{fps}fps"
+
     for vid in video_ids:
-        frames_dir = (FRAME_ROOT / f"frames_{fps}" / vid).resolve()
-        if not frames_dir.exists():
-            print(f"[WARN] frames not found for {vid} @ {fps}fps, skip")
+        # clip_path 指向该视频的帧路径列表文件，使用相对路径
+        txt_path = clip_info_dir / f"{vid}.txt"
+        
+        if not txt_path.exists():
+            print(f"[WARN] clip info txt not found for {vid} @ {fps}fps, skip")
             continue
+            
         label = load_label(vid)
         if label is None:
             continue
@@ -185,15 +222,19 @@ def build_split_csv(
             {
                 "Index": idx,
                 "case_id": case_id,
-                "clip_path": str(frames_dir),
+                "clip_path": str(txt_path), # 存入 CSV 的也是相对路径
                 "label": label,
                 "label_name": LABEL_KEY,
             }
         )
         idx += 1
 
+    if not rows:
+        return pd.DataFrame(), idx
+
     df = pd.DataFrame(rows)
-    out_csv = FRAME_ROOT / f"{split_name}_fold{fold_idx}_{fps}f.csv"
+    # 文件名增加 task_name
+    out_csv = FRAME_ROOT / f"{task_name}_{split_name}_fold{fold_idx}_{fps}f.csv"
     df.to_csv(out_csv, index=False)
     print(f"[INFO] saved {len(df)} rows -> {out_csv}")
     return df, idx
@@ -217,20 +258,20 @@ def main() -> None:
     # 3) 按折生成 CSV（train/test），每个 fps 一套
     for fps in FPS_LIST:
         for fold_idx in range(4):
-            train_videos: List[str] = []
-            test_videos: List[str] = []
-            for task, task_folds in splits.items():
+            # 修改：按 task 分别生成 CSV
+            for task_name, task_folds in splits.items():
                 if fold_idx >= len(task_folds):
                     continue
-                test_videos.extend(task_folds[fold_idx])
+                
+                test_videos = sorted(set(task_folds[fold_idx]))
+                train_videos = []
                 for j, fold in enumerate(task_folds):
                     if j != fold_idx:
                         train_videos.extend(fold)
-            # 去重保持稳定顺序
-            train_videos = sorted(set(train_videos))
-            test_videos = sorted(set(test_videos))
-            build_split_csv(fps, fold_idx, "train", train_videos, start_index=0)
-            build_split_csv(fps, fold_idx, "test", test_videos, start_index=0)
+                train_videos = sorted(set(train_videos))
+
+                build_split_csv(fps, fold_idx, "train", task_name, train_videos, start_index=0)
+                build_split_csv(fps, fold_idx, "test", task_name, test_videos, start_index=0)
 
 
 if __name__ == "__main__":
