@@ -1,39 +1,52 @@
 app: vjepa_pred
 cpus_per_task: 16
-folder: logs/pred_motion_cpt_vitg-xformers-256px-16f/cooldown-ckpt100_e40/
+folder: logs/pred-motion-v3_vitgx-256px-16f_multi-scale_jepa-l1/cooldown-ckpt100_e30
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
 data:
   dataset_type: surgical_videodataset
   datasets:
+  
+  ## skills dataset
   - data/Surge_Frames/AIxsuture/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/JIGSAWS/clips_64f/train_dense_64f_detailed.csv
+
+  ## Landscope dataset
   - data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/BernBypass70/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/StrasBypass70/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/PmLR50/clips_64f/train_dense_64f_detailed.csv
+  
+  ### Open surgery dataset
   - data/Surge_Frames/EgoSurgery/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/AVOS/clips_64f/train_dense_64f_detailed.csv
+  
+  ### Ophthalmology dataset
   - data/Surge_Frames/CATARACTS/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/OphNet2024_phase/clips_64f/train_dense_64f_detailed.csv
+  
+  ### Gastrointestinal dataset
   - data/Surge_Frames/EndoFM_Private/clips_64f/unlabeled_dense_64f_detailed.csv
   - data/Surge_Frames/EndoFM_Colonoscopic/clips_64f/unlabeled_dense_64f_detailed.csv
+  
+  ### NeuroSurgery dataset
   - data/Surge_Frames/PitVis/clips_64f/train_dense_64f_detailed.csv
   - data/Surge_Frames/Private_PWH_TSS_79/clips_64f/unlabeled_dense_64f_detailed.csv
   - data/Surge_Frames/Private_PUMCH/clips_64f/unlabeled_dense_64f_detailed.csv
   - data/Surge_Frames/Private_HKU-TSS/clips_64f/unlabeled_dense_64f_detailed.csv
-  
+
+
   datasets_weights:
   - 0.50
   - 0.50
 
   - 0.20
   - 0.20
-  - 0.20
-  - 0.20
-  - 0.20
+  - 0.15
+  - 0.15
+  - 0.30
 
   - 0.50
   - 0.50
@@ -50,32 +63,31 @@ data:
   - 0.25
 
 
-  batch_size: 16
+  batch_size: 64
   crop_size: 256
   dataset_fpcs:
-  - 64
-  - 64
+  - 16
+  - 16
 
-  - 64  
-  - 64
-  - 64
-  - 64
-  - 64
+  - 16
+  - 16
+  - 16
+  - 16
+  - 16
 
-  - 64
-  - 64
+  - 16
+  - 16
   
-  - 64
-  - 64
-
-  - 64
-  - 64
-
-  - 64
-  - 64
-  - 64
-  - 64
-
+  - 16
+  - 16
+  
+  - 16
+  - 16
+  
+  - 16
+  - 16
+  - 16
+  - 16
 
   fps: 1
   num_workers: 4
@@ -84,47 +96,78 @@ data:
   pin_mem: true
   tubelet_size: 2
 
-  
 data_aug:
   auto_augment: false
   motion_shift: false
-  random_resize_aspect_ratio: [0.75, 1.35]
-  random_resize_scale: [0.3, 1.0]
+  random_resize_aspect_ratio:
+  - 0.75
+  - 1.35
+  random_resize_scale:
+  - 0.3
+  - 1.0
   reprob: 0.0
 
+
 loss:
-  motion_loss_weight: 1.0
+  motion_loss_weight: 5.0
   jepa_loss:
     metric: generalized_mean
-    metric_p: 2.0
+    metric_p: 1.0
     multiscale:
-      enable: false
-      layers: [1.0]
-      weights: [1.0]
+      enable: true
+      layers:  [0.25, 0.50, 0.75, 1.00]
+      weights: [1.00, 1.00, 1.00, 1.00]
     params:
       eps: 1.0e-06
+
   motion_loss:
     metric: smooth_l1
     params:
       beta: 1.0
       pos_weight: 10.0
 
+    # 必须显式开启！
+    enable_weighted_jepa: true
+    
+    # 这里定义的因子会传递给 JepaLoss
+    # 推荐 2.0 ~ 5.0，表示运动区域的特征重建权重是静止区域的 3~6 倍
+    weight_factor: 5.0 
+
+    # Motion Target 的生成参数
+    distribution:
+      sigma: 1.0       # 高斯平滑半径，1.0 适合 16x16 patch
+      enable: true
+      # [新增] 启用 TopK 难例挖掘
+      topk: 1024       
+      topk_mode: abs
+
 mask:
-- aspect_ratio: [0.75, 1.5]
+- aspect_ratio:
+  - 0.75
+  - 1.5
   full_complement: false
   max_keep: null
   max_temporal_keep: 1.0
   num_blocks: 8
-  spatial_scale: [0.15, 0.15]
-  temporal_scale: [1.0, 1.0]
-- aspect_ratio: [0.75, 1.5]
+  spatial_scale:
+  - 0.15
+  - 0.15
+  temporal_scale:
+  - 1.0
+  - 1.0
+- aspect_ratio:
+  - 0.75
+  - 1.5
   full_complement: false
   max_keep: null
   max_temporal_keep: 1.0
   num_blocks: 2
-  spatial_scale: [0.7, 0.7]
-  temporal_scale: [1.0, 1.0]
-
+  spatial_scale:
+  - 0.7
+  - 0.7
+  temporal_scale:
+  - 1.0
+  - 1.0
 meta:
   dtype: bfloat16
   eval_freq: 100
@@ -137,13 +180,13 @@ model:
   model_name: vit_giant_xformers
   pred_depth: 12
   pred_embed_dim: 384
-  pred_num_heads: 16
+  pred_num_heads: 12
   uniform_power: true
   use_activation_checkpointing: true
   use_mask_tokens: true
   use_rope: true
   zero_init_mask_tokens: true
-  cpt_ckeckpoint: logs/pred_motion_cpt_vitg-xformers-256px-16f/e100.pt
+  cpt_ckeckpoint: logs/pred-motion-v3_vitgx-256px-16f_multi-scale_jepa-l1/e100.pt
   use_extrinsics: false
 optimization:
   anneal_ckpt: None
@@ -158,4 +201,10 @@ optimization:
   weight_decay: 0.02
   final_weight_decay: 0.02
 
-
+wandb:
+  project: nsjepa-motion-pred
+  entity: nsjepa
+  name: cooldown-ckpt100-e40
+  tags: [cooldown, vitg-x-256px-64f, ckpt100-e30]
+  group: jepaloss
+  notes: "Cooldown training for ViT-G with xformers at 256px 64 frames at 40 epochs"
