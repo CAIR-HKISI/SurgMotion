@@ -1,6 +1,6 @@
 app: vjepa_pred
 cpus_per_task: 16
-folder: logs/pred-motion-v3_vitgx-256px-16f_multi-scale_jepa-l1/cooldown-ckpt100_e30
+folder: logs/pred-motion-v3_vitgx-256px-16f_multi-scale_jepa-l1/cooldown-ckpt100-e30_max-token-4096
 mem_per_gpu: 220G
 nodes: 1
 tasks_per_node: 1
@@ -44,9 +44,9 @@ data:
 
   - 0.20
   - 0.20
-  - 0.15
-  - 0.15
-  - 0.30
+  - 0.20
+  - 0.20
+  - 0.20
 
   - 0.50
   - 0.50
@@ -63,31 +63,31 @@ data:
   - 0.25
 
 
-  batch_size: 64
+  batch_size: 16
   crop_size: 256
   dataset_fpcs:
-  - 16
-  - 16
+  - 64
+  - 64
 
-  - 16
-  - 16
-  - 16
-  - 16
-  - 16
+  - 64
+  - 64
+  - 64
+  - 64
+  - 64
 
-  - 16
-  - 16
+  - 64
+  - 64
   
-  - 16
-  - 16
+  - 64
+  - 64
   
-  - 16
-  - 16
+  - 64
+  - 64
   
-  - 16
-  - 16
-  - 16
-  - 16
+  - 64
+  - 64
+  - 64
+  - 64
 
   fps: 1
   num_workers: 4
@@ -135,10 +135,10 @@ loss:
 
     # Motion Target 的生成参数
     distribution:
-      sigma: 1.0       # 高斯平滑半径，1.0 适合 16x16 patch
       enable: true
-      # [新增] 启用 TopK 难例挖掘
-      topk: 1024       
+      sigma: 1.0       # 高斯平滑半径，1.0 适合 16x16 patch
+      # [Cooldown 64f] 4x topk (16f=1024 -> 64f=4096)
+      topk: 4096       
       topk_mode: abs
 
 mask:
@@ -191,12 +191,13 @@ model:
 optimization:
   anneal_ckpt: None
   ema: [0.99925, 0.99925]
-  epochs: 20
+  epochs: 30
   final_lr: 1.0e-06
   ipe: 300
   ipe_scale: 1.25
-  lr: 0.000525
-  start_lr: 0.0001
+  # [Cooldown] 低学习率
+  lr: 5.0e-5
+  start_lr: 1.0e-6
   warmup: 5
   weight_decay: 0.02
   final_weight_decay: 0.02
@@ -204,7 +205,7 @@ optimization:
 wandb:
   project: nsjepa-motion-pred
   entity: nsjepa
-  name: cooldown-ckpt100-e40
-  tags: [cooldown, vitg-x-256px-64f, ckpt100-e30]
-  group: jepaloss
-  notes: "Cooldown training for ViT-G with xformers at 256px 64 frames at 40 epochs"
+  name: cooldown-ckpt100-e30-64f
+  tags: [cooldown, vitg-x-256px-64f, ckpt100, e30, max-token-4096]
+  group: cooldown
+  notes: "Cooldown training for ViT-G with xformers at 256px 64 frames at 30 epochs"
