@@ -138,6 +138,26 @@ import os
 #     "pitvis_probe_attentive_64f.yaml",
 # ]
 
+# configs = [
+#     "autolaparo_probe_attentive_64f.yaml",
+#     "egosurgery_probe_attentive_64f.yaml",
+#     "pmlr50_probe_attentive_64f.yaml",
+#     "aIxsuture-5s_probe_attentive_64f.yaml",
+#     "avos_probe_attentive_64f.yaml",
+#     "polypdiag_probe_attentive_64f.yaml",
+#     "surgicalactions160-25fps_probe_attentive_64f.yaml"
+# ]
+
+# global_vars = {
+#     "CKPTL_DIR": "logs/pred-motion-v3_vitg-256px-64f_jepaloss-l2_e600",
+#     "CKPT_EPOCH": "latest.pt",
+#     "MODEL_NAME": "vit_giant_xformers",
+#     "timestamp": "1210",
+#     "TASK": "probing_pred_motion"
+# }
+
+
+
 configs = [
     "autolaparo_probe_attentive_64f.yaml",
     "egosurgery_probe_attentive_64f.yaml",
@@ -149,10 +169,11 @@ configs = [
 ]
 
 global_vars = {
-    "CKPTL_DIR": "logs/pred-motion-v3_vitg-256px-64f_jepaloss-l2_e600",
+    "CKPTL_DIR": "logs/pred-motion-v3_vitgx-256px-16f_multi-scale_jepa-l1/cooldown-ckpt100-e30_max-token-4096"
+,
     "CKPT_EPOCH": "latest.pt",
     "MODEL_NAME": "vit_giant_xformers",
-    "timestamp": "1210",
+    "timestamp": "1217",
     "TASK": "probing_pred_motion"
 }
 
