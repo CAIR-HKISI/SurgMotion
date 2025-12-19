@@ -5,7 +5,6 @@
 import torch
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
-from .defaults import get_cfg
 import argparse
 import sys
 
@@ -283,6 +282,7 @@ def load_config(args):
             `init_method`, `cfg_file`, and `opts`.
     """
     # Setup cfg.
+    from .defaults import get_cfg
     cfg = get_cfg()
     # Load config from cfg.
     if args.cfg_file is not None:

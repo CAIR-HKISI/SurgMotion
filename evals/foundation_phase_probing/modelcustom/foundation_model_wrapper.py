@@ -96,7 +96,6 @@ class ClipAggregation(nn.Module):
         )
     
     def _multiviews_postprocess(self, outputs, B, F, num_clips, num_views_per_clip, clip_indices):
-        """处理多view多clip的输出"""
         _, N, D = outputs.size()
         T = F // self.tubelet_size  # 时序tokens数量
         S = N // T if N % T == 0 else N  # 空间tokens数量
@@ -111,12 +110,9 @@ class ClipAggregation(nn.Module):
                 all_outputs[j].append(o[j * B : (j + 1) * B])
         
         # 沿时间维度拼接
-        for i, view_outputs in enumerate(all_outputs):
-            if N % T == 0:  # 如果tokens可以reshape为时空结构
-                view_outputs = [o.reshape(B, T, S, D) for o in view_outputs]
-                view_outputs = torch.cat(view_outputs, dim=1).flatten(1, 2)
-            else:  # 否则直接拼接
-                view_outputs = torch.cat(view_outputs, dim=1)
+        for i, outputs in enumerate(all_outputs):
+            outputs = [o.reshape(B, T, S, D) for o in outputs]
+            outputs = torch.cat(outputs, dim=1).flatten(1, 2)
             
             # 添加位置编码（可选）这里可以添加temporal位置编码逻辑
             if (self.pos_embed is not None) and (clip_indices is not None):
@@ -127,7 +123,7 @@ class ClipAggregation(nn.Module):
                 pos_embed = pos_embed.unsqueeze(2).repeat(1, 1, S, 1)  # [B, T*num_clips, S, D]
                 pos_embed = pos_embed.flatten(1, 2)
                 outputs += pos_embed
-            all_outputs[i] = view_outputs
+            all_outputs[i] = outputs
         
         return all_outputs
 
@@ -187,18 +183,36 @@ def init_foundation_model(
         from .adapters.dinov3_adapter import DINOv3Adapter
         adapter = DINOv3Adapter.from_config(
             resolution=resolution,
-            frames_per_clip=frames_per_clip,
             checkpoint=checkpoint,
             model_name=model_name
         )
-    elif model_type == 'custom':
-        # 用于你现有的预训练模型
-        from .adapters.custom_adapter import CustomViTAdapter
-        adapter = CustomViTAdapter.from_config(
+    elif model_type == 'gastronet':
+        from .adapters.gastronet_adapter import GastroNetAdapter
+        adapter = GastroNetAdapter.from_config(
             resolution=resolution,
-            frames_per_clip=frames_per_clip,
             checkpoint=checkpoint,
-            **model_kwargs
+            model_name=model_name
+        )
+    elif model_type == 'selfsupsurg':
+        from .adapters.selfsupsurg_adapter import SelfSupSurgAdapter
+        adapter = SelfSupSurgAdapter.from_config(
+            resolution=resolution,
+            checkpoint=checkpoint,
+            model_name=model_name
+        )
+    elif model_type == 'endossl':
+        from .adapters.endossl_adapter import EndoSSLAdapter
+        adapter = EndoSSLAdapter.from_config(
+            resolution=resolution,
+            checkpoint=checkpoint,
+            model_name=model_name
+        )
+    elif model_type == 'gsvit':
+        from .adapters.gsvit_adapter import GSVITAdapter
+        adapter = GSVITAdapter.from_config(
+            resolution=resolution,
+            checkpoint=checkpoint,
+            model_name=model_name
         )
     else:
         raise ValueError(f"Unknown model type: {model_type}")

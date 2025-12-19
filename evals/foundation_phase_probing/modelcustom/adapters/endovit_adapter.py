@@ -2,15 +2,16 @@
 EndoViT Foundation Model Adapter
 基于官方EndoViT仓库定义，支持加载EndoViT_SPR checkpoint
 """
+import sys
+sys.path.append(".")
 
 import torch
 import torch.nn as nn
 from typing import Optional
 from pathlib import Path
 from functools import partial
-from .base_adapter import BaseFoundationModelAdapter
-from .utils import load_and_apply_checkpoint
-
+from evals.foundation_phase_probing.modelcustom.adapters.base_adapter import BaseFoundationModelAdapter
+from evals.foundation_phase_probing.modelcustom.adapters.utils import load_and_apply_checkpoint
 
 
 class EndoViTAdapter(BaseFoundationModelAdapter):
@@ -53,7 +54,7 @@ class EndoViTAdapter(BaseFoundationModelAdapter):
             success, info = load_and_apply_checkpoint(
                 model=model,
                 checkpoint_path=checkpoint,
-                default_path="/home/chen_chuxi/NSJepa/ckpts_foundation/endovit_SPR.pth",
+                default_path="ckpts/ckpts_foundation/endovit_SPR.pth",
                 strict=False,
                 key_prefix_to_remove=None,  # 如果需要移除前缀，在这里设置
                 verbose=True
@@ -90,7 +91,7 @@ class EndoViTAdapter(BaseFoundationModelAdapter):
         # 如果尺寸不匹配，进行resize
         if H != target_H or W != target_W:
             import torch.nn.functional as fn
-            print(f"Resizing input from {H}×{W} to {target_H}×{target_W} (EndoViT standard)")
+            #print(f"Resizing input from {H}×{W} to {target_H}×{target_W} (EndoViT standard)")
             # [B, C, F, H, W] → [B*F, C, H, W] → resize → [B*F, C, 224, 224]
             x_reshaped = x.permute(0, 2, 1, 3, 4).reshape(B * F, C, H, W)
             x_resized = fn.interpolate(x_reshaped, size=(target_H, target_W), 
@@ -144,7 +145,7 @@ if __name__ == "__main__":
     # 测试输入输出格式
     adapter = EndoViTAdapter.from_config(
         resolution=224,
-        checkpoint="/home/chen_chuxi/NSJepa/ckpts_foundation/endovit_SPR.pth",
+        checkpoint="ckpts/ckpts_foundation/endovit_SPR.pth",
         model_name='vit_base_patch16'
     )
     

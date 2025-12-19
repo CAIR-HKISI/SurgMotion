@@ -73,7 +73,6 @@ class DINOv2Adapter(BaseFoundationModelAdapter):
         # 如果尺寸不匹配，进行resize
         if H != target_H or W != target_W:
             import torch.nn.functional as Fn
-            print(f"Resizing input from {H}×{W} to {target_H}×{target_W} (patch_size={patch_size})")
             # [B, C, F, H, W] → [B*F, C, H, W] → resize → [B*F, C, H', W']
             x_reshaped = x.permute(0, 2, 1, 3, 4).reshape(B * F, C, H, W)
             x_resized = Fn.interpolate(x_reshaped, size=(target_H, target_W), 

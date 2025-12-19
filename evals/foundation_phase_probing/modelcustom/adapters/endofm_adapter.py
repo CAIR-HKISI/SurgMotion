@@ -3,14 +3,16 @@ EndoViT Foundation Model Adapter
 基于官方EndoViT仓库定义，支持加载EndoViT_SPR checkpoint
 """
 
+import sys
+sys.path.append(".")
+
 import torch
 import torch.nn as nn
 from typing import Optional
 from pathlib import Path
 from functools import partial
-from .base_adapter import BaseFoundationModelAdapter
-from .utils import load_and_apply_checkpoint, parse_args, load_config
-
+from evals.foundation_phase_probing.modelcustom.adapters.base_adapter import BaseFoundationModelAdapter
+from evals.foundation_phase_probing.modelcustom.adapters.utils import load_and_apply_checkpoint, parse_args, load_config
 
 
 class EndoFMAdapter(BaseFoundationModelAdapter):
@@ -78,7 +80,7 @@ class EndoFMAdapter(BaseFoundationModelAdapter):
             success, info = load_and_apply_checkpoint(
                 model=model,
                 checkpoint_path=checkpoint,
-                default_path="/home/chen_chuxi/NSJepa/ckpts_foundation/endo_fm.pth",
+                default_path="ckpts/ckpts_foundation/endo_fm.pth",
                 strict=False,
                 key_prefix_to_remove="backbone.",  # Endo-FM权重带有 'backbone.' 前缀
                 verbose=True
@@ -118,14 +120,14 @@ class EndoFMAdapter(BaseFoundationModelAdapter):
         # 验证输出形状
         if features.dim() != 3:
             raise ValueError(f"Expected 3D features [B*F, N, D], got shape: {features.shape}")
-        print(f"Features shape: {features.shape}")
+        #print(f"Features shape: {features.shape}")
         features = features[:, 1:, :]
-        print(f"Features shape after removing CLS token: {features.shape}")
+        #print(f"Features shape after removing CLS token: {features.shape}")
 
         B, N, D = features.shape
         
-        print(f"📊 Endo-FM feature shape: {features.shape}")
-        print(f"   - Expected N_total: {F * (H//16) * (W//16)} (F={F}, spatial_patches={(H//16)*(W//16)})")
+        #print(f"📊 Endo-FM feature shape: {features.shape}")
+        #print(f"   - Expected N_total: {F * (H//16) * (W//16)} (F={F}, spatial_patches={(H//16)*(W//16)})")
         
         
         return features
@@ -151,7 +153,7 @@ if __name__ == "__main__":
     adapter = EndoFMAdapter.from_config(
         resolution=256,
         frames_per_clip=64,
-        checkpoint="/home/chen_chuxi/NSJepa/ckpts_foundation/endofm_cholec80.pth",
+        checkpoint="ckpts/ckpts_foundation/endofm_cholec80.pth",
         model_name='endofm'
     )
     

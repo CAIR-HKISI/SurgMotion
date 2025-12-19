@@ -41,7 +41,7 @@ from src.utils.distributed import init_distributed
 from src.utils.logging import AverageMeter, CSVLogger, get_logger, gpu_timer
 from src.utils.checkpoint_loader import robust_checkpoint_loader
 import torch.distributed as dist
-from app.vjepa_pred.losses import JepaLoss, MotionLoss
+from app.vjepa_pred.losses import JepaLoss, MotionLoss, VarianceLoss, CovarianceLoss, RelationLoss
 # --
 log_timings = True
 log_freq = 10
@@ -419,6 +419,16 @@ def main(args, resume_preempt=False):
     cfgs_loss = args.get("loss", {})
     motion_loss_weight = float(cfgs_loss.get("motion_loss_weight", 0.1))
     
+    # 新增：正则化权重配置
+    reg_loss_weight = float(cfgs_loss.get("reg_loss_weight", 0.0))
+    reg_target_std = float(cfgs_loss.get("reg_target_std", 1.0))
+    
+    # 新增：Covariance Loss 权重配置 (replaces spectral)
+    covariance_loss_weight = float(cfgs_loss.get("covariance_loss_weight", 0.0))
+    
+    # 新增：Relation Loss 权重配置
+    relation_loss_weight = float(cfgs_loss.get("relation_loss_weight", 0.0))
+    
     jepa_loss_cfg = cfgs_loss.get("jepa_loss", {})
     # Rename 'type' to 'metric' for clarity, fallback to 'type' for backward compatibility
     jepa_metric_type = jepa_loss_cfg.get("metric", jepa_loss_cfg.get("type", "lp"))
@@ -497,6 +507,12 @@ def main(args, resume_preempt=False):
         loss_params=motion_loss_params,
         heatmap_cfg=motion_heatmap_full_cfg
     )
+    
+    # 新增：初始化 Variance Loss
+    variance_loss_fn = VarianceLoss(target_std=reg_target_std)
+    
+    # 新增：初始化 Relation Loss
+    relation_loss_fn = RelationLoss(temperature=1.0)
     # ---------------------------------
 
 
@@ -552,6 +568,9 @@ def main(args, resume_preempt=False):
                 "final_weight_decay": final_wd,
                 "jepa_metric_p": jepa_metric_p,
                 "motion_loss_weight": motion_loss_weight,
+                "reg_loss_weight": reg_loss_weight,
+                "covariance_loss_weight": covariance_loss_weight,
+                "relation_loss_weight": relation_loss_weight,
                 "jepa_metric_type": jepa_metric_type,
                 "motion_metric_type": motion_metric_type,
                 "warmup": warmup,
@@ -882,6 +901,11 @@ def main(args, resume_preempt=False):
         loss_meter = AverageMeter()
         loss_jepa_meter = AverageMeter()
         loss_motion_meter = AverageMeter()
+        loss_reg_meter = AverageMeter()
+        loss_cov_meter = AverageMeter()
+        loss_rel_meter = AverageMeter()
+        cosine_sim_meter = AverageMeter()
+        temporal_sim_meter = AverageMeter() # 新增：Temporal Similarity Meter
         loss_jepa_layers_meters = {}  # Dynamic dict for layer-wise losses
         mask_meters = {fpc: AverageMeter() for fpc in dataset_fpcs}
         iter_time_meter = AverageMeter()
@@ -971,17 +995,19 @@ def main(args, resume_preempt=False):
 
                     # 2. Motion Head
                     z_motion_preds = []
-                    for z_clip_preds in z:
-                        z_motion_group = []
-                        for z_p in z_clip_preds:
-                            z_motion_group.append(motion_head(z_p))
-                        z_motion_preds.append(z_motion_group)
+                    if motion_loss_weight > 0:
+                        for z_clip_preds in z:
+                            z_motion_group = []
+                            for z_p in z_clip_preds:
+                                z_motion_group.append(motion_head(z_p))
+                            z_motion_preds.append(z_motion_group)
                     
-                    return z_multi_layers, z_motion_preds
+                    return z_multi_layers, z_motion_preds, z
 
-                def loss_fn(z_layers, z_motion_preds, h, motion_target_map):
+                def loss_fn(z_layers, z_motion_preds, z_raw, h, motion_target_map):
                     # h: List[List[Tensor]] (Clips -> Layers)
                     # z_layers: List[List[List[Tensor]]] (Clips -> Predictions -> Layers)
+                    # z_raw: List[List[Tensor]] (Clips -> Predictions)
                     
                     # 1. Prepare Weights
                     motion_weights_masked = []
@@ -1040,35 +1066,97 @@ def main(args, resume_preempt=False):
                             jepa_layer_losses[lid] = torch.tensor(0.0, device=device, dtype=loss_jepa.dtype)
 
                     # 3. Motion Loss (Auxiliary)
-                    # Prepare motion targets (same as before)
-                    # Re-calculate masked motion targets if we skipped them above for weights
-                    if use_motion_weighted_jepa:
-                         motion_targets_masked = motion_weights_masked
-                    else:
-                         # Need to compute them now
-                         motion_targets_masked = []
-                         for mt, mi in zip(motion_target_map, masks_pred):
-                            masked = apply_masks(mt.unsqueeze(-1), mi, concat=False)  
-                            masked = [m.squeeze(-1) for m in masked]  
-                            motion_targets_masked.append(masked)
-
-                    motion_losses = []
-                    for pred_m_clip, target_m_clip in zip(z_motion_preds, motion_targets_masked):
-                         for p_m_ij, t_m_ij in zip(pred_m_clip, target_m_clip):
-                             motion_losses.append(motion_loss_fn(p_m_ij, t_m_ij))
-                             
-                    if len(motion_losses) > 0:
-                        loss_motion = torch.mean(torch.stack(motion_losses))
-                    else:
-                        loss_motion = torch.tensor(0.0, device=device, dtype=z_layers[0][0][0].dtype)
+                    loss_motion = torch.tensor(0.0, device=device, dtype=loss_jepa.dtype)
+                    if motion_loss_weight > 0:
+                        # Prepare motion targets (same as before)
+                        # Re-calculate masked motion targets if we skipped them above for weights
+                        if use_motion_weighted_jepa:
+                             motion_targets_masked = motion_weights_masked
+                        else:
+                             # Need to compute them now
+                             motion_targets_masked = []
+                             for mt, mi in zip(motion_target_map, masks_pred):
+                                masked = apply_masks(mt.unsqueeze(-1), mi, concat=False)  
+                                masked = [m.squeeze(-1) for m in masked]  
+                                motion_targets_masked.append(masked)
+    
+                        motion_losses = []
+                        for pred_m_clip, target_m_clip in zip(z_motion_preds, motion_targets_masked):
+                             for p_m_ij, t_m_ij in zip(pred_m_clip, target_m_clip):
+                                 motion_losses.append(motion_loss_fn(p_m_ij, t_m_ij))
+                                 
+                        if len(motion_losses) > 0:
+                            loss_motion = torch.mean(torch.stack(motion_losses))
                     
-                    return loss_jepa + motion_loss_weight * loss_motion, loss_jepa, loss_motion, jepa_layer_losses
+                    # 4. Regularization Loss (新增)
+                    loss_reg = torch.tensor(0.0, device=device, dtype=loss_jepa.dtype)
+                    if reg_loss_weight > 0:
+                        # 对 Predictor 的原始输出 z_raw 进行正则化
+                        # z_raw: List[List[Tensor]] (Clips -> Predictions)
+                        # 我们需要保持 Clip 的结构，计算 Instance-wise Variance
+                        # 这能强制每个 Clip 内部（时空维度）的特征保持多样性，防止时空崩塌
+                        
+                        reg_inputs = []
+                        for clip_preds in z_raw:
+                            # clip_preds: List[Tensor] (该 Clip 的所有 Mask 预测)
+                            # 将该 Clip 的所有预测 Token 拼在一起 -> [Total_Tokens_In_Clip, D]
+                            if clip_preds:
+                                clip_tokens = torch.cat(clip_preds, dim=0)
+                                reg_inputs.append(clip_tokens)
+                                
+                        if len(reg_inputs) > 0:
+                            # 传入 List[Tensor]，VarianceLoss 会对每个 Tensor (Clip) 独立计算方差
+                            loss_reg = variance_loss_fn(reg_inputs)
+
+                    # 5. Covariance Loss (New, replaces spectral)
+                    loss_cov = torch.tensor(0.0, device=device, dtype=loss_jepa.dtype)
+                    if covariance_loss_weight > 0:
+                        cov_inputs = []
+                        for clip_preds in z_raw:
+                            if clip_preds:
+                                clip_tokens = torch.cat(clip_preds, dim=0)
+                                cov_inputs.append(clip_tokens)
+                        
+                        if len(cov_inputs) > 0:
+                            # 传入 List[Tensor] (Clips)，合并后计算全局协方差
+                            loss_cov = covariance_loss_fn(cov_inputs)
+                    
+                    # 6. Relation Loss (New)
+                    loss_rel = torch.tensor(0.0, device=device, dtype=loss_jepa.dtype)
+                    if relation_loss_weight > 0:
+                        rel_losses = []
+                        for clip_idx, (z_preds, h_layers, mask_preds) in enumerate(zip(z_raw, h, masks_pred)):
+                            # Iterating over CLIPS
+                            # z_preds: List[Tensor] (Predictions per mask)
+                            # h_layers: List[Tensor] (Layers per clip) -> Need last layer usually?
+                            # Actually h_layers is List[Tensor] corresponding to target_layer_ids.
+                            # We usually want to match relation on the last layer or all layers?
+                            # Let's match relation on the projection output (z_L) vs target (h_L_masked) to be consistent with JEPA loss.
+                            pass
+                        
+                        # Re-iterate similar to JEPA loop but for relation
+                        for clip_idx, (z_preds, h_layers, mask_preds) in enumerate(zip(z_layers, h, masks_pred)):
+                             for pred_idx, (z_L_list, mask) in enumerate(zip(z_preds, mask_preds)):
+                                for layer_idx, z_L in enumerate(z_L_list):
+                                    # Only compute for the last layer (deepest semantic) usually, but we can do all.
+                                    # Let's do it for all target layers as they are aligned.
+                                    h_L_full = h_layers[layer_idx]
+                                    h_L_masked = apply_masks(h_L_full, [mask], concat=False)[0]
+                                    
+                                    l_val = relation_loss_fn(z_L, h_L_masked)
+                                    rel_losses.append(l_val)
+                        
+                        if len(rel_losses) > 0:
+                            loss_rel = torch.mean(torch.stack(rel_losses))
+
+                    total_loss = loss_jepa + motion_loss_weight * loss_motion + reg_loss_weight * loss_reg + covariance_loss_weight * loss_cov + relation_loss_weight * loss_rel
+                    return total_loss, loss_jepa, loss_motion, loss_reg, loss_cov, loss_rel, jepa_layer_losses
 
                 # Step 1. Forward
                 with torch.cuda.amp.autocast(dtype=dtype, enabled=mixed_precision):
                     h = forward_target(clips)
-                    z, z_motion_preds = forward_context(clips)
-                    loss, l_jepa, l_motion, l_jepa_layers = loss_fn(z, z_motion_preds, h, motion_target_map)
+                    z, z_motion_preds, z_raw = forward_context(clips)
+                    loss, l_jepa, l_motion, l_reg, l_cov, l_rel, l_jepa_layers = loss_fn(z, z_motion_preds, z_raw, h, motion_target_map)
 
                 # Step 2. Backward & step
 
@@ -1095,11 +1183,70 @@ def main(args, resume_preempt=False):
                     torch._foreach_mul_(params_k, m)
                     torch._foreach_add_(params_k, params_q, alpha=1 - m)
 
+                # --- Monitor Cosine Similarity ---
+                cosine_sim = 0.0
+                with torch.no_grad():
+                    if len(z_raw) > 0 and len(z_raw[0]) > 0:
+                        # z_raw[0][0]: [B, N_pred, D]
+                        z_sample = z_raw[0][0][0] # Take first sample: [N_pred, D]
+                        if z_sample.size(0) > 1:
+                            z_sample_norm = F.normalize(z_sample, p=2, dim=-1)
+                            # [N, N]
+                            sim_mat = torch.matmul(z_sample_norm, z_sample_norm.t())
+                            # Mean off-diagonal
+                            n = z_sample.size(0)
+                            cosine_sim = (sim_mat.sum() - n) / (n * (n - 1))
+                            cosine_sim = cosine_sim.item()
+
+                # --- Monitor Temporal Cosine Similarity ---
+                # 使用 Target Encoder 的输出 h 来监控时间相关性
+                # h: List[List[Tensor]] (Clips -> Layers -> [B, N, D])
+                temporal_sim = 0.0
+                with torch.no_grad():
+                    if len(h) > 0 and len(h[0]) > 0:
+                        # h[0][-1]: Last Layer of First Clip [B, N, D]
+                        # N = T * H * W
+                        h_last = h[0][-1]
+                        
+                        # 尝试推断 T, H, W
+                        # 注意：tubelet_size, patch_size 在 main 作用域
+                        # max_num_frames 是数据集的最大帧数，但当前 batch 可能不同（如果有变长训练）
+                        # 这里我们假设 batch 内帧数一致
+                        
+                        B_curr, N_curr, D_curr = h_last.shape
+                        T_grid = max_num_frames // tubelet_size
+                        H_grid = crop_size // patch_size
+                        W_grid = crop_size // patch_size
+                        
+                        if N_curr == T_grid * H_grid * W_grid and T_grid > 1:
+                            # Reshape to [B, T, H*W, D]
+                            h_reshaped = h_last.view(B_curr, T_grid, H_grid * W_grid, D_curr)
+                            
+                            # 计算相邻帧相似度
+                            # h_t: [B, T-1, HW, D]
+                            # h_t+1: [B, T-1, HW, D]
+                            h_t = h_reshaped[:, :-1, :, :]
+                            h_next = h_reshaped[:, 1:, :, :]
+                            
+                            # Normalize
+                            h_t_norm = F.normalize(h_t, p=2, dim=-1)
+                            h_next_norm = F.normalize(h_next, p=2, dim=-1)
+                            
+                            # Cosine Sim: dot product along D
+                            # [B, T-1, HW]
+                            sim = (h_t_norm * h_next_norm).sum(dim=-1)
+                            temporal_sim = sim.mean().item()
+                            
                 return (
                     float(loss),
                     float(l_jepa),
                     float(l_motion),
+                    float(l_reg),
+                    float(l_cov),
+                    float(l_rel),
                     {k: float(v) for k, v in l_jepa_layers.items()},
+                    cosine_sim,
+                    temporal_sim, # 返回 temporal_sim
                     _new_lr,
                     _new_wd,
                 )
@@ -1108,7 +1255,12 @@ def main(args, resume_preempt=False):
                 loss,
                 l_jepa,
                 l_motion,
+                l_reg,
+                l_cov,
+                l_rel,
                 l_jepa_layers,
+                cosine_sim,
+                temporal_sim,
                 _new_lr,
                 _new_wd,
             ), gpu_etime_ms = gpu_timer(train_step)
@@ -1128,6 +1280,11 @@ def main(args, resume_preempt=False):
             loss_meter.update(loss)
             loss_jepa_meter.update(l_jepa)
             loss_motion_meter.update(l_motion)
+            loss_reg_meter.update(l_reg)
+            loss_cov_meter.update(l_cov)
+            loss_rel_meter.update(l_rel)
+            cosine_sim_meter.update(cosine_sim)
+            temporal_sim_meter.update(temporal_sim)
             
             # Update layer-wise meters
             for lid, l_val in l_jepa_layers.items():
@@ -1150,7 +1307,8 @@ def main(args, resume_preempt=False):
                     
                     logger.info(
                         "[Epoch %d/%d, Iter %5d/%d] (Remaining: %d iters) "
-                        "loss: total=%.3f jepa=%.3f motion=%.3f "
+                        "loss: total=%.3f jepa=%.3f motion=%.3f reg=%.3f cov=%.3f rel=%.3f "
+                        "cos_sim: %.3f temp_sim: %.3f "
                         "masks: %s "
                         "[wd: %.2e] [lr: %.2e] "
                         "[mem: %.2e] "
@@ -1166,6 +1324,12 @@ def main(args, resume_preempt=False):
                             loss_meter.avg,
                             loss_jepa_meter.avg,
                             loss_motion_meter.avg,
+                            loss_reg_meter.avg,
+                            loss_reg_meter.avg,
+                            loss_cov_meter.avg,
+                            loss_rel_meter.avg,
+                            cosine_sim_meter.avg,
+                            temporal_sim_meter.avg,
                             "[" + ", ".join([f"{k}: " + "%.1f" % mask_meters[k].avg for k in mask_meters]) + "]",
                             _new_wd,
                             _new_lr,
@@ -1183,6 +1347,12 @@ def main(args, resume_preempt=False):
                             "train/loss": loss_meter.avg,
                             "train/loss_jepa": loss_jepa_meter.avg,
                             "train/loss_motion": loss_motion_meter.avg,
+                            "train/loss_reg": loss_reg_meter.avg,
+                            "train/loss_reg": loss_reg_meter.avg,
+                            "train/loss_cov": loss_cov_meter.avg,
+                            "train/loss_rel": loss_rel_meter.avg,
+                            "train/cosine_sim": cosine_sim_meter.avg,
+                            "train/temporal_sim": temporal_sim_meter.avg,
                             "train/current_loss": loss_synced,  # Use synchronized loss for accurate logging
                             "train/lr": _new_lr,
                             "train/weight_decay": _new_wd,
@@ -1208,8 +1378,8 @@ def main(args, resume_preempt=False):
 
         # -- Save Checkpoint
         logger.info(
-            "avg. loss total=%.3f jepa=%.3f motion=%.3f"
-            % (loss_meter.avg, loss_jepa_meter.avg, loss_motion_meter.avg)
+            "avg. loss total=%.3f jepa=%.3f motion=%.3f reg=%.3f cov=%.3f rel=%.3f"
+            % (loss_meter.avg, loss_jepa_meter.avg, loss_motion_meter.avg, loss_reg_meter.avg, loss_cov_meter.avg, loss_rel_meter.avg)
         )
         
         # Log epoch-level metrics to wandb (only on rank 0)

@@ -6,7 +6,7 @@ DINOv3 Foundation Model Adapter
 import torch
 import torch.nn as nn
 from typing import Optional
-from base_adapter import BaseFoundationModelAdapter
+from .base_adapter import BaseFoundationModelAdapter
 
 
 class DINOv3Adapter(BaseFoundationModelAdapter):
@@ -29,9 +29,21 @@ class DINOv3Adapter(BaseFoundationModelAdapter):
             # 从torch.hub加载DINOv3
             pretrained_model_name = "facebook/dinov3-vitl16-pretrain-lvd1689m"
             processor = AutoImageProcessor.from_pretrained(pretrained_model_name)
+            max_memory = {}
+            #num_gpus = torch.cuda.device_count()
+            #for i in range(num_gpus):
+            #    gpu_memory = torch.cuda.get_device_properties(i).total_memory
+            #    # 使用98%内存，只留2%作为缓冲
+            #    max_memory[i] = int(gpu_memory * 0.98)
+            #    gpu_memory_gb = gpu_memory / (1024**3)
+            #    max_memory_gb = max_memory[i] / (1024**3)
+            #    print(f"GPU {i}: Total={gpu_memory_gb:.1f}GB, Allocating={max_memory_gb:.1f}GB (98%)")
+            
             model = AutoModel.from_pretrained(
                 pretrained_model_name, 
                 device_map="auto", 
+                max_memory=max_memory if max_memory else None,  # 使用自定义内存限制
+                low_cpu_mem_usage=True,  # 减少CPU内存使用
             )
             # 获取embed_dim和num_heads
             embed_dim = 1024
@@ -72,7 +84,6 @@ class DINOv3Adapter(BaseFoundationModelAdapter):
         # 如果尺寸不匹配，进行resize
         if H != target_H or W != target_W:
             import torch.nn.functional as Fn
-            print(f"Resizing input from {H}×{W} to {target_H}×{target_W} (patch_size={patch_size})")
             # [B, C, F, H, W] → [B*F, C, H, W] → resize → [B*F, C, H', W']
             x_reshaped = x.permute(0, 2, 1, 3, 4).reshape(B * F, C, H, W)
             x_resized = Fn.interpolate(

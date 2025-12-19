@@ -35,7 +35,7 @@ experiment:
     resolution: 224
 
   optimization:
-    batch_size: 8
+    batch_size: 4
     multihead_kwargs:
     - final_lr: 0.0
       final_weight_decay: 0.01

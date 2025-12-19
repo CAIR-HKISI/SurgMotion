@@ -9,6 +9,8 @@ import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import precision_score, recall_score, jaccard_score, f1_score, accuracy_score
 import wandb
+import itertools
+
 
 from evals.surgical_video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
@@ -218,8 +220,9 @@ def main(args_eval, resume_preempt=False):
     val_only = args_eval.get("val_only", False)
     pretrain_folder = args_eval.get("folder", None)
     resume_checkpoint = args_eval.get("resume_checkpoint", False) or resume_preempt
+    resume_iter = args_eval.get("resume_iter", None)  # 如果指定，将覆盖checkpoint中的iter信息
     eval_tag = args_eval.get("tag", None)
-    num_workers = args_eval.get("num_workers", 12)
+    num_workers = args_eval.get("num_workers", 8)
 
     # Quick run / debug mode configuration
     quick_run = args_eval.get("quick_run", False)
@@ -232,12 +235,14 @@ def main(args_eval, resume_preempt=False):
 
     # wandb configuration
     wandb_config = args_eval.get("wandb", {})
+    use_wandb = args_eval.get("use_wandb", True)
     wandb_project = wandb_config.get("project", "nsjepa-surgical-probing")
     wandb_entity = wandb_config.get("entity", None)
     wandb_name = wandb_config.get("name", None)
     wandb_tags = wandb_config.get("tags", [])
     wandb_group = wandb_config.get("group", None)
     wandb_notes = wandb_config.get("notes", None)
+    wandb_id = wandb_config.get("id", None)
 
     args_pretrain = args_eval.get("model_kwargs")
     checkpoint = args_pretrain.get("checkpoint")
@@ -293,8 +298,27 @@ def main(args_eval, resume_preempt=False):
     except Exception:
         pass
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     world_size, rank = init_distributed()
+
+    if torch.cuda.is_available():
+        if world_size > 1:
+            # DDP模式：由于CUDA_VISIBLE_DEVICES已被设置，每个进程使用cuda:0
+            # （这是该进程可见的唯一GPU）
+            device = torch.device("cuda:0")
+            logger.info(f"DDP mode: Rank {rank}/{world_size} using device cuda:0 (physical GPU set by CUDA_VISIBLE_DEVICES)")
+        else:
+            # 单进程模式：使用cuda:0作为主设备
+            num_gpus = torch.cuda.device_count()
+            device = torch.device("cuda:0")
+            if num_gpus > 1:
+                logger.info(f"Single-process mode with {num_gpus} GPUs available")
+                logger.info(f"Using {device} as primary device (DataParallel will use all GPUs)")
+            else:
+                logger.info(f"Single-GPU mode using {device}")
+    else:
+        device = torch.device("cpu")
+        logger.info("No CUDA available, using CPU")
 
     # Quick run mode: create subset CSV files (only on rank 0)
     if quick_run and rank == 0:
@@ -329,7 +353,7 @@ def main(args_eval, resume_preempt=False):
         dist.barrier()
 
     # Initialize wandb (only on rank 0)
-    if rank == 0:
+    if rank == 0 and use_wandb:
         # Extract model name (parent directory of checkpoint) for logging
         if checkpoint:
             checkpoint_dir = os.path.dirname(checkpoint)
@@ -367,6 +391,7 @@ def main(args_eval, resume_preempt=False):
             tags=wandb_tags,
             group=wandb_group,
             notes=wandb_notes,
+            id=wandb_id,
             resume="allow"
         )
         logger.info(f"wandb initialized: {wandb.run.url}")
@@ -389,12 +414,37 @@ def main(args_eval, resume_preempt=False):
         device=device,
     )
 
+    import torch.nn as nn
+    
+    # 检测可用GPU数量
+    available_gpus = list(range(torch.cuda.device_count()))
+    use_multi_gpu = len(available_gpus) > 1 and not dist.is_initialized()
+
+    if use_multi_gpu:
+        logger.info(f"🚀 Detected {len(available_gpus)} GPUs: {available_gpus}")
+        logger.info(f"🔧 Using nn.DataParallel for multi-GPU training")
+        
+        # 将encoder包装为DataParallel
+        encoder = nn.DataParallel(encoder, device_ids=available_gpus)
+        encoder = encoder.to(device)
+        logger.info(f"✓ Encoder wrapped with DataParallel on GPUs: {available_gpus}")
+        
+        # 保存原始embed_dim（DataParallel后需要通过.module访问）
+        encoder_embed_dim = encoder.module.embed_dim
+    else:
+        encoder_embed_dim = encoder.embed_dim
+        if dist.is_initialized():
+            logger.info(f"🌐 Using DistributedDataParallel (DDP mode)")
+        else:
+            logger.info(f"💻 Running on single GPU: {device}")
+
+
     # 构建多个分类头
     # If head_to_dataset_map is provided, use per-dataset num_classes
     if head_to_dataset_map is not None:
         classifiers = [
             AttentiveClassifier(
-                embed_dim=encoder.embed_dim,
+                embed_dim=encoder_embed_dim,
                 num_heads=num_heads,
                 depth=num_probe_blocks,
                 num_classes=num_classes_list[head_to_dataset_map[idx]],
@@ -406,7 +456,7 @@ def main(args_eval, resume_preempt=False):
         # Default: all heads use the first dataset's num_classes
         classifiers = [
             AttentiveClassifier(
-                embed_dim=encoder.embed_dim,
+                embed_dim=encoder_embed_dim,
                 num_heads=num_heads,
                 depth=num_probe_blocks,
                 num_classes=num_classes_list[0],
@@ -418,9 +468,14 @@ def main(args_eval, resume_preempt=False):
     # Only use DistributedDataParallel if distributed is initialized
     if dist.is_initialized():
         classifiers = [DistributedDataParallel(c, static_graph=True) for c in classifiers]
-        logger.info("Wrapped classifiers with DistributedDataParallel")
+        logger.info("✓ Wrapped classifiers with DistributedDataParallel")
+    elif use_multi_gpu:
+        # DataParallel模式（单进程多GPU）
+        classifiers = [nn.DataParallel(c, device_ids=available_gpus) for c in classifiers]
+        logger.info(f"✓ Wrapped {len(classifiers)} classifiers with DataParallel on GPUs: {available_gpus}")
     else:
-        logger.info("Running in single-process mode (no DDP wrapping)")
+        # 单GPU模式
+        logger.info("✓ Running in single-GPU mode (no parallel wrapping)")
 
     train_loader, train_sampler = make_dataloader(
         dataset_type=dataset_type,
@@ -470,8 +525,50 @@ def main(args_eval, resume_preempt=False):
 
     # 断点恢复
     start_epoch = 0
-    if resume_checkpoint and os.path.exists(latest_path):
-        encoder, classifiers, optimizer, scaler, start_epoch = load_checkpoint(
+    start_iter = None
+    base_global_step = 0  # 添加base_global_step
+    checkpoint_interval = 1000  # checkpoint保存间隔
+        
+    if resume_iter is not None:
+        # 用户指定了要恢复的iter（例如17521）
+        # 计算上一个checkpoint的iter（例如17000 = 17521 // 1000 * 1000）
+        checkpoint_iter = (resume_iter // checkpoint_interval) * checkpoint_interval
+        start_iter = checkpoint_iter
+        base_global_step = checkpoint_iter
+        
+        logger.info(f"🎯 User specified resume_iter={resume_iter}")
+        logger.info(f"📦 Loading checkpoint from iter={checkpoint_iter} (latest.pt)")
+        
+        # 加载latest.pt（假设它是checkpoint_iter时保存的）
+        if resume_checkpoint and os.path.exists(latest_path):
+            logger.info(f"Loading weights from latest checkpoint: {latest_path}")
+            encoder, classifiers, optimizer, scaler, _, _ = load_checkpoint(
+                device=device,
+                r_path=latest_path,
+                encoder=encoder,
+                classifiers=classifiers,
+                opt=optimizer,
+                scaler=scaler,
+                val_only=val_only,
+            )
+        else:
+            logger.warning(f"⚠️  No checkpoint found at {latest_path}, but resume_iter={resume_iter} specified. Starting with random weights.")
+            start_iter = None
+            base_global_step = 0
+        
+        # 恢复scheduler到对应的step
+        if start_iter is not None:
+            target_step = start_iter
+            for _ in range(target_step):
+                [s.step() for s in scheduler]
+                [wds.step() for wds in wd_scheduler]
+            logger.info(f"✅ Restored schedulers to step {target_step}, will skip first {start_iter} iters")
+
+
+    elif resume_checkpoint and os.path.exists(latest_path):
+        # 原有的resume逻辑（从checkpoint中读取iter信息，如果没有则从epoch开始）
+        logger.info(f"Found latest checkpoint: {latest_path}")
+        encoder, classifiers, optimizer, scaler, start_epoch, start_iter = load_checkpoint(
             device=device,
             r_path=latest_path,
             encoder=encoder,
@@ -480,9 +577,34 @@ def main(args_eval, resume_preempt=False):
             scaler=scaler,
             val_only=val_only,
         )
-        for _ in range(start_epoch * ipe):
+        
+        # 尝试从checkpoint中读取iter和global_step
+        checkpoint = torch.load(latest_path, map_location='cpu')
+        if 'iter' in checkpoint and checkpoint['iter'] is not None:
+            start_iter = checkpoint['iter']
+            base_global_step = checkpoint.get('global_step', start_iter)
+            logger.info(f"Resuming from iter {start_iter}, global_step={base_global_step}")
+        elif 'global_step' in checkpoint:
+            start_iter = checkpoint['global_step']
+            base_global_step = checkpoint['global_step']
+            logger.info(f"Resuming from global_step={base_global_step} (inferred iter={start_iter})")
+        else:
+            # 如果checkpoint中没有iter信息，从epoch开始（但只有1个epoch，所以从0开始）
+            start_iter = None
+            base_global_step = start_epoch * ipe if start_epoch > 0 else 0
+            logger.info(f"Resuming from epoch {start_epoch} (no iter info in checkpoint)")
+        
+        # 恢复scheduler到对应的step
+        if start_iter is not None:
+            target_step = start_iter
+        else:
+            target_step = start_epoch * ipe
+        
+        for _ in range(target_step):
             [s.step() for s in scheduler]
             [wds.step() for wds in wd_scheduler]
+                
+        logger.info(f"Restored schedulers to step {target_step}")
 
     def save_checkpoint(epoch, itr=None):
         save_dict = {
@@ -492,11 +614,64 @@ def main(args_eval, resume_preempt=False):
             "scaler": [None if s is None else s.state_dict() for s in scaler],
             "epoch": epoch,
         }
+        if itr is not None:
+            save_dict["iter"] = itr
+            save_dict["global_step"] = epoch * ipe + itr  # 全局step数
+        else:
+            save_dict["iter"] = None
+            save_dict["global_step"] = epoch * ipe
+        
         if rank == 0:
-            if itr is not None:
-                torch.save(save_dict, latest_path)
-            else:
-                torch.save(save_dict, latest_path)
+            try:
+                # 确保目录存在（使用绝对路径）
+                folder_abs = os.path.abspath(folder)
+                os.makedirs(folder_abs, exist_ok=True)
+                
+                # 检查目录权限
+                if not os.access(folder_abs, os.W_OK):
+                    raise PermissionError(f"No write permission for directory: {folder_abs}")
+                
+                if itr is not None:
+                    # 保存iter checkpoint
+                    iter_path = os.path.join(folder_abs, f"checkpoint_epoch{epoch}_iter{itr}.pt")
+                    # 确保父目录存在
+                    iter_dir = os.path.dirname(iter_path)
+                    if iter_dir:
+                        os.makedirs(iter_dir, exist_ok=True)
+                    
+                    # 使用临时文件然后重命名（原子操作）
+                    temp_path = iter_path + ".tmp"
+                    torch.save(save_dict, temp_path)
+                    os.rename(temp_path, iter_path)
+                    logger.info(f"✓ Saved checkpoint at epoch {epoch}, iter {itr}")
+                else:
+                    # 保存latest checkpoint
+                    latest_path_abs = os.path.abspath(latest_path)
+                    latest_dir = os.path.dirname(latest_path_abs)
+                    if latest_dir:
+                        os.makedirs(latest_dir, exist_ok=True)
+                    
+                    # 使用临时文件然后重命名（原子操作）
+                    temp_path = latest_path_abs + ".tmp"
+                    torch.save(save_dict, temp_path)
+                    os.rename(temp_path, latest_path_abs)
+                    logger.info(f"✓ Saved latest checkpoint")
+                    
+            except PermissionError as e:
+                logger.error(f"Permission denied when saving checkpoint: {e}")
+                logger.error(f"  Please check directory permissions: {folder}")
+            except OSError as e:
+                logger.error(f"OS error when saving checkpoint: {e}")
+                logger.error(f"  Folder: {folder}")
+                logger.error(f"  Latest path: {latest_path}")
+                # 检查磁盘空间
+                import shutil
+                stat = shutil.disk_usage(folder)
+                logger.error(f"  Disk space: {stat.free / (1024**3):.2f} GB free")
+            except Exception as e:
+                logger.error(f"Unexpected error when saving checkpoint: {e}")
+                import traceback
+                traceback.print_exc()
 
     # ----------------
     # 训练循环
@@ -505,6 +680,13 @@ def main(args_eval, resume_preempt=False):
         train_sampler.set_epoch(epoch)
 
         if not val_only:
+            skip_iters = 0
+            current_base_global_step = 0
+            if epoch == start_epoch and start_iter is not None:
+                skip_iters = start_iter
+                current_base_global_step = base_global_step
+                logger.info(f"Skipping first {skip_iters} iters in epoch {epoch}, base_global_step={current_base_global_step}")
+            
             train_metrics = run_one_epoch(
                 device=device,
                 training=True,
@@ -520,8 +702,13 @@ def main(args_eval, resume_preempt=False):
                 epoch=epoch,
                 head_to_dataset_map=head_to_dataset_map,
                 rank=rank,
-                checkpoint_interval=1000
+                checkpoint_interval=checkpoint_interval,
+                save_checkpoint_fn=save_checkpoint,
+                skip_iters=skip_iters,
+                base_global_step=current_base_global_step
             )
+            start_iter = None
+            base_global_step = 0
         else:
             train_metrics = None
 
@@ -546,6 +733,7 @@ def main(args_eval, resume_preempt=False):
             bootstrap_seed=bootstrap_seed,
             rank=rank,
             train_loader_len=len(train_loader),
+            save_checkpoint_fn=None
         )
 
         logger.info(f"Epoch {epoch+1}: train={train_metrics} val={val_metrics}")
@@ -558,7 +746,7 @@ def main(args_eval, resume_preempt=False):
         save_checkpoint(epoch + 1)
 
     # Finish wandb run (only on rank 0)
-    if rank == 0:
+    if rank == 0 and use_wandb:
         wandb.finish()
 
     if dist.is_initialized():
@@ -573,7 +761,8 @@ def run_one_epoch(
     scheduler, wd_scheduler, data_loader, use_bfloat16, num_classes,
     epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20,
     head_to_dataset_map=None, use_bootstrap=False, n_bootstrap=1000, bootstrap_seed=None,
-    rank=0, train_loader_len=None, checkpoint_interval=1000
+    rank=0, train_loader_len=None, checkpoint_interval=1000, save_checkpoint_fn=None, skip_iters=None,
+    base_global_step=0
 ):
     for c in classifiers:
         c.train(mode=training)
@@ -585,7 +774,18 @@ def run_one_epoch(
     if not training:
         all_predictions = []
 
-    for itr, data in enumerate(data_loader):
+    if skip_iters is not None and skip_iters > 0:
+        logger.info(f"⏩ Fast-forwarding: skipping first {skip_iters} iterations...")
+        # islice(data_loader, skip_iters, None) 表示：
+        # - 从第 skip_iters 个元素开始
+        # - None 表示到迭代器结束
+        data_loader = itertools.islice(data_loader, skip_iters, None)
+        start_itr = skip_iters
+        logger.info(f"✅ Resuming from iteration {skip_iters}")
+    else:
+        start_itr = 0
+
+    for itr, data in enumerate(data_loader, st art=start_itr):
         if training:
             [s.step() for s in scheduler]
             [wds.step() for wds in wd_scheduler]
@@ -704,8 +904,14 @@ def run_one_epoch(
                 )
 
                 # Log training metrics to wandb at log_interval (only on rank 0)
-                if rank == 0:
-                    global_step = epoch * len(data_loader) + itr
+                if rank == 0 and use_wandb:
+                    if skip_iters is not None and itr >= skip_iters:
+                        # 从恢复的checkpoint继续
+                        global_step = base_global_step + itr
+                    else:
+                        # 正常情况
+                        global_step = base_global_step + itr if base_global_step > 0 else epoch * len(data_loader) + itr
+                    
                     wandb_metrics = {}
                     for h, (am, lm) in enumerate(zip(acc_meters, loss_meters)):
                         wandb_metrics[f"train/head_{h}/Acc"] = am.avg
@@ -718,7 +924,8 @@ def run_one_epoch(
                 )
         if training and checkpoint_interval > 0 and (itr + 1) % checkpoint_interval == 0:
             logger.info(f"Saving checkpoint at epoch {epoch}, iter {itr + 1}")
-            save_checkpoint(epoch, itr + 1)
+            if save_checkpoint_fn is not None:  # ← 添加检查
+                save_checkpoint_fn(epoch, itr + 1)
 
     metrics = {f"head_{i}": {"Acc": acc_meters[i].avg, "Loss": loss_meters[i].avg} for i in range(len(classifiers))}
 
@@ -742,7 +949,7 @@ def run_one_epoch(
             results[f"head_{head_id}"] = stats
 
             # Log to wandb (only on rank 0)
-            if rank == 0:
+            if rank == 0 and use_wandb:
                 wandb_metrics = {
                     f"val/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
                     f"val/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
@@ -806,7 +1013,7 @@ def run_one_epoch(
         logger.info("="*70)
 
         # Log best head to wandb (only on rank 0)
-        if rank == 0:
+        if rank == 0 and use_wandb:
             wandb_best_metrics = {
                 f"val/best_head/Accuracy": best_head_stats['Accuracy_Mean'],
                 f"val/best_head/Macro_F1": best_head_stats['Macro_F1_Mean'],
@@ -855,7 +1062,7 @@ def run_one_epoch(
                         dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
 
                         # Log to wandb (only on rank 0)
-                        if rank == 0:
+                        if rank == 0 and use_wandb:
                             wandb_metrics = {
                                 f"val/dataset_{ds_idx}/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
                                 f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
@@ -895,6 +1102,91 @@ def run_one_epoch(
             df.to_csv(pred_file, index=False)
             logger.info(f"Saved predictions to {pred_file}")
 
+        # Save evaluation results to CSV and TXT (only on rank 0)
+        if rank == 0 and folder is not None:
+            # 1. Save all heads evaluation results to CSV
+            eval_csv_file = os.path.join(folder, f"evaluation_results_epoch_{epoch}.csv")
+            eval_rows = []
+            for head_name, head_stats in results.items():
+                head_id = int(head_name.split('_')[1]) if '_' in head_name else head_name
+                row = {
+                    'Head_ID': head_id,
+                    'Accuracy_Mean': head_stats['Accuracy_Mean'],
+                    'Accuracy_Std': head_stats['Accuracy_Std'],
+                    'Macro_F1_Mean': head_stats['Macro_F1_Mean'],
+                    'Macro_F1_Std': head_stats['Macro_F1_Std'],
+                    'Macro_IoU_Mean': head_stats['Macro_IoU_Mean'],
+                    'Macro_IoU_Std': head_stats['Macro_IoU_Std'],
+                    'Macro_Precision_Mean': head_stats['Macro_Precision_Mean'],
+                    'Macro_Precision_Std': head_stats['Macro_Precision_Std'],
+                    'Macro_Recall_Mean': head_stats['Macro_Recall_Mean'],
+                    'Macro_Recall_Std': head_stats['Macro_Recall_Std'],
+                    'Edit_Score_Mean': head_stats['Edit_Score_Mean'],
+                    'Edit_Score_Std': head_stats['Edit_Score_Std'],
+                }
+                # Add CI information if bootstrap was used
+                if use_bootstrap:
+                    row.update({
+                        'Accuracy_CI_Lower': head_stats.get('Accuracy_CI_Lower', ''),
+                        'Accuracy_CI_Upper': head_stats.get('Accuracy_CI_Upper', ''),
+                        'Macro_F1_CI_Lower': head_stats.get('Macro_F1_CI_Lower', ''),
+                        'Macro_F1_CI_Upper': head_stats.get('Macro_F1_CI_Upper', ''),
+                    })
+                eval_rows.append(row)
+            
+            eval_df = pd.DataFrame(eval_rows)
+            eval_df = eval_df.sort_values('Head_ID')
+            eval_df.to_csv(eval_csv_file, index=False)
+            logger.info(f"Saved evaluation results to {eval_csv_file}")
+
+            # 2. Save best head evaluation results to TXT
+            best_head_txt_file = os.path.join(folder, f"best_head_results_epoch_{epoch}.txt")
+            best_head_id = int(best_head_name.split('_')[1]) if '_' in best_head_name else best_head_name
+            
+            with open(best_head_txt_file, 'w', encoding='utf-8') as f:
+                f.write("=" * 70 + "\n")
+                f.write(f"BEST HEAD EVALUATION RESULTS (Epoch {epoch})\n")
+                f.write("=" * 70 + "\n\n")
+                f.write(f"Best Head ID: {best_head_id}\n")
+                f.write(f"Selection Criterion: Macro F1 Score\n")
+                f.write(f"Best Macro F1: {best_head_stats['Macro_F1_Mean']:.4f} ± {best_head_stats['Macro_F1_Std']:.4f}\n")
+                f.write("\n" + "-" * 70 + "\n")
+                f.write("METRICS:\n")
+                f.write("-" * 70 + "\n")
+                f.write(f"Accuracy:        {best_head_stats['Accuracy_Mean']:.4f} ± {best_head_stats['Accuracy_Std']:.4f}\n")
+                f.write(f"Macro F1:        {best_head_stats['Macro_F1_Mean']:.4f} ± {best_head_stats['Macro_F1_Std']:.4f}\n")
+                f.write(f"Macro IoU:       {best_head_stats['Macro_IoU_Mean']:.4f} ± {best_head_stats['Macro_IoU_Std']:.4f}\n")
+                f.write(f"Macro Precision: {best_head_stats['Macro_Precision_Mean']:.4f} ± {best_head_stats['Macro_Precision_Std']:.4f}\n")
+                f.write(f"Macro Recall:    {best_head_stats['Macro_Recall_Mean']:.4f} ± {best_head_stats['Macro_Recall_Std']:.4f}\n")
+                f.write(f"Edit Score:      {best_head_stats['Edit_Score_Mean']:.4f} ± {best_head_stats['Edit_Score_Std']:.4f}\n")
+                
+                # Add CI information if bootstrap was used
+                if use_bootstrap:
+                    f.write("\n" + "-" * 70 + "\n")
+                    f.write("CONFIDENCE INTERVALS (95%):\n")
+                    f.write("-" * 70 + "\n")
+                    if 'Accuracy_CI_Lower' in best_head_stats:
+                        f.write(f"Accuracy CI:     [{best_head_stats['Accuracy_CI_Lower']:.4f}, {best_head_stats['Accuracy_CI_Upper']:.4f}]\n")
+                    if 'Macro_F1_CI_Lower' in best_head_stats:
+                        f.write(f"Macro F1 CI:     [{best_head_stats['Macro_F1_CI_Lower']:.4f}, {best_head_stats['Macro_F1_CI_Upper']:.4f}]\n")
+                
+                # Add per-class metrics if available
+                if 'per_class' in best_head_stats and best_head_stats['per_class']:
+                    f.write("\n" + "-" * 70 + "\n")
+                    f.write("PER-CLASS METRICS:\n")
+                    f.write("-" * 70 + "\n")
+                    for phase_name, phase_metrics in best_head_stats['per_class'].items():
+                        f.write(f"\nPhase: {phase_name}\n")
+                        f.write(f"  Precision: {phase_metrics['Precision']:.4f}%\n")
+                        f.write(f"  Recall:    {phase_metrics['Recall']:.4f}%\n")
+                        f.write(f"  F1:        {phase_metrics['F1']:.4f}%\n")
+                        f.write(f"  IoU:       {phase_metrics['IoU']:.4f}%\n")
+                
+                f.write("\n" + "=" * 70 + "\n")
+            
+            logger.info(f"Saved best head results to {best_head_txt_file}")
+
+
     return metrics
 
 
@@ -905,22 +1197,36 @@ def load_checkpoint(device, r_path, encoder, classifiers, opt, scaler, val_only=
     checkpoint = robust_checkpoint_loader(r_path, map_location="cpu")
 
     encoder.load_state_dict(checkpoint["encoder"])
-    for c, state in zip(classifiers, checkpoint["classifiers"]):
-        if hasattr(c, 'module'):
-            c.module.load_state_dict(state)
-        else:
-            c.load_state_dict(state)
+     # 加载分类头，添加错误处理和日志
+    for idx, (c, state) in enumerate(zip(classifiers, checkpoint["classifiers"])):
+        try:
+            if hasattr(c, 'module'):
+                # DistributedDataParallel包装的模型
+                missing_keys, unexpected_keys = c.module.load_state_dict(state, strict=False)
+            else:
+                # 普通模型
+                missing_keys, unexpected_keys = c.load_state_dict(state, strict=False)
+            
+            if missing_keys:
+                logger.warning(f"Classifier {idx} missing keys: {missing_keys}")
+            if unexpected_keys:
+                logger.warning(f"Classifier {idx} unexpected keys: {unexpected_keys}")
+        except Exception as e:
+            logger.error(f"Failed to load classifier {idx} state dict: {e}")
+            raise
 
     if val_only:
         return encoder, classifiers, opt, scaler, 0
 
     epoch = checkpoint["epoch"]
+    iter_num = checkpoint.get("iter", None)  # 获取iter信息，如果不存在则为None
+    
     for o, state in zip(opt, checkpoint["opt"]):
         o.load_state_dict(state)
     for s, state in zip(scaler, checkpoint["scaler"]):
         if s is not None and state is not None:
             s.load_state_dict(state)
-    return encoder, classifiers, opt, scaler, epoch
+    return encoder, classifiers, opt, scaler, epoch, iter_num
 
 
 # ----------------------
