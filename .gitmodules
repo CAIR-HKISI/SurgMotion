@@ -1,0 +1,9 @@
+[submodule "foundation_models/EndoViT"]
+	path = foundation_models/EndoViT
+	url = https://github.com/DominikBatic/EndoViT.git
+[submodule "foundation_models/Endo-FM"]
+	path = foundation_models/Endo-FM
+	url = https://github.com/med-air/Endo-FM.git
+[submodule "foundation_models/GSViT"]
+	path = foundation_models/GSViT
+	url = https://github.com/SamuelSchmidgall/GSViT.git
