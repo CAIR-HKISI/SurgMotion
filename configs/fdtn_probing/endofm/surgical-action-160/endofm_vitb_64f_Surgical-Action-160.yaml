@@ -1,12 +1,13 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/endofm_vitb_AutoLaparo
+folder: logs/foundation/endofm_vitb_SurgicalAction160
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-tag: endofm_vitb_64f_AutoLaparo
+tag: endofm_vitb_64f_SurgicalAction160
 tasks_per_node: 1
+metric_aggregation: "global" # Options: "global", "per_video", or null (defaults to per_video)
 
 # wandb configuration
 wandb:

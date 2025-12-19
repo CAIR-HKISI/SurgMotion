@@ -7,6 +7,8 @@ max_workers: 4
 resume_checkpoint: true
 tag: endofm_vitb_64f_PolypDiag
 tasks_per_node: 1
+metric_aggregation: "global" # Options: "global", "per_video", or null (defaults to per_video)
+
 
 # wandb configuration
 wandb:

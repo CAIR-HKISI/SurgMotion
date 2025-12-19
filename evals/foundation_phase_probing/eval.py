@@ -100,7 +100,7 @@ def segmental_edit_distance(seq1, seq2):
 # ----------------------
 # 视频级评估函数
 # ----------------------
-def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None, head_id=None):
+def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None, head_id=None, dataset_name=None, config_tags=None, metric_aggregation=None):
     """
     Evaluate per-video metrics with optional bootstrap uncertainty estimation.
 
@@ -111,6 +111,9 @@ def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_boots
         n_bootstrap: Number of bootstrap iterations (default: 1000)
         random_seed: Random seed for reproducibility (default: None)
         head_id: Classifier head ID for logging purposes (optional)
+        dataset_name: Name/Path of the dataset to decide evaluation strategy (optional)
+        config_tags: List of tags from the configuration file (optional)
+        metric_aggregation: "per_video" or "global" (optional, overrides default logic)
 
     Returns:
         per_video: List of per-video metrics
@@ -171,7 +174,45 @@ def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_boots
     metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1", "Edit_Score"]
     stats = {}
 
-    if use_bootstrap:
+    # Check if we should use global metrics (concatenate all videos) instead of averaging per-video metrics
+    use_global_metrics = False
+
+    if metric_aggregation == "global":
+        use_global_metrics = True
+        logger.info("Using GLOBAL metrics based on metric_aggregation parameter")
+
+    if use_global_metrics:
+        # Calculate metrics globally (over all samples concatenated)
+        acc = accuracy_score(all_gt, all_pred) * 100
+        macro_prec = precision_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+        macro_rec = recall_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+        macro_iou = jaccard_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+        macro_f1 = f1_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+        
+        # Edit score is typically per-video, assume average or 0 if not applicable
+        edit_scores = [v["Edit_Score"] for v in per_video]
+        edit_score_mean = np.mean(edit_scores) if edit_scores else 0.0
+
+        stats["Accuracy_Mean"] = acc
+        stats["Macro_Precision_Mean"] = macro_prec
+        stats["Macro_Recall_Mean"] = macro_rec
+        stats["Macro_IoU_Mean"] = macro_iou
+        stats["Macro_F1_Mean"] = macro_f1
+        stats["Edit_Score_Mean"] = edit_score_mean
+
+        stats["Accuracy_Std"] = 0.0
+        stats["Macro_Precision_Std"] = 0.0
+        stats["Macro_Recall_Std"] = 0.0
+        stats["Macro_IoU_Std"] = 0.0
+        stats["Macro_F1_Std"] = 0.0
+        stats["Edit_Score_Std"] = np.std(edit_scores) if edit_scores else 0.0
+        
+        if use_bootstrap:
+            for m in metrics:
+                 stats[f"{m}_CI_Lower"] = stats[f"{m}_Mean"]
+                 stats[f"{m}_CI_Upper"] = stats[f"{m}_Mean"]
+
+    elif use_bootstrap:
         # Perform bootstrap resampling for uncertainty estimation
         head_str = f" for head_{head_id}" if head_id is not None else ""
         logger.info(f"Performing bootstrap with {n_bootstrap} iterations{head_str}...")
@@ -224,9 +265,18 @@ def main(args_eval, resume_preempt=False):
     eval_tag = args_eval.get("tag", None)
     num_workers = args_eval.get("num_workers", 8)
 
+    config_tags = args_eval.get("tags", [])
+    # Ensure it's a list of strings
+    if isinstance(config_tags, str):
+        config_tags = [config_tags]
+
     # Quick run / debug mode configuration
     quick_run = args_eval.get("quick_run", False)
     quick_run_num_videos = args_eval.get("quick_run_num_videos", 2)
+
+    # Metric aggregation configuration
+    eval_metric_aggregation = args_eval.get("metric_aggregation", None) # "global" or "per_video" or None
+
 
     # Bootstrap configuration (default: enabled)
     use_bootstrap = args_eval.get("use_bootstrap", True)
@@ -733,7 +783,10 @@ def main(args_eval, resume_preempt=False):
             bootstrap_seed=bootstrap_seed,
             rank=rank,
             train_loader_len=len(train_loader),
-            save_checkpoint_fn=None
+            save_checkpoint_fn=None,
+            dataset_paths=val_data_path,
+            config_tags=config_tags,
+            metric_aggregation=eval_metric_aggregation
         )
 
         logger.info(f"Epoch {epoch+1}: train={train_metrics} val={val_metrics}")
@@ -762,7 +815,7 @@ def run_one_epoch(
     epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20,
     head_to_dataset_map=None, use_bootstrap=False, n_bootstrap=1000, bootstrap_seed=None,
     rank=0, train_loader_len=None, checkpoint_interval=1000, save_checkpoint_fn=None, skip_iters=None,
-    base_global_step=0
+    base_global_step=0, dataset_paths=None, config_tags=None, metric_aggregation=None
 ):
     for c in classifiers:
         c.train(mode=training)
@@ -785,7 +838,7 @@ def run_one_epoch(
     else:
         start_itr = 0
 
-    for itr, data in enumerate(data_loader, st art=start_itr):
+    for itr, data in enumerate(data_loader, start=start_itr):
         if training:
             [s.step() for s in scheduler]
             [wds.step() for wds in wd_scheduler]
@@ -944,7 +997,9 @@ def run_one_epoch(
                 use_bootstrap=use_bootstrap,
                 n_bootstrap=n_bootstrap,
                 random_seed=bootstrap_seed,
-                head_id=head_id
+                head_id=head_id,
+                config_tags=config_tags,
+                metric_aggregation=metric_aggregation
             )
             results[f"head_{head_id}"] = stats
 
@@ -1051,13 +1106,16 @@ def run_one_epoch(
                 logger.info(f"\nDataset {ds_idx} (Heads: {assigned_heads}):")
                 for head_id in assigned_heads:
                     head_df = ds_df[ds_df['head'] == head_id]
+                    
                     if len(head_df) > 0:
                         per_video, stats, phases = evaluate_per_video(
                             head_df,
                             use_bootstrap=use_bootstrap,
                             n_bootstrap=n_bootstrap,
                             random_seed=bootstrap_seed,
-                            head_id=head_id
+                            head_id=head_id,
+                            config_tags=config_tags,
+                            metric_aggregation=metric_aggregation
                         )
                         dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
 
