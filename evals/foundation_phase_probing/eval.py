@@ -755,7 +755,8 @@ def main(args_eval, resume_preempt=False):
                 checkpoint_interval=checkpoint_interval,
                 save_checkpoint_fn=save_checkpoint,
                 skip_iters=skip_iters,
-                base_global_step=current_base_global_step
+                base_global_step=current_base_global_step,
+                use_wandb=use_wandb
             )
             start_iter = None
             base_global_step = 0
@@ -786,7 +787,8 @@ def main(args_eval, resume_preempt=False):
             save_checkpoint_fn=None,
             dataset_paths=val_data_path,
             config_tags=config_tags,
-            metric_aggregation=eval_metric_aggregation
+            metric_aggregation=eval_metric_aggregation,
+            use_wandb=use_wandb
         )
 
         logger.info(f"Epoch {epoch+1}: train={train_metrics} val={val_metrics}")
@@ -815,7 +817,7 @@ def run_one_epoch(
     epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20,
     head_to_dataset_map=None, use_bootstrap=False, n_bootstrap=1000, bootstrap_seed=None,
     rank=0, train_loader_len=None, checkpoint_interval=1000, save_checkpoint_fn=None, skip_iters=None,
-    base_global_step=0, dataset_paths=None, config_tags=None, metric_aggregation=None
+    base_global_step=0, dataset_paths=None, config_tags=None, metric_aggregation=None, use_wandb=False
 ):
     for c in classifiers:
         c.train(mode=training)
