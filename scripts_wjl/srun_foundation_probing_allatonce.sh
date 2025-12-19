@@ -48,11 +48,13 @@ export WANDB_MODE=online
 TASKS=(
     "fdtn_probing/endofm/surgical-action-160"
     "fdtn_probing/endofm/polypdiag"
+    "fdtn_probing/endofm/AVOS"
 )
 
 FNAMES=(
     "endofm_vitb_64f_Surgical-Action-160.yaml"
     "endofm_vitb_64f_PolypDiag.yaml"
+    "endofm_vitb_64f_avos.yaml"
 )
 
 # 验证列表长度一致
@@ -115,7 +117,7 @@ for i in "${!TASKS[@]}"; do
             export PYTHONHTTPSVERIFY=0
 	    export CURL_CA_BUNDLE=""
 	    export REQUESTS_CA_BUNDLE=""
-        
+
 	    echo '✅ GPU resources allocated!'
             echo 'Job ID:' \$SLURM_JOB_ID
             echo 'Node: '\$SLURMD_NODENAME
