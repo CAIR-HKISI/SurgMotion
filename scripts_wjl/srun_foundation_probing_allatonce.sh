@@ -46,15 +46,15 @@ export WANDB_MODE=online
 # 定义任务列表（在这里添加你的任务对）
 # ==========================================
 TASKS=(
-    "fdtn_probing/endovit/AVOS"
-    "fdtn_probing/endovit/PolypDiag"
-    "fdtn_probing/endovit/surgical-action-160"
+    "fdtn_probing/gastronet/AVOS"
+    "fdtn_probing/gastronet/polypdiag"
+    "fdtn_probing/gastronet/surgical-action-160"
 )
 
 FNAMES=(
-    "endovit_vitl_64f_avos.yaml"
-    "endovit_vitl_64f_PolypDiag.yaml"
-    "endovit_vitl_64f_Surgical-Action-160.yaml"
+    "gastronet_vits_64f_avos.yaml"
+    "gastronet_vits_64f_PolypDiag.yaml"
+    "gastronet_vits_64f_Surgical-Action-160.yaml"
 )
 
 # 验证列表长度一致
