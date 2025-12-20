@@ -46,15 +46,19 @@ export WANDB_MODE=online
 # 定义任务列表（在这里添加你的任务对）
 # ==========================================
 TASKS=(
-    "fdtn_probing/endofm/surgical-action-160"
-    "fdtn_probing/endofm/polypdiag"
-    "fdtn_probing/endofm/AVOS"
+    "fdtn_probing/endossl/AVOS"
+    "fdtn_probing/endossl/AVOS"
+    "fdtn_probing/endossl/PolypDiag"
+    "fdtn_probing/endossl/surgical-action-160"
+    "fdtn_probing/endossl/surgical-action-160"
 )
 
 FNAMES=(
-    "endofm_vitb_64f_Surgical-Action-160.yaml"
+    "endofm_vitb_64f_avos_colono.yaml"
+    "endofm_vitb_64f_avos_laparo.yaml"
     "endofm_vitb_64f_PolypDiag.yaml"
-    "endofm_vitb_64f_avos.yaml"
+    "endofm_vitb_64f_Surgical-Action-160_colono.yaml"
+    "endofm_vitb_64f_Surgical-Action-160_laparo.yaml"
 )
 
 # 验证列表长度一致
