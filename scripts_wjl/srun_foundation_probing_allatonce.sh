@@ -45,16 +45,29 @@ export WANDB_MODE=online
 # ==========================================
 # 定义任务列表（在这里添加你的任务对）
 # ==========================================
+# TASKS=(
+#     "fdtn_probing/gastronet/AVOS"
+#     "fdtn_probing/gastronet/polypdiag"
+#     "fdtn_probing/gastronet/surgical-action-160"
+# )
+
+# FNAMES=(
+#     "gastronet_vits_64f_avos.yaml"
+#     "gastronet_vits_64f_PolypDiag.yaml"
+#     "gastronet_vits_64f_Surgical-Action-160.yaml"
+# )
+
+
 TASKS=(
-    "fdtn_probing/gastronet/AVOS"
-    "fdtn_probing/gastronet/polypdiag"
-    "fdtn_probing/gastronet/surgical-action-160"
+    "configs/fdtn_probing/gsvit/AVOS"
+    "configs/fdtn_probing/gsvit/polypdiag"
+    "configs/fdtn_probing/gsvit/surgical-action-160"
 )
 
 FNAMES=(
-    "gastronet_vits_64f_avos.yaml"
-    "gastronet_vits_64f_PolypDiag.yaml"
-    "gastronet_vits_64f_Surgical-Action-160.yaml"
+    "gsvit_vit_64f_avos.yaml"
+    "gsvit_vit_64f_PolypDiag.yaml"
+    "gsvit_vit_64f_Surgical-Action-160.yaml"
 )
 
 # 验证列表长度一致
