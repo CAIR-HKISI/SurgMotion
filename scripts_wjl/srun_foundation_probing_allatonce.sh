@@ -59,9 +59,9 @@ export WANDB_MODE=online
 
 
 TASKS=(
-    "configs/fdtn_probing/gsvit/AVOS"
-    "configs/fdtn_probing/gsvit/polypdiag"
-    "configs/fdtn_probing/gsvit/surgical-action-160"
+    "fdtn_probing/gsvit/AVOS"
+    "fdtn_probing/gsvit/polypdiag"
+    "fdtn_probing/gsvit/surgical-action-160"
 )
 
 FNAMES=(
