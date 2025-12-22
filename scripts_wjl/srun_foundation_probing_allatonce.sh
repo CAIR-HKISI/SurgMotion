@@ -114,9 +114,10 @@ for i in "${!TASKS[@]}"; do
             conda activate jepa_torch
             cd /home/projects/med-multi-llm/jinlin_wu/NSJepa_20251112
 	    export https_proxy="http://cair:coy_suffocate_petrified@klb-fwproxy-01.aisc.local:3128"
-            export PYTHONHTTPSVERIFY=0
+        export PYTHONHTTPSVERIFY=0
 	    export CURL_CA_BUNDLE=""
-	    export REQUESTS_CA_BUNDLE=""
+        export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+	    export REQUESTS_CA_BUNDLE=$SSL_CERT_FILE
 
 	    echo '✅ GPU resources allocated!'
             echo 'Job ID:' \$SLURM_JOB_ID
