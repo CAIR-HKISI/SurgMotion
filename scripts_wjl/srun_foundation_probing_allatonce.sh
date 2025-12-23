@@ -59,12 +59,14 @@ export WANDB_MODE=online
 
 
 TASKS=(
+    "fdtn_probing/endovit/polypdiag"
     "fdtn_probing/gsvit/AVOS"
     "fdtn_probing/gsvit/polypdiag"
     "fdtn_probing/gsvit/surgical-action-160"
 )
 
 FNAMES=(
+    "endovit_vitl_64f_PolypDiag.yaml"
     "gsvit_vit_64f_avos.yaml"
     "gsvit_vit_64f_PolypDiag.yaml"
     "gsvit_vit_64f_Surgical-Action-160.yaml"

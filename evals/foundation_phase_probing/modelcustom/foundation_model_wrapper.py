@@ -208,8 +208,8 @@ def init_foundation_model(
             model_name=model_name
         )
     elif model_type == 'gsvit':
-        from .adapters.gsvit_adapter import GSVITAdapter
-        adapter = GSVITAdapter.from_config(
+        from .adapters.gsvit_adapter import GSViTAdapter
+        adapter = GSViTAdapter.from_config(
             resolution=resolution,
             checkpoint=checkpoint,
             model_name=model_name
