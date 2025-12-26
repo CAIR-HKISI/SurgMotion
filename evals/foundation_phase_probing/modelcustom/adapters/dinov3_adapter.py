@@ -7,7 +7,8 @@ import torch
 import torch.nn as nn
 from typing import Optional
 from .base_adapter import BaseFoundationModelAdapter
-
+import sys
+sys.path.append(".")
 
 class DINOv3Adapter(BaseFoundationModelAdapter):
     """DINOv3模型的Adapter - 输入格式: [B, C, F, H, W]"""
