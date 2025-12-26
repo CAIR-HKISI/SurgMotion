@@ -64,11 +64,18 @@ TASKS=(
     "fdtn_probing/dinov3/surgical-action-160"
 )
 
+# FNAMES=(
+#     "dinov3_vitl_64f_avos.yaml"
+#     "dinov3_vitl_64f_PolypDiag.yaml"
+#     "dinov3_vitl_64f_Surgical-Action-160.yaml"
+# )
+
 FNAMES=(
-    "dinov3_vitl_64f_avos.yaml"
-    "dinov3_vitl_64f_PolypDiag.yaml"
-    "dinov3_vitl_64f_Surgical-Action-160.yaml"
+    "dinov3_vith_64f_avos.yaml"
+    "dinov3_vith_64f_PolypDiag.yaml"
+    "dinov3_vith_64f_Surgical-Action-160.yaml"
 )
+
 
 # 验证列表长度一致
 if [ ${#TASKS[@]} -ne ${#FNAMES[@]} ]; then

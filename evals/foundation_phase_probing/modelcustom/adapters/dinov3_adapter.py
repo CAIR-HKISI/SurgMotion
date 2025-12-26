@@ -13,23 +13,41 @@ sys.path.append(".")
 class DINOv3Adapter(BaseFoundationModelAdapter):
     """DINOv3模型的Adapter - 输入格式: [B, C, F, H, W]"""
     
-    def __init__(self, model, embed_dim: int, model_name: str):
+    def __init__(self, model, embed_dim: int, model_name: str, resolution: int = 256):
         super().__init__(model, embed_dim)
         self.model_name = model_name
-        self.embed_dim = 1024
+        self.resolution = resolution
     
     @classmethod
     def from_config(cls, resolution: int, checkpoint: Optional[str] = None, model_name: str = 'dinov3_vitl14'):
         """从配置创建adapter"""
         import torch
+        import os
         from modelscope import AutoImageProcessor, AutoModel
                 
-        print(f"Loading DINOv3 model: {model_name}")
         
+        # 模型路径映射
+        MODEL_PATHS = {
+            # Large (ViT-L/16)
+            'dinov3_vitl16': "ckpts/ckpts_foundation/dinov3-vitl16-pretrain-lvd1689m",
+            
+            # Huge+ (ViT-H+/16)
+            'dinov3_vith16plus': "ckpts/ckpts_foundation/dinov3-vith16plus-pretrain-lvd1689m", 
+            
+            # Giant (ViT-7B/16)
+            'dinov3_vit7b16': "ckpts/ckpts_foundation/dinov3-vit7b16-pretrain-lvd1689m",
+        }
+
         try:
-            # 从torch.hub加载DINOv3
-            pretrained_model_name = "ckpts/ckpts_foundation/dinov3-vitl16-pretrain-lvd1689m"
-            processor = AutoImageProcessor.from_pretrained(pretrained_model_name)
+            # 确定预训练模型路径
+            if checkpoint:
+                pretrained_model_name = checkpoint
+            else:
+                pretrained_model_name = MODEL_PATHS.get(model_name, model_name)
+            
+            print(f"Loading {model_name} from {pretrained_model_name}...")
+
+            processor = AutoImageProcessor.from_pretrained(pretrained_model_name, trust_remote_code=True)
             max_memory = {}
             #num_gpus = torch.cuda.device_count()
             #for i in range(num_gpus):
@@ -45,16 +63,30 @@ class DINOv3Adapter(BaseFoundationModelAdapter):
                 device_map="auto", 
                 max_memory=max_memory if max_memory else None,  # 使用自定义内存限制
                 low_cpu_mem_usage=True,  # 减少CPU内存使用
+                trust_remote_code=True
             )
-            # 获取embed_dim和num_heads
-            embed_dim = 1024
+            
+            # 自动获取 embed_dim
+            if hasattr(model.config, 'hidden_size'):
+                embed_dim = model.config.hidden_size
+            else:
+                # 后备方案
+                if 'large' in model_name or 'vitl' in model_name:
+                    embed_dim = 1024
+                elif 'huge' in model_name or 'vith' in model_name:
+                    embed_dim = 1280  # ViT-H+
+                elif 'giant' in model_name or 'vit7b' in model_name:
+                    embed_dim = 4096  # ViT-7B usually has larger dim, check specific config
+                else:
+                    embed_dim = 1024
+            
             print(f"✓ DINOv3 loaded: embed_dim={embed_dim}")
 
         except Exception as e:
             print(f"Error loading DINOv3 model: {e}")
             raise e
         
-        return cls(model, embed_dim, model_name)
+        return cls(model, embed_dim, model_name, resolution)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -79,8 +111,8 @@ class DINOv3Adapter(BaseFoundationModelAdapter):
         #target_H = ((H + patch_size - 1) // patch_size) * patch_size
         #target_W = ((W + patch_size - 1) // patch_size) * patch_size
 
-        target_H = 256
-        target_W = 256
+        target_H = self.resolution
+        target_W = self.resolution
         
         # 如果尺寸不匹配，进行resize
         if H != target_H or W != target_W:
