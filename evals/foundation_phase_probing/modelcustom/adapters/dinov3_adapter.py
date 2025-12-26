@@ -27,7 +27,7 @@ class DINOv3Adapter(BaseFoundationModelAdapter):
         
         try:
             # 从torch.hub加载DINOv3
-            pretrained_model_name = "facebook/dinov3-vitl16-pretrain-lvd1689m"
+            pretrained_model_name = "ckpts/ckpts_foundation/dinov3-vitl16-pretrain-lvd1689m"
             processor = AutoImageProcessor.from_pretrained(pretrained_model_name)
             max_memory = {}
             #num_gpus = torch.cuda.device_count()
