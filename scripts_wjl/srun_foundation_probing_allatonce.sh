@@ -59,11 +59,15 @@ export WANDB_MODE=online
 
 
 TASKS=(
-    "fdtn_probing/gsvit/surgical-action-160"
+    "fdtn_probing/dinov3/AVOS"
+    "fdtn_probing/dinov3/polypdiag"
+    "fdtn_probing/dinov3/surgical-action-160"
 )
 
 FNAMES=(
-    "gsvit_vits_64f_Surgical-Action-160.yaml"
+    "dinov3_vitl_64f_avos.yaml"
+    "dinov3_vitl_64f_PolypDiag.yaml"
+    "dinov3_vitl_64f_Surgical-Action-160.yaml"
 )
 
 # 验证列表长度一致
