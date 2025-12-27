@@ -58,16 +58,10 @@ export WANDB_MODE=online
 # )
 
 
-TASKS=(
-    "fdtn_probing/videomaev2/AVOS"
-    "fdtn_probing/videomaev2/polypdiag"
-    "fdtn_probing/videomaev2/surgical-action-160"
-)
-
-# FNAMES=(
-#     "dinov3_vitl_64f_avos.yaml"
-#     "dinov3_vitl_64f_PolypDiag.yaml"
-#     "dinov3_vitl_64f_Surgical-Action-160.yaml"
+# TASKS=(
+#     "fdtn_probing/videomaev2/AVOS"
+#     "fdtn_probing/videomaev2/polypdiag"
+#     "fdtn_probing/videomaev2/surgical-action-160"
 # )
 
 # FNAMES=(
@@ -76,12 +70,18 @@ TASKS=(
 #     "videomaev2_large_64f_Surgical-Action-160.yaml"
 # )
 
-FNAMES=(
-    "videomaev2_giant_64f_avos.yaml"
-    "videomaev2_giant_64f_PolypDiag.yaml"
-    "videomaev2_giant_64f_Surgical-Action-160.yaml"
+
+TASKS=(
+    "fdtn_probing/selfsupsurg/AVOS"
+    "fdtn_probing/selfsupsurg/polypdiag"
+    "fdtn_probing/selfsupsurg/surgical-action-160"
 )
 
+FNAMES=(
+    "selfsupsurg_res50_64f_avos.yaml"
+    "selfsupsurg_res50_64f_PolypDiag.yaml"
+    "selfsupsurg_res50_64f_Surgical-Action-160.yaml"
+)
 
 
 # 验证列表长度一致
