@@ -83,17 +83,32 @@ export WANDB_MODE=online
 #     "selfsupsurg_res50_64f_Surgical-Action-160.yaml"
 # )
 
+# TASKS=(
+#     "fdtn_probing/surgenet/AVOS"
+#     "fdtn_probing/surgenet/polypdiag"
+#     "fdtn_probing/surgenet/surgical-action-160"
+# )
+
+# FNAMES=(
+#     "surgenetxl_caformer_64f_avos.yaml"
+#     "surgenetxl_caformer_64f_PolypDiag.yaml"
+#     "surgenetxl_caformer_64f_Surgical-Action-160.yaml"
+# )
+
 TASKS=(
-    "fdtn_probing/surgenet/AVOS"
-    "fdtn_probing/surgenet/polypdiag"
-    "fdtn_probing/surgenet/surgical-action-160"
+    "fdtn_probing/surgvlp/AVOS"
+    "fdtn_probing/surgvlp/polypdiag"
+    "fdtn_probing/surgvlp/surgical-action-160"
 )
 
 FNAMES=(
-    "surgenetxl_caformer_64f_avos.yaml"
-    "surgenetxl_caformer_64f_PolypDiag.yaml"
-    "surgenetxl_caformer_64f_Surgical-Action-160.yaml"
+    "surgvlp_res50_64f_avos.yaml"
+    "surgvlp_res50_64f_PolypDiag.yaml"
+    "surgvlp_res50_64f_Surgical-Action-160.yaml"
 )
+
+
+
 
 
 # 验证列表长度一致

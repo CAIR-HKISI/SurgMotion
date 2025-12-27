@@ -229,6 +229,13 @@ def init_foundation_model(
             checkpoint=checkpoint,
             model_name=model_name
         )
+    elif model_type == 'surgvlp':
+        from .adapters.surgvlp_adapter import SurgVLPAdapter
+        adapter = SurgVLPAdapter.from_config(
+            resolution=resolution,
+            checkpoint=checkpoint,
+            model_name=model_name
+        )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
