@@ -333,7 +333,11 @@ class VideoMAEAdapter(BaseFoundationModelAdapter):
         
         # 2. 添加位置编码（如果使用 learnable pos embed）
         if hasattr(vit, 'pos_embed') and vit.pos_embed is not None:
-            x = x + vit.pos_embed
+            # 确保 pos_embed 在正确的设备上
+            if vit.pos_embed.device != x.device:
+                x = x + vit.pos_embed.to(x.device)
+            else:
+                x = x + vit.pos_embed
         
         # 3. Position dropout
         if hasattr(vit, 'pos_drop'):

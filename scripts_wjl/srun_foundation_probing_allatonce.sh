@@ -70,17 +70,17 @@ TASKS=(
 #     "dinov3_vitl_64f_Surgical-Action-160.yaml"
 # )
 
-# FNAMES=(
-#     "videomaev2_large_64f_avos.yaml"
-#     "videomaev2_large_64f_PolypDiag.yaml"
-#     "videomaev2_large_64f_Surgical-Action-160.yaml"
-# )
-
 FNAMES=(
-    "videomaev2_giant_64f_avos.yaml"
-    "videomaev2_giant_64f_PolypDiag.yaml"
-    "videomaev2_giant_64f_Surgical-Action-160.yaml"
+    "videomaev2_large_64f_avos.yaml"
+    "videomaev2_large_64f_PolypDiag.yaml"
+    "videomaev2_large_64f_Surgical-Action-160.yaml"
 )
+
+# FNAMES=(
+#     "videomaev2_giant_64f_avos.yaml"
+#     "videomaev2_giant_64f_PolypDiag.yaml"
+#     "videomaev2_giant_64f_Surgical-Action-160.yaml"
+# )
 
 
 
