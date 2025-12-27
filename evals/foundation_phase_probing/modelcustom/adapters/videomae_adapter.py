@@ -37,28 +37,28 @@ class VideoMAEAdapter(BaseFoundationModelAdapter):
     # 模型配置
     MODEL_CONFIGS = {
         'videomaev2_base': {
-            'pretrained_name': 'OpenGVLab/VideoMAEv2-Base',
+            'pretrained_name': 'ckpts/ckpts_foundation/OpenGVLab/VideoMAEv2-Base',
             'embed_dim': 768,
             'patch_size': 16,
             'tubelet_size': 2,
             'native_frames': 16,  # VideoMAE 原生支持的帧数
         },
         'videomaev2_large': {
-            'pretrained_name': 'OpenGVLab/VideoMAEv2-Large',
+            'pretrained_name': 'ckpts/ckpts_foundation/OpenGVLab/VideoMAEv2-Large',
             'embed_dim': 1024,
             'patch_size': 16,
             'tubelet_size': 2,
             'native_frames': 16,
         },
         'videomaev2_huge': {
-            'pretrained_name': 'OpenGVLab/VideoMAEv2-Huge',
+            'pretrained_name': 'ckpts/ckpts_foundation/OpenGVLab/VideoMAEv2-Huge',
             'embed_dim': 1280,
             'patch_size': 16,
             'tubelet_size': 2,
             'native_frames': 16,
         },
         'videomaev2_giant': {
-            'pretrained_name': 'OpenGVLab/VideoMAEv2-Giant',
+            'pretrained_name': 'ckpts/ckpts_foundation/OpenGVLab/VideoMAEv2-Giant',
             'embed_dim': 1408,
             'patch_size': 14,
             'tubelet_size': 2,
