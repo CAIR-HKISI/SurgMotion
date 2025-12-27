@@ -71,16 +71,28 @@ export WANDB_MODE=online
 # )
 
 
+# TASKS=(
+#     "fdtn_probing/selfsupsurg/AVOS"
+#     "fdtn_probing/selfsupsurg/polypdiag"
+#     "fdtn_probing/selfsupsurg/surgical-action-160"
+# )
+
+# FNAMES=(
+#     "selfsupsurg_res50_64f_avos.yaml"
+#     "selfsupsurg_res50_64f_PolypDiag.yaml"
+#     "selfsupsurg_res50_64f_Surgical-Action-160.yaml"
+# )
+
 TASKS=(
-    "fdtn_probing/selfsupsurg/AVOS"
-    "fdtn_probing/selfsupsurg/polypdiag"
-    "fdtn_probing/selfsupsurg/surgical-action-160"
+    "fdtn_probing/surgenet/AVOS"
+    "fdtn_probing/surgenet/polypdiag"
+    "fdtn_probing/surgenet/surgical-action-160"
 )
 
 FNAMES=(
-    "selfsupsurg_res50_64f_avos.yaml"
-    "selfsupsurg_res50_64f_PolypDiag.yaml"
-    "selfsupsurg_res50_64f_Surgical-Action-160.yaml"
+    "surgenetxl_caformer_64f_avos.yaml"
+    "surgenetxl_caformer_64f_PolypDiag.yaml"
+    "surgenetxl_caformer_64f_Surgical-Action-160.yaml"
 )
 
 

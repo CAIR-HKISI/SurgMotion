@@ -222,6 +222,13 @@ def init_foundation_model(
             checkpoint=checkpoint,
             model_name=model_name
         )
+    elif model_type == 'surgenet':
+        from .adapters.surgenet_adapter import SurgeNetAdapter
+        adapter = SurgeNetAdapter.from_config(
+            resolution=resolution,
+            checkpoint=checkpoint,
+            model_name=model_name
+        )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     

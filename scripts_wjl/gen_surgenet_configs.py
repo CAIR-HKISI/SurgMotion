@@ -1,0 +1,118 @@
+import os
+import re
+
+SRC_BASE = 'configs/fdtn_probing/dinov3'
+DST_BASE = 'configs/fdtn_probing/surgenet'
+
+MODELS = [
+    {
+        'file_prefix': 'surgenetxl_caformer',
+        'model_name': 'surgenetxl',
+        'backbone_type': 'caformer',
+        'description': 'SurgeNetXL CaFormer'
+    },
+    {
+        'file_prefix': 'surgenet_convnextv2',
+        'model_name': 'surgenet_convnextv2',
+        'backbone_type': 'convnextv2',
+        'description': 'SurgeNet ConvNextv2'
+    }
+]
+
+def process_file(dataset_name, src_file):
+    with open(src_file, 'r') as f:
+        content = f.read()
+
+    # Determine filename
+    base_name = os.path.basename(src_file)
+    
+    # Extract DatasetName part
+    # Expected format: dinov3_vith_64f_DatasetName.yaml or dinov3_vith16plus_64f_DatasetName.yaml
+    match = re.search(r'dinov3_(?:vith|vith16plus|vit\w+)_64f_(.+)\.yaml', base_name)
+    if not match:
+        # Try generic match
+        match = re.search(r'dinov3_.+_64f_(.+)\.yaml', base_name)
+    
+    if match:
+        dataset_suffix = match.group(1)
+    else:
+        # Fallback: use folder name
+        dataset_suffix = dataset_name
+
+    for model_cfg in MODELS:
+        new_content = content
+        
+        file_prefix = model_cfg['file_prefix']
+        m_name = model_cfg['model_name']
+        b_type = model_cfg['backbone_type']
+        desc = model_cfg['description']
+        
+        # 1. Update basic fields
+        # logs/foundation/dinov3_vith16plus_PolypDiag -> logs/foundation/surgenetxl_caformer_PolypDiag
+        new_content = re.sub(r'logs/foundation/dinov3_[^/\n]+', f'logs/foundation/{file_prefix}_{dataset_suffix}', new_content)
+        
+        # tag: dinov3_vith16plus_64f_PolypDiag -> tag: surgenetxl_caformer_64f_PolypDiag
+        new_content = re.sub(r'tag: dinov3_[^\n]+', f'tag: {file_prefix}_64f_{dataset_suffix}', new_content)
+        
+        # 2. Update WandB
+        # name: dinov3_vith16plus_64f_PolypDiag -> name: surgenetxl_caformer_64f_PolypDiag
+        new_content = re.sub(r'name: dinov3_[^\n]+', f'name: {file_prefix}_64f_{dataset_suffix}', new_content)
+        
+        # tags: ...
+        # - dinov3_vith16plus-64f -> - surgenetxl_caformer-64f
+        new_content = re.sub(r'tags:\n\s+- ([^\n]+)\n\s+- phase-probing\n\s+- dinov3_[^\n]+', 
+                             f'tags:\n    - \\1\n    - phase-probing\n    - {file_prefix}-64f', new_content)
+        
+        # notes
+        new_content = re.sub(r'notes: "Multi-head probing on ([^"]+)"', 
+                             f'notes: "Multi-head probing on \\1 with {desc}"', new_content)
+
+        # 3. Update model_kwargs
+        # Remove old encoder block and replace model_type
+        new_content = re.sub(r'model_type: dinov3', 'model_type: surgenet', new_content)
+        
+        # Regex to replace encoder section
+        # Assuming format:
+        #   encoder:
+        #     model_name: dinov3_vith16plus
+        encoder_pattern = r'  encoder:\n    model_name: [^\n]+'
+        # 我们不再需要显式写入 backbone_type，因为 adapter 会根据 model_name 自动推断
+        # 但为了明确起见，只写入 model_name 即可，或者如果不介意多余参数也可以保留 backbone_type
+        # 不过根据之前的讨论，foundation_model_wrapper 不传递 backbone_type，所以这里配置里写了也没用（除非 wrapper 改了去读它）
+        # 最稳妥的是只依赖 model_name
+        encoder_replacement = f'  encoder:\n    model_name: {m_name}'
+        new_content = re.sub(encoder_pattern, encoder_replacement, new_content)
+
+        # 4. Save
+        dst_dir = os.path.join(DST_BASE, dataset_name)
+        os.makedirs(dst_dir, exist_ok=True)
+        
+        dst_filename = f"{file_prefix}_64f_{dataset_suffix}.yaml"
+        dst_path = os.path.join(dst_dir, dst_filename)
+        
+        with open(dst_path, 'w') as f:
+            f.write(new_content)
+        print(f"Generated: {dst_path}")
+
+def main():
+    if not os.path.exists(SRC_BASE):
+        print(f"Source not found: {SRC_BASE}")
+        return
+
+    for item in os.listdir(SRC_BASE):
+        src_dir = os.path.join(SRC_BASE, item)
+        if os.path.isdir(src_dir):
+            # Find yaml file
+            yaml_files = [f for f in os.listdir(src_dir) if f.endswith('.yaml')]
+            if not yaml_files:
+                continue
+            
+            # Use the first one (usually there is one main one or multiple similar ones)
+            # Prefer ones with '64f' if multiple
+            target_yaml = next((f for f in yaml_files if '64f' in f), yaml_files[0])
+            
+            process_file(item, os.path.join(src_dir, target_yaml))
+
+if __name__ == '__main__':
+    main()
+
