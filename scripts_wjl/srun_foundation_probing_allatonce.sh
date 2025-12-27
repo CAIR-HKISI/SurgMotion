@@ -59,9 +59,9 @@ export WANDB_MODE=online
 
 
 TASKS=(
-    "fdtn_probing/dinov3/AVOS"
-    "fdtn_probing/dinov3/polypdiag"
-    "fdtn_probing/dinov3/surgical-action-160"
+    "fdtn_probing/videomaev2/AVOS"
+    "fdtn_probing/videomaev2/polypdiag"
+    "fdtn_probing/videomaev2/surgical-action-160"
 )
 
 # FNAMES=(
@@ -71,9 +71,9 @@ TASKS=(
 # )
 
 FNAMES=(
-    "dinov3_vith_64f_avos.yaml"
-    "dinov3_vith_64f_PolypDiag.yaml"
-    "dinov3_vith_64f_Surgical-Action-160.yaml"
+    "videomaev2_large_64f_avos.yaml"
+    "videomaev2_large_64f_PolypDiag.yaml"
+    "videomaev2_large_64f_Surgical-Action-160.yaml"
 )
 
 

@@ -1,0 +1,179 @@
+cpus_per_task: 4
+eval_name: foundation_phase_probing
+folder: logs/foundation/videomaev2_huge_Surgical-Action-160
+mem_per_gpu: 220G
+nodes: 1
+max_workers: 4
+resume_checkpoint: true
+tag: videomaev2_huge_64f_Surgical-Action-160
+tasks_per_node: 1
+metric_aggregation: "global" # Options: "global", "per_video", or null (defaults to per_video)
+
+# wandb configuration
+wandb:
+  project: foundation-model-probing  # Your wandb project name
+  entity: nsjepa  # Your wandb username or team (optional, uses default if null)
+  name: videomaev2_huge_64f_Surgical-Action-160
+  tags:
+    - SurgicalAction160
+    - phase-probing
+    - dinov3-vitl-64f
+  group: null  # Group name for grouping related runs (optional)
+  notes: "Multi-head probing on SurgicalAction160 dataset with VideoMAEv2 Huge"
+
+experiment:
+  classifier:
+    num_heads: 16
+    num_probe_blocks: 4
+  data:
+    dataset_type:  surgical_videodataset
+    
+    dataset_train:
+    - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps25.csv
+
+    dataset_val:
+    - data/Surge_Frames/SurgicalActions160_v1/test_metadata_fold0_fps25.csv
+
+    frames_per_clip: 64
+    num_classes: 16
+    num_segments: 1
+    num_views_per_segment: 1
+    resolution: 224
+
+  optimization:
+    batch_size: 4
+    multihead_kwargs:
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.4
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.4
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.4
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.4
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.4
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.8
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.8
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.8
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.8
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.8
+    num_epochs: 40
+    use_bfloat16: true
+    use_pos_embed: false
+
+model_kwargs:
+  checkpoint: null
+  module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
+  model_type: videomae
+  encoder:
+    model_name: videomaev2_huge
+  wrapper_kwargs:
+    tubelet_size: 2
+    max_frames: 128
+    use_pos_embed: false

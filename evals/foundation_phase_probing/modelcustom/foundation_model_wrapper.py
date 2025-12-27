@@ -214,6 +214,14 @@ def init_foundation_model(
             checkpoint=checkpoint,
             model_name=model_name
         )
+    elif model_type == 'videomae':
+        from .adapters.videomae_adapter import VideoMAEAdapter
+        adapter = VideoMAEAdapter.from_config(
+            resolution=resolution,
+            frames_per_clip=frames_per_clip,
+            checkpoint=checkpoint,
+            model_name=model_name
+        )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
