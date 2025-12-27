@@ -1,0 +1,14 @@
+ftfy
+packaging
+regex
+tqdm
+mmengine==0.7.0
+torch
+torchvision
+numpy<2
+torchmetrics
+pycm
+fvcore
+transformers==4.30.2
+scikit-learn
+tqdm
