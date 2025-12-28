@@ -17,23 +17,28 @@ if surgvlp_path not in sys.path:
     # 插到最前面，避免被环境里“同名 surgvlp 包”抢占
     sys.path.insert(0, surgvlp_path)
 
+# 关键：检查 sys.modules 缓存。如果之前已经导入了错误的 surgvlp（例如环境自带的），
+# 即使修改了 sys.path，Python 也会直接用缓存。必须强制清理。
+if "surgvlp" in sys.modules:
+    _loaded = sys.modules["surgvlp"]
+    # 如果已加载的模块没有 load 方法，或者路径不对，就删掉缓存重来
+    if not hasattr(_loaded, "load"):
+        print(f"Warning: 检测到 sys.modules 中已存在不兼容的 surgvlp ({getattr(_loaded, '__file__', 'unknown')})，正在移除以重新加载...")
+        del sys.modules["surgvlp"]
+        # 也要清理可能的子模块缓存，防止部分残留
+        for k in list(sys.modules.keys()):
+            if k.startswith("surgvlp."):
+                del sys.modules[k]
+
 try:
-    surgvlp = importlib.import_module("surgvlp")
-    # 有些环境会导入到同名的第三方/其他 surgvlp，做一次能力校验并尝试修复
+    import surgvlp
+    # 再次检查，确保是我们要的那个
     if not hasattr(surgvlp, "load"):
-        try:
-            surgvlp = importlib.import_module("surgvlp.surgvlp")
-        except Exception:
-            surgvlp = None  # type: ignore[assignment]
-    if surgvlp is None or (not hasattr(surgvlp, "load")):
-        # 强制从本仓库路径加载 surgvlp/surgvlp.py，彻底绕开同名冲突
-        local_surgvlp_py = os.path.join(surgvlp_path, "surgvlp", "surgvlp.py")
-        spec = importlib.util.spec_from_file_location("nsjepa_local_surgvlp", local_surgvlp_py)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"无法从本地文件创建 import spec: {local_surgvlp_py}")
-        _mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(_mod)  # type: ignore[attr-defined]
-        surgvlp = _mod  # type: ignore[assignment]
+        # 可能是导入了 surgvlp 包，但 __init__ 没暴露 load？尝试导入子模块
+        import surgvlp.surgvlp
+        if hasattr(surgvlp.surgvlp, "load"):
+             surgvlp = surgvlp.surgvlp
+    
     _SURGVLP_IMPORT_ERROR: Optional[BaseException] = None
 except Exception as e:
     surgvlp = None  # type: ignore[assignment]
