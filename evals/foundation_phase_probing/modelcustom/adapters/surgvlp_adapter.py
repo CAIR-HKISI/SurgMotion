@@ -60,14 +60,35 @@ class SurgVLPAdapter(BaseFoundationModelAdapter):
         """Create adapter from config"""
         
         if surgvlp is None:
+            # 诊断：打印实际目录结构，帮助定位是否缺文件
+            debug_info = []
+            target_pkg_dir = os.path.join(surgvlp_path, "surgvlp")
+            if os.path.exists(target_pkg_dir):
+                debug_info.append(f"Directory listing of {target_pkg_dir}:")
+                try:
+                    for root, dirs, files in os.walk(target_pkg_dir):
+                        rel_root = os.path.relpath(root, surgvlp_path)
+                        if rel_root == ".": rel_root = "surgvlp"
+                        debug_info.append(f"  {rel_root}/")
+                        for f in files:
+                            if f.endswith(".py"):
+                                debug_info.append(f"    {f}")
+                except Exception as walk_err:
+                    debug_info.append(f"  (Error listing directory: {walk_err})")
+            else:
+                debug_info.append(f"Directory not found: {target_pkg_dir}")
+            
+            debug_str = "\n".join(debug_info)
+
             raise RuntimeError(
                 "无法导入 surgvlp（SurgVLP foundation model 代码）。\n"
                 f"- 期望路径: {surgvlp_path}\n"
                 f"- 原始异常: {type(_SURGVLP_IMPORT_ERROR).__name__}: {_SURGVLP_IMPORT_ERROR}\n"
+                f"- 文件结构诊断:\n{debug_str}\n\n"
                 "请确认：\n"
-                "1) 该机器上存在 foundation_models/SurgVLP 目录（且包含 surgvlp/ 包）\n"
-                "2) 依赖已安装（至少 torch；若需要 transforms/tokenize 相关则需 torchvision/transformers 等）\n"
-                "3) 或者先在 SurgVLP 目录执行 `pip install -e .` 以确保可导入。\n"
+                "1) 若文件结构诊断显示缺少 'codes' 目录或 '__init__.py'，请重新同步 foundation_models/SurgVLP 文件夹。\n"
+                "2) 依赖已安装（至少 torch）。\n"
+                "3) 或者先在 SurgVLP 目录执行 `pip install -e .`。\n"
             )
 
         # Define config directly to avoid mmengine config parsing issues with transforms
