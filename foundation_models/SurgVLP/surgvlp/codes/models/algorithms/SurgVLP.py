@@ -17,7 +17,7 @@ from ...registry import MODELS
 class SurgVLP(nn.Module):
     def __init__(self,
                  backbone_img: dict,
-                 backbone_text: dict,
+                 backbone_text: dict = None,
                  neck=None, # Optional[dict] 
                  head= None, # Optional[dict] 
                  pretrained= None, # Optional[str] 
@@ -26,7 +26,10 @@ class SurgVLP(nn.Module):
         super().__init__()
 
         self.backbone_img = MODELS.build(backbone_img)
-        self.backbone_text = MODELS.build(backbone_text)
+        if backbone_text is not None:
+            self.backbone_text = MODELS.build(backbone_text)
+        else:
+            self.backbone_text = None
 
         if neck is not None:
             self.neck = MODELS.build(neck)

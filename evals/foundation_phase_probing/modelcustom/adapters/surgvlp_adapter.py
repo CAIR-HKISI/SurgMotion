@@ -93,16 +93,7 @@ class SurgVLPAdapter(BaseFoundationModelAdapter):
                 backbone_name='resnet_50',
                 img_norm=False
             ),
-            backbone_text= dict(
-                type='text_backbones/BertEncoder',
-                text_bert_type='emilyalsentzer/Bio_ClinicalBERT',
-                text_last_n_layers=4,
-                text_aggregate_method='sum',
-                text_norm=False,
-                text_embedding_dim=768,
-                text_freeze_bert=False,
-                text_agg_tokens=True
-            )
+            # backbone_text removed to avoid dependency on transformers
         )
         
         device = "cuda" if torch.cuda.is_available() else "cpu"

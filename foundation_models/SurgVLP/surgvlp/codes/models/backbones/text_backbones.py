@@ -5,7 +5,11 @@ Copyright (c) University of Strasbourg, All Rights Reserved.
 """
 import torch
 import torch.nn as nn
-from transformers import AutoModel, AutoTokenizer
+try:
+    from transformers import AutoModel, AutoTokenizer
+except ImportError:
+    AutoModel = None
+    AutoTokenizer = None
 import re
 import torch.nn.functional as F
 import numpy as np
