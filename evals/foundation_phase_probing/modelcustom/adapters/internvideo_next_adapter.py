@@ -44,6 +44,25 @@ class InternVideoNextAdapter(BaseFoundationModelAdapter):
                 pretrained_model_name = MODEL_PATHS.get(model_name, model_name)
 
             print(f"Loading {model_name} from {pretrained_model_name}...")
+            
+            # --- Monkeypatch to handle flash_attn issues safely ---
+            import sys
+            import types
+            
+            # Force mock flash_attn modules to fail import gracefully or exist as empty shells
+            # This prevents the 'No module named ...' errors during dynamic loading
+            if 'flash_attn' not in sys.modules:
+                # Option A: Mask it completely so it raises ImportError in try/except blocks
+                sys.modules['flash_attn'] = None 
+                # Note: Setting to None causes "ImportError: No module named 'flash_attn'" which is what we want
+                # inside the model's try/except blocks.
+            
+            # Also mask submodules that might be imported directly
+            sys.modules['flash_attn.flash_attn_interface'] = None
+            sys.modules['flash_attn.bert_padding'] = None
+            sys.modules['flash_attn.modules.mlp'] = None
+            sys.modules['flash_attn.ops.rms_norm'] = None
+            # ----------------------------------------------------
 
             # Compatibility patch:
             # 某些环境里 `flash_attn` 是“半安装”状态：attention kernels 可 import
@@ -66,6 +85,62 @@ class InternVideoNextAdapter(BaseFoundationModelAdapter):
                 device_map=None,
                 config=config,
             )
+            
+            # --- Monkeypatch loaded model to use SDPA (PyTorch 2.0+) for speed ---
+            # Since we forced flash_attn off, we want to inject F.scaled_dot_product_attention
+            # into the Attention classes to avoid slowness.
+            try:
+                def efficient_attn_forward(self, x):
+                    # Based on InternVideo2 Naive Attention logic but replaced with SDPA
+                    # self is the Attention module instance
+                    B, N, C = x.shape
+                    qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+                    q, k, v = qkv.unbind(0)
+                    
+                    if self.qk_normalization:
+                        B_, H_, N_, D_ = q.shape
+                        q = self.q_norm(q.transpose(1, 2).flatten(-2, -1)).view(B_, N_, H_, D_).transpose(1, 2)
+                        k = self.k_norm(k.transpose(1, 2).flatten(-2, -1)).view(B_, N_, H_, D_).transpose(1, 2)
+                    
+                    # Use PyTorch SDPA
+                    # q, k, v are [B, H, N, D]
+                    x = F.scaled_dot_product_attention(
+                        q, k, v,
+                        dropout_p=self.attn_drop.p if self.training else 0.0,
+                        scale=self.scale
+                    )
+                    
+                    x = x.transpose(1, 2).reshape(B, N, C)
+                    x = self.proj(x)
+                    x = self.proj_drop(x)
+                    return x
+
+                # Apply patch to all Attention modules in the backbone
+                # The model structure is usually model.model.blocks...
+                vision_encoder = None
+                if hasattr(model, "vision_model"):
+                    vision_encoder = model.vision_model
+                elif hasattr(model, "model") and hasattr(model.model, "patch_embed"):
+                    vision_encoder = model.model
+                elif hasattr(model, "patch_embed"):
+                    vision_encoder = model
+                
+                if vision_encoder and hasattr(vision_encoder, "blocks"):
+                    print("Applying efficient SDPA patch to InternVideoNext Attention blocks...")
+                    count = 0
+                    for block in vision_encoder.blocks:
+                        if hasattr(block, "attn"):
+                            # Bind the method to the instance (or just replace the method on the class if consistent)
+                            # Replacing on instance is safer
+                            block.attn._naive_attn = types.MethodType(efficient_attn_forward, block.attn)
+                            # Force use_flash_attn=False so it calls _naive_attn (which is now patched)
+                            block.attn.use_flash_attn = False
+                            count += 1
+                    print(f"Patched {count} attention blocks with SDPA.")
+            except Exception as patch_e:
+                print(f"Warning: Failed to apply SDPA patch: {patch_e}")
+            # ---------------------------------------------------------------------
+            
             model.eval()
 
             # Extract Vision Encoder (InternVideoNext remote code: model.model is the backbone)
