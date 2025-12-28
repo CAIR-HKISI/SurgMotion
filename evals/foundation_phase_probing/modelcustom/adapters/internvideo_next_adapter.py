@@ -62,10 +62,12 @@ class InternVideoNextAdapter(BaseFoundationModelAdapter):
                     self.__loader__ = None
                     self.__package__ = None
                     self.__name__ = "flash_attn"
-
+                    
                 def __getattr__(self, name):
-                    if name in ["__spec__", "__loader__", "__package__", "__name__"]:
+                    if name in ["__spec__", "__loader__", "__package__", "__name__", "__path__"]:
                         return None
+                    if name in ["flash_attn_interface", "bert_padding", "modules", "ops"]:
+                         return self
                     # Raising ImportError on attribute access usually simulates "from module import name" failure
                     raise ImportError(f"Dummy module: {name} not found")
             
