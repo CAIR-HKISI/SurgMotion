@@ -34,7 +34,7 @@ class InternVideoNextAdapter(BaseFoundationModelAdapter):
 
         # 默认 checkpoint 路径映射
         MODEL_PATHS = {
-            "internvideo_next_large_p14_res224_f16": "/home/jinlin_wu/NSJepa/ckpts/ckpts_foundation/revliter/internvideo_next_large_p14_res224_f16",
+            "internvideo_next_large_p14_res224_f16": "ckpts/ckpts_foundation/revliter/internvideo_next_large_p14_res224_f16",
         }
 
         try:
