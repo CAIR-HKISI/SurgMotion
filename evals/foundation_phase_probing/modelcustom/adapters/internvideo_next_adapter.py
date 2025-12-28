@@ -58,6 +58,8 @@ class InternVideoNextAdapter(BaseFoundationModelAdapter):
             class DummyModule:
                 __path__ = []
                 def __getattr__(self, name):
+                    if name in ["__spec__", "__loader__", "__package__", "__name__"]:
+                        return None
                     # Raising ImportError on attribute access usually simulates "from module import name" failure
                     raise ImportError(f"Dummy module: {name} not found")
             
