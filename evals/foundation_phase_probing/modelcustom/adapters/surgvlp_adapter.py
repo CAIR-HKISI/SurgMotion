@@ -17,6 +17,32 @@ if surgvlp_path not in sys.path:
     # 插到最前面，避免被环境里“同名 surgvlp 包”抢占
     sys.path.insert(0, surgvlp_path)
 
+# -------------------------------------------------------------------------
+# [Emergency Fix] 暴力规避 transformers 版本冲突
+# 用户的环境中 huggingface-hub 与 transformers 版本不匹配，导致 import transformers 崩溃。
+# 由于我们只使用 SurgVLP 的视觉部分（ResNet），完全不需要 transformers。
+# 这里我们在 import surgvlp 之前，先在 sys.modules 里注入一个假的 transformers，
+# 这样 surgvlp 内部 import transformers 时就会拿到这个假对象，从而绕过报错。
+try:
+    import transformers
+except ImportError:
+    # 只有当真的导不进去时才 Mock，防止影响其他正常模块
+    # 但用户的报错是 ImportError: huggingface-hub..., 这也是 ImportError
+    from unittest.mock import MagicMock
+    m = MagicMock()
+    m.__file__ = "dummy_transformers"
+    sys.modules["transformers"] = m
+    sys.modules["transformers.models"] = m
+    sys.modules["transformers.models.bert"] = m
+    print("Warning: 已在 sys.modules 中注入 Mock transformers 以规避环境报错。")
+except Exception:
+    # 如果是其他错误（如版本不兼容抛出的 RuntimeError），也照样 Mock
+    from unittest.mock import MagicMock
+    m = MagicMock()
+    sys.modules["transformers"] = m
+    print("Warning: 已强制注入 Mock transformers。")
+# -------------------------------------------------------------------------
+
 # 关键：检查 sys.modules 缓存。如果之前已经导入了错误的 surgvlp（例如环境自带的），
 # 即使修改了 sys.path，Python 也会直接用缓存。必须强制清理。
 if "surgvlp" in sys.modules:
@@ -73,15 +99,15 @@ class SurgVLPAdapter(BaseFoundationModelAdapter):
             if missing_files:
                 hint = f"\n** 检测到文件缺失: {', '.join(missing_files)} **\n这通常是由于文件同步/上传不完整导致的。"
 
-            raise RuntimeError(
-                "无法导入 surgvlp（SurgVLP foundation model 代码）。\n"
-                f"- 期望路径: {surgvlp_path}\n"
-                f"- 原始异常: {type(_SURGVLP_IMPORT_ERROR).__name__}: {_SURGVLP_IMPORT_ERROR}{hint}\n"
-                "请确认：\n"
-                "1) 务必重新同步 foundation_models/SurgVLP 文件夹（确保包含 codes 子目录）。\n"
-                "2) 依赖已安装（至少 torch）。\n"
-                "3) 或者先在 SurgVLP 目录执行 `pip install -e .`。\n"
+            # 降级为 Warning，并尝试继续运行（可能会在后续步骤失败，但至少不会在这里被拦截）
+            print(
+                f"Warning: 无法导入 surgvlp，将尝试继续（可能导致后续崩溃）。\n"
+                f"原始异常: {type(_SURGVLP_IMPORT_ERROR).__name__}: {_SURGVLP_IMPORT_ERROR}{hint}"
             )
+            # 如果真的没导进来，这里也没办法 magic，后续 load() 肯定会炸。
+            # 但既然用户要求“删检查”，我们就只打印 Warning。
+        
+        # Define config directly to avoid mmengine config parsing issues with transforms
 
         # Define config directly to avoid mmengine config parsing issues with transforms
         model_config = dict(
