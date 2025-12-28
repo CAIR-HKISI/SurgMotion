@@ -3,6 +3,8 @@ import torch.nn as nn
 import sys
 import os
 from typing import Optional
+import importlib
+import importlib.util
 
 # Add foundation_models/SurgVLP to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -12,10 +14,26 @@ repo_root = os.path.abspath(os.path.join(current_dir, "../../../../"))
 surgvlp_path = os.path.join(repo_root, "foundation_models/SurgVLP")
 
 if surgvlp_path not in sys.path:
-    sys.path.append(surgvlp_path)
+    # 插到最前面，避免被环境里“同名 surgvlp 包”抢占
+    sys.path.insert(0, surgvlp_path)
 
 try:
-    import surgvlp
+    surgvlp = importlib.import_module("surgvlp")
+    # 有些环境会导入到同名的第三方/其他 surgvlp，做一次能力校验并尝试修复
+    if not hasattr(surgvlp, "load"):
+        try:
+            surgvlp = importlib.import_module("surgvlp.surgvlp")
+        except Exception:
+            surgvlp = None  # type: ignore[assignment]
+    if surgvlp is None or (not hasattr(surgvlp, "load")):
+        # 强制从本仓库路径加载 surgvlp/surgvlp.py，彻底绕开同名冲突
+        local_surgvlp_py = os.path.join(surgvlp_path, "surgvlp", "surgvlp.py")
+        spec = importlib.util.spec_from_file_location("nsjepa_local_surgvlp", local_surgvlp_py)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"无法从本地文件创建 import spec: {local_surgvlp_py}")
+        _mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_mod)  # type: ignore[attr-defined]
+        surgvlp = _mod  # type: ignore[assignment]
     _SURGVLP_IMPORT_ERROR: Optional[BaseException] = None
 except Exception as e:
     surgvlp = None  # type: ignore[assignment]
