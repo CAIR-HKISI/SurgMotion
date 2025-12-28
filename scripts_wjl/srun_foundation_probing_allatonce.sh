@@ -114,9 +114,9 @@ TASKS=(
 )
 
 FNAMES=(
-    "internvideo_next_large_p14_res224_f16_avos.yaml"
-    "internvideo_next_large_p14_res224_f16_PolypDiag.yaml"
-    "internvideo_next_large_p14_res224_f16_Surgical-Action-160.yaml"
+    "internvideo_next_64f_avos.yaml"
+    "internvideo_next_64f_PolypDiag.yaml"
+    "internvideo_next_64f_Surgical-Action-160.yaml"
 )
 
 
