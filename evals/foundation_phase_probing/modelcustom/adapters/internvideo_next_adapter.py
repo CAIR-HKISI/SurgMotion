@@ -57,6 +57,12 @@ class InternVideoNextAdapter(BaseFoundationModelAdapter):
             
             class DummyModule:
                 __path__ = []
+                def __init__(self):
+                    self.__spec__ = None
+                    self.__loader__ = None
+                    self.__package__ = None
+                    self.__name__ = "flash_attn"
+
                 def __getattr__(self, name):
                     if name in ["__spec__", "__loader__", "__package__", "__name__"]:
                         return None
