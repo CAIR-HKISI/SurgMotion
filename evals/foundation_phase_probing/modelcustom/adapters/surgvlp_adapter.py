@@ -16,9 +16,11 @@ if surgvlp_path not in sys.path:
 
 try:
     import surgvlp
-    from mmengine.config import Config
-except ImportError:
-    print(f"Warning: Could not import surgvlp from {surgvlp_path}")
+    _SURGVLP_IMPORT_ERROR: Optional[BaseException] = None
+except Exception as e:
+    surgvlp = None  # type: ignore[assignment]
+    _SURGVLP_IMPORT_ERROR = e
+    print(f"Warning: Could not import surgvlp from {surgvlp_path}: {type(e).__name__}: {e}")
 
 from .base_adapter import BaseFoundationModelAdapter
 
@@ -34,6 +36,17 @@ class SurgVLPAdapter(BaseFoundationModelAdapter):
     def from_config(cls, resolution: int = 224, checkpoint: Optional[str] = None, model_name: str = 'SurgVLP'):
         """Create adapter from config"""
         
+        if surgvlp is None:
+            raise RuntimeError(
+                "无法导入 surgvlp（SurgVLP foundation model 代码）。\n"
+                f"- 期望路径: {surgvlp_path}\n"
+                f"- 原始异常: {type(_SURGVLP_IMPORT_ERROR).__name__}: {_SURGVLP_IMPORT_ERROR}\n"
+                "请确认：\n"
+                "1) 该机器上存在 foundation_models/SurgVLP 目录（且包含 surgvlp/ 包）\n"
+                "2) 依赖已安装（至少 torch；若需要 transforms/tokenize 相关则需 torchvision/transformers 等）\n"
+                "3) 或者先在 SurgVLP 目录执行 `pip install -e .` 以确保可导入。\n"
+            )
+
         # Define config directly to avoid mmengine config parsing issues with transforms
         model_config = dict(
             type='SurgVLP',

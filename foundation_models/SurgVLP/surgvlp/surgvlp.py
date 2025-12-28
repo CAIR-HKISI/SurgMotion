@@ -7,18 +7,38 @@ import hashlib
 import os
 import urllib
 import warnings
-from packaging import version
 from typing import Union, List
 
-from transformers import AutoTokenizer, AutoModel
 from typing import List, Dict, Any, Union
 from .codes.models import build_algorithm
 from .codes.datasets import build_dataset
 import torch
 
-from mmengine.config import Config
-import torchvision.transforms as transforms
-from tqdm import tqdm
+try:
+    from packaging import version  # type: ignore
+except Exception:  # pragma: no cover
+    version = None  # type: ignore
+
+try:
+    from transformers import AutoTokenizer, AutoModel  # type: ignore
+except Exception:  # pragma: no cover
+    AutoTokenizer = None  # type: ignore
+    AutoModel = None  # type: ignore
+
+try:
+    from mmengine.config import Config  # type: ignore
+except Exception:  # pragma: no cover
+    Config = None  # type: ignore
+
+try:
+    import torchvision.transforms as transforms  # type: ignore
+except Exception:  # pragma: no cover
+    transforms = None  # type: ignore
+
+try:
+    from tqdm import tqdm  # type: ignore
+except Exception:  # pragma: no cover
+    tqdm = None  # type: ignore
 import subprocess
 import zipfile
 
@@ -44,6 +64,8 @@ def _convert_image_to_rgb(image):
     return image.convert("RGB")
 
 def _transform(n_px):
+    if transforms is None:
+        raise ImportError("torchvision 未安装，无法构造 SurgVLP 的 transforms。可先 `pip install torchvision`，或在上层调用方忽略 transforms 返回值。")
     return transforms.Compose([
         transforms.Resize((360, 640)),
         transforms.CenterCrop(n_px),
@@ -60,6 +82,8 @@ def tokenize(
     model_name: str = 'emilyalsentzer/Bio_ClinicalBERT',
     device: str = 'cpu'
 ) -> Dict[str, Any]:
+    if AutoTokenizer is None:
+        raise ImportError("transformers 未安装，无法使用 surgvlp.tokenize。请先 `pip install transformers`。")
     tokenizer_clinical = AutoTokenizer.from_pretrained(model_name)
     ixtoword = {v: k for k, v in tokenizer_clinical.get_vocab().items()}
 
@@ -147,7 +171,11 @@ def load(model_config, device: Union[str, torch.device] = "cuda" if torch.cuda.i
     model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
     model = model.eval()
 
-    return model, _transform(input_size)
+    # transforms 仅用于数据预处理；某些使用场景（例如本仓库 adapter）只需要 model 本身
+    tr = None
+    if transforms is not None:
+        tr = _transform(input_size)
+    return model, tr
 
 def load_dataset(config):
     dataset = build_dataset(config)
