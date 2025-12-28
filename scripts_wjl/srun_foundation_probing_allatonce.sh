@@ -95,29 +95,29 @@ export WANDB_MODE=online
 #     "surgenetxl_caformer_64f_Surgical-Action-160.yaml"
 # )
 
-TASKS=(
-    "fdtn_probing/surgvlp/AVOS"
-    "fdtn_probing/surgvlp/polypdiag"
-    "fdtn_probing/surgvlp/surgical-action-160"
-)
-
-FNAMES=(
-    "surgvlp_res50_64f_avos.yaml"
-    "surgvlp_res50_64f_PolypDiag.yaml"
-    "surgvlp_res50_64f_Surgical-Action-160.yaml"
-)
-
 # TASKS=(
-#     "fdtn_probing/internvideo_next/AVOS"
-#     "fdtn_probing/internvideo_next/polypdiag"
-#     "fdtn_probing/internvideo_next/surgical-action-160"
+#     "fdtn_probing/surgvlp/AVOS"
+#     "fdtn_probing/surgvlp/polypdiag"
+#     "fdtn_probing/surgvlp/surgical-action-160"
 # )
 
 # FNAMES=(
-#     "internvideo_next_64f_avos.yaml"
-#     "internvideo_next_64f_PolypDiag.yaml"
-#     "internvideo_next_64f_Surgical-Action-160.yaml"
+#     "surgvlp_res50_64f_avos.yaml"
+#     "surgvlp_res50_64f_PolypDiag.yaml"
+#     "surgvlp_res50_64f_Surgical-Action-160.yaml"
 # )
+
+TASKS=(
+    "fdtn_probing/internvideo_next/AVOS"
+    "fdtn_probing/internvideo_next/polypdiag"
+    "fdtn_probing/internvideo_next/surgical-action-160"
+)
+
+FNAMES=(
+    "internvideo_next_64f_avos.yaml"
+    "internvideo_next_64f_PolypDiag.yaml"
+    "internvideo_next_64f_Surgical-Action-160.yaml"
+)
 
 
 

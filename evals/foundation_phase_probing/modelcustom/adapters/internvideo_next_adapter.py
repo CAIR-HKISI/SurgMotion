@@ -49,19 +49,32 @@ class InternVideoNextAdapter(BaseFoundationModelAdapter):
             import sys
             import types
             
-            # Force mock flash_attn modules to fail import gracefully or exist as empty shells
-            # This prevents the 'No module named ...' errors during dynamic loading
-            if 'flash_attn' not in sys.modules:
-                # Option A: Mask it completely so it raises ImportError in try/except blocks
-                sys.modules['flash_attn'] = None 
-                # Note: Setting to None causes "ImportError: No module named 'flash_attn'" which is what we want
-                # inside the model's try/except blocks.
+            # Instead of setting to None (which causes 'import of X halted; None in sys.modules'),
+            # we create a dummy module. This allows 'import flash_attn' to succeed, 
+            # but any attribute access will likely fail (which we handle or don't care about if unused).
+            # For specific imports like 'from flash_attn.ops.rms_norm import DropoutAddRMSNorm',
+            # we need the dummy module to have those attributes or submodules.
             
-            # Also mask submodules that might be imported directly
-            sys.modules['flash_attn.flash_attn_interface'] = None
-            sys.modules['flash_attn.bert_padding'] = None
-            sys.modules['flash_attn.modules.mlp'] = None
-            sys.modules['flash_attn.ops.rms_norm'] = None
+            class DummyModule:
+                __path__ = []
+                def __getattr__(self, name):
+                    # Raising ImportError on attribute access usually simulates "from module import name" failure
+                    raise ImportError(f"Dummy module: {name} not found")
+            
+            # Helper to inject dummy modules if they don't exist
+            def ensure_dummy_module(name):
+                if name not in sys.modules:
+                    sys.modules[name] = DummyModule()
+            
+            # Only block if not already imported successfully
+            if 'flash_attn' not in sys.modules:
+                 ensure_dummy_module('flash_attn')
+                 ensure_dummy_module('flash_attn.flash_attn_interface')
+                 ensure_dummy_module('flash_attn.bert_padding')
+                 ensure_dummy_module('flash_attn.modules')
+                 ensure_dummy_module('flash_attn.modules.mlp')
+                 ensure_dummy_module('flash_attn.ops')
+                 ensure_dummy_module('flash_attn.ops.rms_norm')
             # ----------------------------------------------------
 
             # Compatibility patch:
