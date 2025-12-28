@@ -236,6 +236,21 @@ def init_foundation_model(
             checkpoint=checkpoint,
             model_name=model_name
         )
+    elif model_type == 'internvideo':
+        from .adapters.internvideo_adapter import InternVideoAdapter
+        adapter = InternVideoAdapter.from_config(
+            resolution=resolution,
+            frames_per_clip=frames_per_clip,
+            checkpoint=checkpoint,
+            model_name=model_name
+        )
+    elif model_type == 'internvideo_next':
+        from .adapters.internvideo_next_adapter import InternVideoNextAdapter
+        adapter = InternVideoNextAdapter.from_config(
+            resolution=resolution,
+            checkpoint=checkpoint,
+            model_name=model_name
+        )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
