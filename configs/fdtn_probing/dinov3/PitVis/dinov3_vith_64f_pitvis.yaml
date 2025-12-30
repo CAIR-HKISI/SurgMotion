@@ -16,7 +16,7 @@ wandb:
   tags:
     - PitVis
     - phase-probing
-    - dinov3_vith16plus-64f
+    - dinov3_vith16plus_64f
   group: null  # Group name for grouping related runs (optional)
   notes: "Multi-head probing on PitVis dataset"
 
@@ -35,7 +35,7 @@ experiment:
     resolution: 224
 
   optimization:
-    batch_size: 4
+    batch_size: 1
     multihead_kwargs:
     - final_lr: 0.0
       final_weight_decay: 0.01
