@@ -96,15 +96,25 @@ export WANDB_MODE=online
 # )
 
 TASKS=(
-    "fdtn_probing/surgvlp/AVOS"
-    "fdtn_probing/surgvlp/polypdiag"
-    "fdtn_probing/surgvlp/surgical-action-160"
+    "fdtn_probing/videomaev2/cholec80"
+    "fdtn_probing/videomaev2/AutoLaparo"
+    "fdtn_probing/videomaev2/M2CAI16"
+    "fdtn_probing/videomaev2/EgoSurgery"
+    "fdtn_probing/videomaev2/PitVis"
+    "fdtn_probing/videomaev2/Atlas"
+    "fdtn_probing/videomaev2/OphNet"
+    "fdtn_probing/videomaev2/PmLR50"
 )
 
 FNAMES=(
-    "surgvlp_res50_64f_avos.yaml"
-    "surgvlp_res50_64f_PolypDiag.yaml"
-    "surgvlp_res50_64f_Surgical-Action-160.yaml"
+    "videomaev2_giant_64f_probing_cholec80.yaml"
+    "videomaev2_giant_64f_AutoLaparo.yaml"
+    "videomaev2_giant_64f_M2CAI16.yaml"
+    "videomaev2_giant_64f_EgoSurgery.yaml"
+    "videomaev2_giant_64f_PitVis.yaml"
+    "videomaev2_giant_64f_Atlas.yaml"
+    "videomaev2_giant_64f_OphNet.yaml"
+    "videomaev2_giant_64f_PmLR50.yaml"
 )
 
 # TASKS=(
