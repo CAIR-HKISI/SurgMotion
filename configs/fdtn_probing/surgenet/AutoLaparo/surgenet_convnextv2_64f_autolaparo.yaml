@@ -1,26 +1,24 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/surgenetxl_caformer_avos
+folder: logs/foundation/surgenet_convnextv2_autolaparo
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-tag: surgenetxl_caformer_64f_avos
+tag: surgenet_convnextv2_64f_autolaparo
 tasks_per_node: 1
-metric_aggregation: "global" # Options: "global", "per_video", or null (defaults to per_video)
-
 
 # wandb configuration
 wandb:
   project: foundation-model-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: surgenetxl_caformer_64f_avos
+  name: surgenet_convnextv2_64f_autolaparo
   tags:
-    - avos
+    - AutoLaparo
     - phase-probing
-    - surgenetxl_caformer-64f
+    - surgenet_convnextv2-64f
   group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on avos dataset with SurgeNetXL CaFormer"
+  notes: "Multi-head probing on AutoLaparo dataset with SurgeNet ConvNextv2"
 
 experiment:
   classifier:
@@ -28,16 +26,10 @@ experiment:
     num_probe_blocks: 4
   data:
     dataset_type:  surgical_videodataset
-    
-    # Single dataset (OphNet2024_phase)
-    dataset_train:
-    - data/Surge_Frames/AVOS/train_clip_metadata.csv
-
-    dataset_val:
-    - data/Surge_Frames/AVOS/test_clip_metadata.csv
-
+    dataset_train: data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
+    dataset_val: data/Surge_Frames/AutoLaparo/clips_64f/test_dense_64f_detailed.csv
     frames_per_clip: 64
-    num_classes: 8   # AVOS has 8 actions
+    num_classes: 7
     num_segments: 1
     num_views_per_segment: 1
     resolution: 224
@@ -174,8 +166,8 @@ model_kwargs:
   module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
   model_type: surgenet
   encoder:
-    model_name: surgenetxl
+    model_name: surgenet_convnextv2
   wrapper_kwargs:
     tubelet_size: 2
     max_frames: 128
-    use_pos_embed: false
+    use_pos_embed: true

@@ -124,7 +124,6 @@ for i in "${!TASKS[@]}"; do
     # 使用sbatch直接提交（异步，不等待）
     JOB_ID=$(sbatch \
         --job-name="${FNAMES[$i]}" \
-        --nodelist=klb-dgx-011,klb-dgx-120 \
 	--nodes=1 \
 	--partition=AISS2025073101 \
 	--gres=gpu:1 \

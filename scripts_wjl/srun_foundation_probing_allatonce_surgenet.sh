@@ -16,7 +16,7 @@ else
 fi
 unset __conda_setup
 # <<< conda initialize <<<
-
+# 使用srun_foundation_probing_allatonce.sh中的conda环境     
 source ~/.bashrc
 conda deactivate
 conda activate jepa_torch
@@ -96,39 +96,26 @@ export WANDB_MODE=online
 # )
 
 TASKS=(
-    "fdtn_probing/videomaev2/cholec80"
-    "fdtn_probing/videomaev2/AutoLaparo"
-    "fdtn_probing/videomaev2/M2CAI16"
-    "fdtn_probing/videomaev2/EgoSurgery"
-    "fdtn_probing/videomaev2/PitVis"
-    "fdtn_probing/videomaev2/Atlas"
-    "fdtn_probing/videomaev2/OphNet"
-    "fdtn_probing/videomaev2/PmLR50"
+    "fdtn_probing/surgenet/Cholec80"
+    "fdtn_probing/surgenet/AutoLaparo"
+    "fdtn_probing/surgenet/M2CAI16"
+    "fdtn_probing/surgenet/EgoSurgery"
+    "fdtn_probing/surgenet/PitVis"
+    "fdtn_probing/surgenet/Atlas"
+    "fdtn_probing/surgenet/OphNet"
+    "fdtn_probing/surgenet/PmLR50"
 )
 
 FNAMES=(
-    "videomaev2_giant_64f_probing_cholec80.yaml"
-    "videomaev2_giant_64f_AutoLaparo.yaml"
-    "videomaev2_giant_64f_M2CAI16.yaml"
-    "videomaev2_giant_64f_EgoSurgery.yaml"
-    "videomaev2_giant_64f_PitVis.yaml"
-    "videomaev2_giant_64f_Atlas.yaml"
-    "videomaev2_giant_64f_OphNet.yaml"
-    "videomaev2_giant_64f_PmLR50.yaml"
+    "surgenetxl_caformer_64f_cholec80.yaml"
+    "surgenetxl_caformer_64f_autolaparo.yaml"
+    "surgenetxl_caformer_64f_m2cai16.yaml"
+    "surgenetxl_caformer_64f_egosurgery.yaml"
+    "surgenetxl_caformer_64f_pitvis.yaml"
+    "surgenetxl_caformer_64f_atlas.yaml"
+    "surgenetxl_caformer_64f_ophnet.yaml"
+    "surgenetxl_caformer_64f_pmlr50.yaml"
 )
-
-# TASKS=(
-#     "fdtn_probing/internvideo_next/AVOS"
-#     "fdtn_probing/internvideo_next/polypdiag"
-#     "fdtn_probing/internvideo_next/surgical-action-160"
-# )
-
-# FNAMES=(
-#     "internvideo_next_64f_avos.yaml"
-#     "internvideo_next_64f_PolypDiag.yaml"
-#     "internvideo_next_64f_Surgical-Action-160.yaml"
-# )
-
 
 
 # 验证列表长度一致
@@ -175,7 +162,6 @@ for i in "${!TASKS[@]}"; do
     # 使用sbatch直接提交（异步，不等待）
     JOB_ID=$(sbatch \
         --job-name="${FNAMES[$i]}" \
-        --nodelist=klb-dgx-011,klb-dgx-120 \
 	--nodes=1 \
 	--partition=AISS2025073101 \
 	--gres=gpu:1 \
