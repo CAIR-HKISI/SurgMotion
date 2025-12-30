@@ -117,17 +117,7 @@ FNAMES=(
     "dinov3_vith_64f_PmLR50.yaml"
 )
 
-# TASKS=(
-#     "fdtn_probing/internvideo_next/AVOS"
-#     "fdtn_probing/internvideo_next/polypdiag"
-#     "fdtn_probing/internvideo_next/surgical-action-160"
-# )
 
-# FNAMES=(
-#     "internvideo_next_64f_avos.yaml"
-#     "internvideo_next_64f_PolypDiag.yaml"
-#     "internvideo_next_64f_Surgical-Action-160.yaml"
-# )
 
 
 
@@ -176,6 +166,7 @@ for i in "${!TASKS[@]}"; do
     JOB_ID=$(sbatch \
         --job-name="${FNAMES[$i]}" \
 	--nodes=1 \
+    --nodelist=klb-dgx-011,klb-dgx-015,klb-dgx-009 \
 	--partition=AISS2025073101 \
 	--gres=gpu:1 \
 	--mem=256G \
