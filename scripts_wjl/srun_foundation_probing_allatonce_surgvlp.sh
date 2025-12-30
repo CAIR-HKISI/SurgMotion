@@ -69,7 +69,7 @@ export WANDB_MODE=online
 # )
 
 TASKS=(
-    "fdtn_probing/surgvl/AutoLaparo"
+    "fdtn_probing/surgvlp/AutoLaparo"
 )
 
 FNAMES=(
