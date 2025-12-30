@@ -14,11 +14,11 @@ metric_aggregation: "global" # Options: "global", "per_video", or null (defaults
 wandb:
   project: foundation-model-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: dinov3_vitl_64f_avos # Run name (optional, wandb will generate if null)
+  name: dinov3_vitl_64f_avos
   tags:
     - avos
     - phase-probing
-    - dinov3-vitl-64f
+    - dinov3_vitl_64f
   group: null  # Group name for grouping related runs (optional)
   notes: "Multi-head probing on avos dataset"
 
@@ -174,7 +174,7 @@ model_kwargs:
   module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
   model_type: dinov3
   encoder:
-    model_name: dinov3
+    model_name: dinov3_vitl14
   wrapper_kwargs:
     tubelet_size: 2
     max_frames: 128

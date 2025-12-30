@@ -16,7 +16,7 @@ wandb:
   tags:
     - AutoLaparo
     - phase-probing
-    - dinov3-vitl-64f
+    - videomaev2_giant-64f
   group: null  # Group name for grouping related runs (optional)
   notes: "Multi-head probing on AutoLaparo dataset with VideoMAEv2 Giant"
 
