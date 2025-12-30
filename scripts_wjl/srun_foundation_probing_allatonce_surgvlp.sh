@@ -45,78 +45,36 @@ export WANDB_MODE=online
 # ==========================================
 # 定义任务列表（在这里添加你的任务对）
 # ==========================================
+
 # TASKS=(
-#     "fdtn_probing/gastronet/AVOS"
-#     "fdtn_probing/gastronet/polypdiag"
-#     "fdtn_probing/gastronet/surgical-action-160"
+#     "fdtn_probing/surgvlp/Cholec80"
+#     "fdtn_probing/surgvl/AutoLaparo"
+#     "fdtn_probing/surgvlp/M2CAI16"
+#     "fdtn_probing/surgvlp/EgoSurgery"
+#     "fdtn_probing/surgvlp/PitVis"
+#     "fdtn_probing/surgvlp/Atlas"
+#     "fdtn_probing/surgvlp/OphNet"
+#     "fdtn_probing/surgvlp/PmLR50"
 # )
 
 # FNAMES=(
-#     "gastronet_vits_64f_avos.yaml"
-#     "gastronet_vits_64f_PolypDiag.yaml"
-#     "gastronet_vits_64f_Surgical-Action-160.yaml"
-# )
-
-
-# TASKS=(
-#     "fdtn_probing/videomaev2/AVOS"
-#     "fdtn_probing/videomaev2/polypdiag"
-#     "fdtn_probing/videomaev2/surgical-action-160"
-# )
-
-# FNAMES=(
-#     "videomaev2_large_64f_avos.yaml"
-#     "videomaev2_large_64f_PolypDiag.yaml"
-#     "videomaev2_large_64f_Surgical-Action-160.yaml"
-# )
-
-
-# TASKS=(
-#     "fdtn_probing/selfsupsurg/AVOS"
-#     "fdtn_probing/selfsupsurg/polypdiag"
-#     "fdtn_probing/selfsupsurg/surgical-action-160"
-# )
-
-# FNAMES=(
-#     "selfsupsurg_res50_64f_avos.yaml"
-#     "selfsupsurg_res50_64f_PolypDiag.yaml"
-#     "selfsupsurg_res50_64f_Surgical-Action-160.yaml"
-# )
-
-# TASKS=(
-#     "fdtn_probing/surgenet/AVOS"
-#     "fdtn_probing/surgenet/polypdiag"
-#     "fdtn_probing/surgenet/surgical-action-160"
-# )
-
-# FNAMES=(
-#     "surgenetxl_caformer_64f_avos.yaml"
-#     "surgenetxl_caformer_64f_PolypDiag.yaml"
-#     "surgenetxl_caformer_64f_Surgical-Action-160.yaml"
+#     "surgvlp_res50_64f_cholec80.yaml"
+#     "surgvlp_res50_64f_autolaparo.yaml"
+#     "surgvlp_res50_64f_m2cai16.yaml"
+#     "surgvlp_res50_64f_egosurgery.yaml"
+#     "surgvlp_res50_64f_pitvis.yaml"
+#     "surgvlp_res50_64f_atlas.yaml"
+#     "surgvlp_res50_64f_ophnet.yaml"
+#     "surgvlp_res50_64f_pmlr50.yaml"
 # )
 
 TASKS=(
-    "fdtn_probing/surgvlp/Cholec80"
-    "fdtn_probing/surgenet/AutoLaparo"
-    "fdtn_probing/surgvlp/M2CAI16"
-    "fdtn_probing/surgvlp/EgoSurgery"
-    "fdtn_probing/surgvlp/PitVis"
-    "fdtn_probing/surgvlp/Atlas"
-    "fdtn_probing/surgvlp/OphNet"
-    "fdtn_probing/surgvlp/PmLR50"
+    "fdtn_probing/surgvl/AutoLaparo"
 )
 
 FNAMES=(
-    "surgvlp_res50_64f_cholec80.yaml"
     "surgvlp_res50_64f_autolaparo.yaml"
-    "surgvlp_res50_64f_m2cai16.yaml"
-    "surgvlp_res50_64f_egosurgery.yaml"
-    "surgvlp_res50_64f_pitvis.yaml"
-    "surgvlp_res50_64f_atlas.yaml"
-    "surgvlp_res50_64f_ophnet.yaml"
-    "surgvlp_res50_64f_pmlr50.yaml"
 )
-
 
 
 # 验证列表长度一致
