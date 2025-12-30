@@ -1,22 +1,22 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/dinov3_vith16plus_OphNet
+folder: logs/foundation/dinov3_vith16plus_ophnet
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-tag: dinov3_vith16plus_64f_OphNet
+tag: dinov3_vith16plus_64f_ophnet
 tasks_per_node: 1
 
 # wandb configuration
 wandb:
   project: foundation-model-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: dinov3_vith16plus_64f_OphNet
+  name: dinov3_vith16plus_64f_ophnet
   tags:
     - OphNet
     - phase-probing
-    - dinov3_vith16plus-64f
+    - dinov3_vith16plus_64f
   group: null  # Group name for grouping related runs (optional)
   notes: "Multi-head probing on OphNet dataset"
 

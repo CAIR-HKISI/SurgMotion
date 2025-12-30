@@ -1,18 +1,18 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/dinov3_vitl_EgoSurgery
+folder: logs/foundation/dinov3_vitl_egosurgery
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-tag: dinov3_vitl_64f_EgoSurgery
+tag: dinov3_vitl_64f_egosurgery
 tasks_per_node: 1
 
 # wandb configuration
 wandb:
   project: foundation-model-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: dinov3_vitl_64f_EgoSurgery
+  name: dinov3_vitl_64f_egosurgery
   tags:
     - EgoSurgery
     - phase-probing

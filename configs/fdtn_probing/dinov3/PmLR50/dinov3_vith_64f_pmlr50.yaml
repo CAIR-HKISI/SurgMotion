@@ -1,22 +1,22 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/dinov3_vith16plus_probing_PmLR50
+folder: logs/foundation/dinov3_vith16plus_pmlr50
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-tag: dinov3_vith16plus_64f_probing_PmLR50
+tag: dinov3_vith16plus_64f_pmlr50
 tasks_per_node: 1
 
 # wandb configuration
 wandb:
   project: foundation-model-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: dinov3_vith16plus_64f_probing_PmLR50
+  name: dinov3_vith16plus_64f_pmlr50
   tags:
     - PmLR50
     - phase-probing
-    - dinov3_vith16plus-64f
+    - dinov3_vith16plus_64f
   group: null  # Group name for grouping related runs (optional)
   notes: "Multi-head probing on PmLR50 dataset"
 

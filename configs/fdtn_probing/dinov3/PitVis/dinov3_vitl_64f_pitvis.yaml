@@ -1,22 +1,22 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/dinov3_vitl_PitVis
+folder: logs/foundation/dinov3_vitl_pitvis
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-tag: dinov3_vitl_64f_PitVis
+tag: dinov3_vitl_64f_pitvis
 tasks_per_node: 1
 
 # wandb configuration
 wandb:
   project: foundation-model-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: dinov3_vitl_64f_PitVis  # Run name (optional, wandb will generate if null)
+  name: dinov3_vitl_64f_pitvis
   tags:
     - PitVis
     - phase-probing
-    - dinov3-vitl-64f
+    - dinov3_vitl_64f
   group: null  # Group name for grouping related runs (optional)
   notes: "Multi-head probing on PitVis dataset"
 
@@ -166,7 +166,7 @@ model_kwargs:
   module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
   model_type: dinov3
   encoder:
-    model_name: dinov3
+    model_name: dinov3_vitl14
   wrapper_kwargs:
     tubelet_size: 2
     max_frames: 128

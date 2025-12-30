@@ -18,7 +18,7 @@ wandb:
   tags:
     - avos
     - phase-probing
-    - dinov3_vith16plus-64f
+    - dinov3_vith16plus_64f
   group: null  # Group name for grouping related runs (optional)
   notes: "Multi-head probing on avos dataset"
 

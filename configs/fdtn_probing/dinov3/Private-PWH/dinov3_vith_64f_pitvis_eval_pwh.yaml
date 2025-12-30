@@ -1,11 +1,11 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/dinov3_vith16plus_PitVis_eval_pwh
+folder: logs/foundation/dinov3_vith16plus_pitvis_eval_pwh
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-tag: dinov3_vith16plus_64f_PitVis_eval_pwh
+tag: dinov3_vith16plus_64f_pitvis_eval_pwh
 tasks_per_node: 1
 eval_checkpoint: /home/projects/med-multi-llm/chuxi_chen/NSJepa/logs/foundation/dinov3_vith16plus_PitVis/video_classification_frozen/dinov3_vith16plus_64f_PitVis/latest.pt
 
@@ -13,7 +13,7 @@ eval_checkpoint: /home/projects/med-multi-llm/chuxi_chen/NSJepa/logs/foundation/
 wandb:
   project: foundation-model-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: dinov3_vith16plus_64f_PitVis_eval_pwh
+  name: dinov3_vith16plus_64f_pitvis_eval_pwh
   tags:
     - PitVis
     - phase-probing

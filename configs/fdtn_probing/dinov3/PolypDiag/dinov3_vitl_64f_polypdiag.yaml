@@ -1,11 +1,11 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/dinov3_vitl_PolypDiag
+folder: logs/foundation/dinov3_vitl_polypdiag
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-tag: dinov3_vitl_64f_PolypDiag
+tag: dinov3_vitl_64f_polypdiag
 tasks_per_node: 1
 metric_aggregation: "global" # Options: "global", "per_video", or null (defaults to per_video)
 
@@ -14,7 +14,7 @@ metric_aggregation: "global" # Options: "global", "per_video", or null (defaults
 wandb:
   project: foundation-model-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: dinov3_vitl_64f_PolypDiag
+  name: dinov3_vitl_64f_polypdiag
   tags:
     - PolypDiag
     - phase-probing

@@ -1,24 +1,24 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/dinov3_vith16plus_probing_cholec80
+folder: logs/foundation/dinov3_vith16plus_cholec80
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
 resume_iter: 17521
-tag: dinov3_vith16plus_64f_probing_cholec80
+tag: dinov3_vith16plus_64f_cholec80
 tasks_per_node: 1
 
 # wandb configuration
 wandb:
   project: foundation-model-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: dinov3_vith16plus_64f_probing_cholec80
+  name: dinov3_vith16plus_64f_cholec80
   id: hxtwbh2c
   tags:
     - cholec80
     - phase-probing
-    - dinov3_vith16plus-64f
+    - dinov3_vith16plus_64f
   group: null  # Group name for grouping related runs (optional)
   notes: "Multi-head probing on Autocholec80 dataset"
 
