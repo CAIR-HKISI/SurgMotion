@@ -95,35 +95,29 @@ export WANDB_MODE=online
 #     "surgenetxl_caformer_64f_Surgical-Action-160.yaml"
 # )
 
-# TASKS=(
-#     "fdtn_probing/dinov3/Cholec80"
-#     "fdtn_probing/dinov3/AutoLaparo"
-#     "fdtn_probing/dinov3/M2CAI16"
-#     "fdtn_probing/dinov3/EgoSurgery"
-#     "fdtn_probing/dinov3/PitVis"
-#     "fdtn_probing/dinov3/Atlas"
-#     "fdtn_probing/dinov3/OphNet"
-#     "fdtn_probing/dinov3/PmLR50"
-# )
-
-# FNAMES=(
-#     "dinov3_vith_64f_cholec80.yaml"
-#     "dinov3_vith_64f_autolaparo.yaml"
-#     "dinov3_vith_64f_m2cai16.yaml"
-#     "dinov3_vith_64f_egosurgery.yaml"
-#     "dinov3_vith_64f_pitvis.yaml"
-#     "dinov3_vith_64f_atlas.yaml"
-#     "dinov3_vith_64f_ophnet.yaml"
-#     "dinov3_vith_64f_pmlr50.yaml"
-# )
-
 TASKS=(
+    "fdtn_probing/dinov3/Cholec80"
+    "fdtn_probing/dinov3/AutoLaparo"
+    "fdtn_probing/dinov3/M2CAI16"
+    "fdtn_probing/dinov3/EgoSurgery"
     "fdtn_probing/dinov3/PitVis"
+    "fdtn_probing/dinov3/Atlas"
+    "fdtn_probing/dinov3/OphNet"
+    "fdtn_probing/dinov3/PmLR50"
 )
 
 FNAMES=(
+    "dinov3_vith_64f_cholec80.yaml"
+    "dinov3_vith_64f_autolaparo.yaml"
+    "dinov3_vith_64f_m2cai16.yaml"
+    "dinov3_vith_64f_egosurgery.yaml"
     "dinov3_vith_64f_pitvis.yaml"
+    "dinov3_vith_64f_atlas.yaml"
+    "dinov3_vith_64f_ophnet.yaml"
+    "dinov3_vith_64f_pmlr50.yaml"
 )
+
+
 
 
 
