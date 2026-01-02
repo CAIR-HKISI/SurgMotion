@@ -168,7 +168,7 @@ model_kwargs:
   module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
   model_type: dinov3
   encoder:
-    model_name: dinov3_vitl14
+    model_name: dinov3_vitl16
   wrapper_kwargs:
     tubelet_size: 2
     max_frames: 128

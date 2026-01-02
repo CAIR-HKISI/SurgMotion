@@ -70,14 +70,16 @@ export WANDB_MODE=online
 
 TASKS=(
     "fdtn_probing/dinov3/PitVis"
-    "fdtn_probing/endovit/PmLR50"
-    "fdtn_probing/endofm/PmLR50"
+    "configs/fdtn_probing/dinov3/PitVis"
+    # "fdtn_probing/endovit/PmLR50"
+    # "fdtn_probing/endofm/PmLR50"
 )
 
 FNAMES=(
     "dinov3_vitl_64f_pitvis.yaml"
-    "endovit_vitl_64f_probing_PmLR50.yaml"
-    "endofm_vitb_64f_probing_PmLR50.yaml"
+    "dinov3_vitl_64f_pitvis.yaml"
+    # "endovit_vitl_64f_probing_PmLR50.yaml"
+    # "endofm_vitb_64f_probing_PmLR50.yaml"
 )
 
 

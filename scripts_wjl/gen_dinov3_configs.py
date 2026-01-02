@@ -5,7 +5,7 @@ BASE_DIR = 'configs/fdtn_probing/dinov3'
 
 MODELS = {
     'vitl': {
-        'model_name': 'dinov3_vitl14',
+        'model_name': 'dinov3_vitl16',
         'folder_suffix': 'dinov3_vitl',
         'tag_suffix': 'dinov3_vitl_64f',
         'wandb_tag': 'dinov3_vitl_64f'
