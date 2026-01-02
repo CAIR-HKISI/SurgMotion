@@ -136,10 +136,6 @@ FNAMES=(
     "endofm_vitb_64f_SYSU.yaml"
     "endofm_vitb_64f_SYSU_Skill.yaml"
     
-    # vjepa
-    "sysu_vitl_cpt_attentive_64f.yaml"
-    "sysu_skill_vitl_cpt_attentive_64f.yaml"
-    
     
     # endossl
     "endossl_vitl_laparo_64f_SYSU.yaml"
