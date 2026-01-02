@@ -16,7 +16,7 @@ wandb:
   tags:
     - PitVis
     - phase-probing
-    - dinov3-vitl-64f
+    - videomaev2_large-64f
   group: null  # Group name for grouping related runs (optional)
   notes: "Multi-head probing on PitVis dataset with VideoMAEv2 Large"
 

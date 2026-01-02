@@ -1,0 +1,180 @@
+cpus_per_task: 12
+eval_name: surgical_triplet_probing
+dataset: cholect50  # Dataset name for wandb logging
+folder: /slurm/yaxin_hu/results/endovit
+nodes: 1
+max_workers: 4
+num_workers: 8
+resume_checkpoint: true
+tag: endovit_vitl
+tasks_per_node: 1
+
+# Bootstrap configuration (default: enabled)
+use_bootstrap: true
+n_bootstrap: 1000
+bootstrap_seed: 42
+
+# wandb configuration
+wandb:
+  project: nsjepa-probing  # Your wandb project name
+  entity: kaka761  # Your wandb username or team (optional, uses default if null)
+  name: cholect50_probing  # Run name (optional, wandb will generate if null)
+  tags:
+    - cholect50
+    - triplet-probing
+    - vitl
+  group: null  # Group name for grouping related runs (optional)
+  notes: "Multi-head probing on cholect50 dataset"
+
+experiment:
+  classifier:
+    num_heads: 4
+    num_probe_blocks: 4
+  data:
+    dataset_type: surgical_videodataset_triplet
+
+    # Single dataset (CholecT50)
+    dataset_train:
+    - /home/yaxin_hu/projects/NSJepa-triplet_recognition/data/CholecT50/clips_16f/train_dense_16f_detailed.csv
+
+    dataset_val:
+    - /home/yaxin_hu/projects/NSJepa-triplet_recognition/data/CholecT50/clips_16f/test_dense_16f_detailed.csv
+
+    # Number of classes for CholecT50
+    num_classes:
+    - 100   # Cholect50 has 100 triplets
+
+    frames_per_clip: 16
+    num_segments: 1
+    num_views_per_segment: 1
+    resolution: 256
+
+  optimization:
+    batch_size: 64
+    multihead_kwargs:
+    # # Classifier 0
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.01
+    #   lr: 0.005
+    #   start_lr: 0.005
+    #   warmup: 0.0
+    #   weight_decay: 0.01
+    # # Classifier 1
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.01
+    #   lr: 0.003
+    #   start_lr: 0.003
+    #   warmup: 0.0
+    #   weight_decay: 0.01
+    # # Classifier 2
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.01
+    #   lr: 0.001
+    #   start_lr: 0.001
+    #   warmup: 0.0
+    #   weight_decay: 0.01
+    # Classifier 3
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.01
+    # # Classifier 4
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.01
+    #   lr: 0.0001
+    #   start_lr: 0.0001
+    #   warmup: 0.0
+    #   weight_decay: 0.01
+    # # Classifier 5
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.1
+    #   lr: 0.005
+    #   start_lr: 0.005
+    #   warmup: 0.0
+    #   weight_decay: 0.1
+    # # Classifier 6
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.1
+    #   lr: 0.003
+    #   start_lr: 0.003
+    #   warmup: 0.0
+    #   weight_decay: 0.1
+    # # Classifier 7
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.1
+    #   lr: 0.001
+    #   start_lr: 0.001
+    #   warmup: 0.0
+    #   weight_decay: 0.1
+    # Classifier 8
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.1
+    # Classifier 9
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.1
+    # # Classifier 10
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.4
+    #   lr: 0.005
+    #   start_lr: 0.005
+    #   warmup: 0.0
+    #   weight_decay: 0.4
+    # # Classifier 11
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.4
+    #   lr: 0.003
+    #   start_lr: 0.003
+    #   warmup: 0.0
+    #   weight_decay: 0.4
+    # # Classifier 12
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.4
+    #   lr: 0.001
+    #   start_lr: 0.001
+    #   warmup: 0.0
+    #   weight_decay: 0.4
+    # Classifier 13
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.4
+    # # Classifier 14
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.4
+    #   lr: 0.0001
+    #   start_lr: 0.0001
+    #   warmup: 0.0
+    #   weight_decay: 0.4
+    # # Classifier 15
+    # - final_lr: 0.0
+    #   final_weight_decay: 0.8
+    #   lr: 0.005
+    #   start_lr: 0.005
+    #   warmup: 0.0
+    #   weight_decay: 0.8
+    num_epochs: 10
+    use_bfloat16: true
+    use_pos_embed: false
+
+model_kwargs:
+  checkpoint: null
+  module_name: evals.surgical_triplet_probing.modelcustom.foundation_model_wrapper
+  model_type: endovit
+  encoder:
+    model_name: vit_large_patch16
+  wrapper_kwargs:
+    tubelet_size: 2
+    max_frames: 128
+    use_pos_embed: true

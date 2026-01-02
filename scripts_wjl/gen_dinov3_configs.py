@@ -106,6 +106,8 @@ def process_folder(dataset_name, folder_path):
         elif target_key == 'vith':
              # Replace vitl variants with vith16plus
              new_content = new_content.replace('dinov3_vitl', 'dinov3_vith16plus')
+             # Force batch_size to 1 for vith
+             new_content = re.sub(r'batch_size:\s*\d+', 'batch_size: 1', new_content)
 
         # Write file
         dst_filename = f"dinov3_{target_key}_64f_{dataset_suffix}.yaml"

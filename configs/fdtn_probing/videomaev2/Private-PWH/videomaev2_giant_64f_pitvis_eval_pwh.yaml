@@ -7,7 +7,7 @@ max_workers: 4
 resume_checkpoint: true
 tag: videomaev2_giant_64f_pitvis_eval_pwh
 tasks_per_node: 1
-eval_checkpoint: /home/projects/med-multi-llm/chuxi_chen/NSJepa/logs/foundation/videomaev2_giant_pitvis_eval_pwh/video_classification_frozen/dinov3_vith16plus_64f_PitVis/latest.pt
+eval_checkpoint: /home/projects/med-multi-llm/chuxi_chen/NSJepa/logs/foundation/videomaev2_giant_pitvis_eval_pwh/video_classification_frozen/dinov3_vitl_64f_PitVis/latest.pt
 
 # wandb configuration
 wandb:

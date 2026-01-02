@@ -1,24 +1,24 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/videomaev2_huge_AutoLaparo
+folder: logs/foundation/videomaev2_large_autolaparo
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-tag: videomaev2_huge_64f_AutoLaparo
+tag: videomaev2_large_64f_autolaparo
 tasks_per_node: 1
 
 # wandb configuration
 wandb:
   project: foundation-model-probing  # Your wandb project name
   entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: videomaev2_huge_64f_AutoLaparo
+  name: videomaev2_large_64f_autolaparo
   tags:
     - AutoLaparo
     - phase-probing
-    - videomaev2_huge-64f
+    - videomaev2_large-64f
   group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on AutoLaparo dataset with VideoMAEv2 Huge"
+  notes: "Multi-head probing on AutoLaparo dataset with VideoMAEv2 Large"
 
 experiment:
   classifier:
@@ -35,7 +35,7 @@ experiment:
     resolution: 224
 
   optimization:
-    batch_size: 4
+    batch_size: 1
     multihead_kwargs:
     - final_lr: 0.0
       final_weight_decay: 0.01
@@ -166,7 +166,7 @@ model_kwargs:
   module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
   model_type: videomae
   encoder:
-    model_name: videomaev2_huge
+    model_name: videomaev2_large
   wrapper_kwargs:
     tubelet_size: 2
     max_frames: 128
