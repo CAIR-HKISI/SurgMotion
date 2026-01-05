@@ -1,5 +1,5 @@
 #!/bin/bash
-# srun_foundation_probing_allatonce_jigsaws.sh - 批量提交所有JIGSAWS probing任务（不等待完成）
+# srun_foundation_probing_allatonce_aixsuture.sh - 批量提交所有AIxsuture probing任务（不等待完成）
 
 # >>> conda initialize >>>
 
@@ -47,76 +47,75 @@ export WANDB_MODE=online
 # ==========================================
 
 TASKS=(
-
+   
     # dinov3
-#     "fdtn_probing/dinov3/JIGSAWS"
-#     "fdtn_probing/dinov3/JIGSAWS"
+    "fdtn_probing/dinov3/AIxsuture"
+    "fdtn_probing/dinov3/AIxsuture"
 
+    # # endofm
+    # "fdtn_probing/endofm/AIxsuture"
 
-    # gsvit
-    "fdtn_probing/gsvit/JIGSAWS"
-    
-    # gastronet
-    "fdtn_probing/gastronet/JIGSAWS"
-    
-    # surgenet
-    "fdtn_probing/surgenet/JIGSAWS"
-    
-    # endovit
-    "fdtn_probing/endovit/JIGSAWS"
-    
-    # selfsupsurg
-    "fdtn_probing/selfsupsurg/JIGSAWS"
-    
-    # videomaev2
-    "fdtn_probing/videomaev2/JIGSAWS"
-    "fdtn_probing/videomaev2/JIGSAWS"
-    
-    # surgvlp
-    "fdtn_probing/surgvlp/JIGSAWS"
-    
-    # endofm
-    "fdtn_probing/endofm/JIGSAWS"
-    
+    # # endossl
+    # "fdtn_probing/endossl/AIxsuture"
+    # "fdtn_probing/endossl/AIxsuture"
 
-    # endossl
-    "fdtn_probing/endossl/JIGSAWS"
-    "fdtn_probing/endossl/JIGSAWS"
+    # # endovit
+    # "fdtn_probing/endovit/AIxsuture"
+
+    # # gastronet
+    # "fdtn_probing/gastronet/AIxsuture"
+
+    # # gsvit
+    # "fdtn_probing/gsvit/AIxsuture"
+
+    # # selfsupsurg
+    # "fdtn_probing/selfsupsurg/AIxsuture"
+
+    # # surgenet
+    # "fdtn_probing/surgenet/AIxsuture"
+
+    # # surgvlp
+    # "fdtn_probing/surgvlp/AIxsuture"
+
+    # # videomaev2
+    # "fdtn_probing/videomaev2/AIxsuture"
+    # "fdtn_probing/videomaev2/AIxsuture"
 )
 
 FNAMES=(
-#     # dinov3
-#     "dinov3_vitl_64f_jigsaws.yaml"
-#     "dinov3_vith_64f_jigsaws.yaml"
 
-    # gsvit
-    "gsvit_vit_64f_jigsaws.yaml"
-    
-    # gastronet
-    "gastronet_vits_64f_jigsaws.yaml"
-    
-    # surgenet
-    "surgenetxl_caformer_64f_jigsaws.yaml"
-    
-    # endovit
-    "endovit_vitl_64f_jigsaws.yaml"
-    
-    # selfsupsurg
-    "selfsupsurg_res50_64f_jigsaws.yaml"
-    
-    # videomaev2
-    "videomaev2_giant_64f_jigsaws.yaml"
-    "videomaev2_large_64f_jigsaws.yaml"
-    
-    # surgvlp
-    "surgvlp_res50_64f_jigsaws.yaml"
-    
-    # endofm
-    "endofm_vitb_64f_jigsaws.yaml"
-    
-    # endossl
-    "endossl_vitl_laparo_64f_jigsaws.yaml"
-    "endossl_vitl_colono_64f_jigsaws.yaml"
+    # dinov3
+    "dinov3_vitl_64f_aixsuture.yaml"
+    "dinov3_vith_64f_aixsuture.yaml"
+
+    # # endofm
+    # "endofm_vitb_64f_AIxsuture.yaml"
+
+    # # endossl
+    # "endossl_vitl_colono_64f_AIxsuture.yaml"
+    # "endossl_vitl_laparo_64f_AIxsuture.yaml"
+
+    # # endovit
+    # "endovit_vitl_64f_AIxsuture.yaml"
+
+    # # gastronet
+    # "gastronet_vits_64f_AIxsuture.yaml"
+
+    # # gsvit
+    # "gsvit_vit_64f_AIxsuture.yaml"
+
+    # # selfsupsurg
+    # "selfsupsurg_res50_64f_AIxsuture.yaml"
+
+    # # surgenet
+    # "surgenetxl_caformer_64f_aixsuture.yaml"
+
+    # # surgvlp
+    # "surgvlp_res50_64f_aixsuture.yaml"
+
+    # # videomaev2
+    # "videomaev2_giant_64f_aixsuture.yaml"
+    # "videomaev2_large_64f_aixsuture.yaml"
 )
 
 
@@ -131,7 +130,7 @@ fi
 mkdir -p logs/foundation
 
 echo "========================================"
-echo "   Batch Submit JIGSAWS Probing Tasks (Async)"
+echo "   Batch Submit AIxsuture Probing Tasks (Async)"
 echo "========================================"
 echo "Time: $(date)"
 echo "Total tasks: ${#TASKS[@]}"
@@ -219,4 +218,5 @@ echo ""
 echo "Check status: squeue -u \$USER"
 echo "Cancel all: scancel ${SUBMITTED_JOBS[*]}"
 echo "========================================"
+
 
