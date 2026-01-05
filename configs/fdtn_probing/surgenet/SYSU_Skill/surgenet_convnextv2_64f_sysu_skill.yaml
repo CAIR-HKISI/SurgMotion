@@ -7,7 +7,7 @@ max_workers: 4
 resume_checkpoint: true
 tag: surgenet_convnextv2_64f_sysu_skill
 tasks_per_node: 1
-metric_aggregation: "global" # Options: "global", "per_video", or null (defaults to per_video)
+task_type: action
 
 # wandb configuration
 wandb:
@@ -29,14 +29,14 @@ experiment:
     dataset_type:  surgical_videodataset
     dataset_train: data/Surge_Frames/Private_SYSU_Brochiscopy_labeled/skill_train_metadata.csv
     dataset_val: data/Surge_Frames/Private_SYSU_Brochiscopy_labeled/skill_test_metadata.csv
-    frames_per_clip: 64
+    frames_per_clip: 16
     num_classes: 2
-    num_segments: 1
+    num_segments: 8
     num_views_per_segment: 1
     resolution: 224
 
   optimization:
-    batch_size: 1
+    batch_size: 2
     multihead_kwargs:
     - final_lr: 0.0
       final_weight_decay: 0.01
@@ -158,7 +158,7 @@ experiment:
       start_lr: 0.0001
       warmup: 0.0
       weight_decay: 0.8
-    num_epochs: 1
+    num_epochs: 4
     use_bfloat16: true
     use_pos_embed: false
 
@@ -171,5 +171,5 @@ model_kwargs:
   wrapper_kwargs:
     tubelet_size: 2
     max_frames: 128
-    use_pos_embed: true
+    use_pos_embed: false
 

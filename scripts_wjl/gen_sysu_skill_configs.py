@@ -9,18 +9,22 @@ NUM_CLASSES = 2
 DATASET_TAG = 'SYSU_Skill'
 DATASET_NAME_LOWER = 'sysu_skill'
 
-def process_content(content):
-    # 0. Set metric_aggregation to global
-    # Find tasks_per_node: 1 and insert metric_aggregation after it if it doesn't exist
-    if 'metric_aggregation' not in content:
-        content = re.sub(r'(tasks_per_node: \d+)', r'\1\nmetric_aggregation: "global" # Options: "global", "per_video", or null (defaults to per_video)', content)
-    else:
-        # If it exists, update it
-        content = re.sub(r'metric_aggregation:.*', 'metric_aggregation: "global"', content)
-        
-    # Also force batch_size to 1 as seen in AVOS config
-    content = re.sub(r'batch_size: \d+', 'batch_size: 1', content)
+# 统一配置: 8 segments × 16 frames = 128 frames 
+NUM_SEGMENTS = 8
+FRAMES_PER_CLIP = 16
+BATCH_SIZE = 2
+MAX_FRAMES = 128  # 需要 >= num_segments * frames_per_clip
+NUM_EPOCHS = 4
+# 大模型配置
+LARGE_MODELS = ['huge', 'giant']
+LARGE_MODEL_BATCH_SIZE = 1
 
+def is_large_model(filename):
+    """检查文件名是否对应大模型 (huge, giant)"""
+    filename_lower = filename.lower()
+    return any(model in filename_lower for model in LARGE_MODELS)
+
+def process_content(content, filename=''):
     # 1. Replace dataset paths
     # Handle list format first (vjepa)
     if re.search(r'dataset_train:\s*\n\s*-', content):
@@ -39,15 +43,44 @@ def process_content(content):
     else:
         content = re.sub(r'num_classes: \d+', f'num_classes: {NUM_CLASSES}', content)
 
+    # Update task_type - replace if exists, or add after tasks_per_node (top level)
+    if re.search(r'task_type: .*', content):
+        content = re.sub(r'task_type: .*', 'task_type: action', content)
+    else:
+        # Add task_type after tasks_per_node line (top level config)
+        content = re.sub(r'(tasks_per_node: \d+)', r'\1\ntask_type: action', content)
+    
+    # Update num_segments (统一配置)
+    if re.search(r'num_segments: .*', content):
+        content = re.sub(r'num_segments: \d+', f'num_segments: {NUM_SEGMENTS}', content)
+    
+    # Update frames_per_clip (统一配置)
+    if re.search(r'frames_per_clip: .*', content):
+        content = re.sub(r'frames_per_clip: \d+', f'frames_per_clip: {FRAMES_PER_CLIP}', content)
+    
+    # Update batch_size (根据模型大小调整)
+    if is_large_model(filename):
+        batch_size = LARGE_MODEL_BATCH_SIZE
+    else:
+        batch_size = BATCH_SIZE
+    if re.search(r'batch_size: .*', content):
+        content = re.sub(r'batch_size: \d+', f'batch_size: {batch_size}', content)
+    
+    # Update max_frames (需要 >= num_segments * frames_per_clip)
+    if re.search(r'max_frames: .*', content):
+        content = re.sub(r'max_frames: \d+', f'max_frames: {MAX_FRAMES}', content)
+    
+    # Update num_epochs
+    if re.search(r'num_epochs: .*', content):
+        content = re.sub(r'num_epochs: \d+', f'num_epochs: {NUM_EPOCHS}', content)
+    
+    # Disable wrapper use_pos_embed to avoid index out of bounds
+    # (clip_indices can exceed max_frames/tubelet_size)
+    content = re.sub(r'(wrapper_kwargs:.*?use_pos_embed:) true', r'\1 false', content, flags=re.DOTALL)
+
     # 3. Replace PitVis/SYSU references
-    # We are generating FROM PitVis templates, so replace PitVis/pitvis with SYSU_Skill/sysu_skill
     content = content.replace('PitVis', DATASET_TAG)
     content = content.replace('pitvis', DATASET_NAME_LOWER)
-    
-    # 4. Update folder/tag/name/wandb to reflect skill task
-    # This might already be covered by step 3 if the template used 'PitVis' in those fields
-    # But just in case, let's ensure 'sysu' becomes 'sysu_skill' if we are re-using sysu files?
-    # Actually, we should stick to using PitVis templates as source for consistency with previous step.
     
     return content
 
@@ -86,7 +119,7 @@ def main():
                     with open(os.path.join(src_dir, f), 'r') as file:
                         content = file.read()
                     
-                    new_content = process_content(content)
+                    new_content = process_content(content, filename=f)
                     
                     # Rename file
                     new_filename = f.replace('pitvis', 'sysu_skill').replace('PitVis', 'SYSU_Skill')
@@ -114,7 +147,7 @@ def main():
                 with open(src_path, 'r') as file:
                     content = file.read()
                 
-                new_content = process_content(content)
+                new_content = process_content(content, filename=f)
                 new_filename = f.replace('pitvis', 'sysu_skill').replace('PitVis', 'SYSU_Skill')
                 if new_filename == f:
                     name, ext = os.path.splitext(f)
@@ -129,4 +162,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
