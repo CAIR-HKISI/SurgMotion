@@ -74,6 +74,11 @@ def process_content(content, filename=''):
     # Update max_frames (需要 >= num_segments * frames_per_clip)
     if re.search(r'max_frames: .*', content):
         content = re.sub(r'max_frames: \d+', f'max_frames: {MAX_FRAMES}', content)
+    
+    # Disable wrapper use_pos_embed to avoid index out of bounds
+    # (clip_indices can exceed max_frames/tubelet_size)
+    # Match use_pos_embed in wrapper_kwargs section (after max_frames line)
+    content = re.sub(r'(wrapper_kwargs:.*?use_pos_embed:) true', r'\1 false', content, flags=re.DOTALL)
 
     # 3. Replace PitVis references
     content = content.replace('PitVis', DATASET_TAG)

@@ -171,4 +171,4 @@ model_kwargs:
   wrapper_kwargs:
     tubelet_size: 2
     max_frames: 128
-    use_pos_embed: true
+    use_pos_embed: false
