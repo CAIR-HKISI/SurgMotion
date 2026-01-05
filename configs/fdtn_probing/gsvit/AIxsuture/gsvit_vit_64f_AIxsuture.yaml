@@ -31,7 +31,7 @@ experiment:
     dataset_val: data/Surge_Frames/AIxsuture_v1/test_clip_metadata.csv
     frames_per_clip: 16
     num_classes: 3
-    num_segments: 8
+    num_segments: 4
     num_views_per_segment: 1
     resolution: 224
 
@@ -170,6 +170,6 @@ model_kwargs:
     model_name: gsvit
   wrapper_kwargs:
     tubelet_size: 2
-    max_frames: 256
+    max_frames: 128
     use_pos_embed: true
 

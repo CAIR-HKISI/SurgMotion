@@ -49,7 +49,7 @@ experiment:
     - 3   # OphNet2024_phase has 15 steps
 
     frames_per_clip: 16
-    num_segments: 8
+    num_segments: 4
     num_views_per_segment: 1
     resolution: 256
 
@@ -185,5 +185,5 @@ model_kwargs:
       uniform_power: true
       use_rope: true
   wrapper_kwargs:
-    max_frames: 256
+    max_frames: 128
     use_pos_embed: false
