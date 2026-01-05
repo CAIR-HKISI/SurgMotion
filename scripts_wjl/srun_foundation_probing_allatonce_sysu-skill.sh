@@ -48,74 +48,74 @@ export WANDB_MODE=online
 
 TASKS=(
     # gsvit
-    "fdtn_probing/gsvit/SYSU"
+    "fdtn_probing/gsvit/SYSU_Skill"
     
     # gastronet
-    "fdtn_probing/gastronet/SYSU"
+    "fdtn_probing/gastronet/SYSU_Skill"
     
     # surgenet
-    "fdtn_probing/surgenet/SYSU"
+    "fdtn_probing/surgenet/SYSU_Skill"
     
     # endovit
-    "fdtn_probing/endovit/SYSU"
+    "fdtn_probing/endovit/SYSU_Skill"
     
     # selfsupsurg
-    "fdtn_probing/selfsupsurg/SYSU"
+    "fdtn_probing/selfsupsurg/SYSU_Skill"
     
     # dinov3
-    "fdtn_probing/dinov3/SYSU"
-    "fdtn_probing/dinov3/SYSU"
-
+    "fdtn_probing/dinov3/SYSU_Skill"
+    "fdtn_probing/dinov3/SYSU_Skill"
+    
     # videomaev2
-    "fdtn_probing/videomaev2/SYSU"
-    "fdtn_probing/videomaev2/SYSU"
+    "fdtn_probing/videomaev2/SYSU_Skill"
+    "fdtn_probing/videomaev2/SYSU_Skill"
     
     # surgvlp
-    "fdtn_probing/surgvlp/SYSU"
+    "fdtn_probing/surgvlp/SYSU_Skill"
     
     # endofm
-    "fdtn_probing/endofm/SYSU"
+    "fdtn_probing/endofm/SYSU_Skill"
     
 
     # endossl
-    "fdtn_probing/endossl/SYSU"
-    "fdtn_probing/endossl/SYSU"
+    "fdtn_probing/endossl/SYSU_Skill"
+    "fdtn_probing/endossl/SYSU_Skill"
 )
 
 FNAMES=(
     # gsvit
-    "gsvit_vit_64f_SYSU.yaml"
+    "gsvit_vit_64f_SYSU_Skill.yaml"
     
     # gastronet
-    "gastronet_vits_64f_SYSU.yaml"
+    "gastronet_vits_64f_SYSU_Skill.yaml"
     
     # surgenet
-    "surgenetxl_caformer_64f_sysu.yaml"
+    "surgenetxl_caformer_64f_sysu_skill.yaml"
     
     # endovit
-    "endovit_vitl_64f_SYSU.yaml"
+    "endovit_vitl_64f_SYSU_Skill.yaml"
     
     # selfsupsurg
-    "selfsupsurg_res50_64f_SYSU.yaml"
+    "selfsupsurg_res50_64f_SYSU_Skill.yaml"
     
     # dinov3
-    "dinov3_vitl_64f_sysu.yaml"
-    "dinov3_vith_64f_sysu.yaml"
+    "dinov3_vitl_64f_sysu_skill.yaml"
+    "dinov3_vith_64f_sysu_skill.yaml"
     
     # videomaev2
-    "videomaev2_giant_64f_sysu.yaml"
-    "videomaev2_large_64f_sysu.yaml"
+    "videomaev2_giant_64f_sysu_skill.yaml"
+    "videomaev2_large_64f_sysu_skill.yaml"
     
     # surgvlp
-    "surgvlp_res50_64f_sysu.yaml"
+    "surgvlp_res50_64f_sysu_skill.yaml"
     
     # endofm
-    "endofm_vitb_64f_SYSU.yaml"
+    "endofm_vitb_64f_SYSU_Skill.yaml"
     
     
     # endossl
-    "endossl_vitl_laparo_64f_SYSU.yaml"
-    "endossl_vitl_colono_64f_SYSU.yaml"
+    "endossl_vitl_laparo_64f_SYSU_Skill.yaml"
+    "endossl_vitl_colono_64f_SYSU_Skill.yaml"
 )
 
 

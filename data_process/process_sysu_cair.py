@@ -81,7 +81,7 @@ def task1_extract_frames(label_dir, video_dir, output_root):
     print("=== Starting Task 1: Frame Extraction ===")
     
     # Output directories
-    frames_root = os.path.join(output_root, "frames_cut")
+    frames_root = os.path.join(output_root, "frames")
     os.makedirs(frames_root, exist_ok=True)
     
     metadata_list = []

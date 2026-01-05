@@ -1,5 +1,5 @@
 #!/bin/bash
-# srun_foundation_probing_allatonce_sysu.sh - 批量提交所有SYSU probing任务（不等待完成）
+# srun_foundation_probing_allatonce_jigsaws.sh - 批量提交所有JIGSAWS probing任务（不等待完成）
 
 # >>> conda initialize >>>
 
@@ -47,75 +47,77 @@ export WANDB_MODE=online
 # ==========================================
 
 TASKS=(
-    # gsvit
-    "fdtn_probing/gsvit/SYSU"
-    
-    # gastronet
-    "fdtn_probing/gastronet/SYSU"
-    
-    # surgenet
-    "fdtn_probing/surgenet/SYSU"
-    
-    # endovit
-    "fdtn_probing/endovit/SYSU"
-    
-    # selfsupsurg
-    "fdtn_probing/selfsupsurg/SYSU"
-    
+
     # dinov3
-    "fdtn_probing/dinov3/SYSU"
-    "fdtn_probing/dinov3/SYSU"
+    "fdtn_probing/dinov3/JIGSAWS"
+    "fdtn_probing/dinov3/JIGSAWS"
 
-    # videomaev2
-    "fdtn_probing/videomaev2/SYSU"
-    "fdtn_probing/videomaev2/SYSU"
+
+#     # gsvit
+#     "fdtn_probing/gsvit/JIGSAWS"
     
-    # surgvlp
-    "fdtn_probing/surgvlp/SYSU"
+#     # gastronet
+#     "fdtn_probing/gastronet/JIGSAWS"
     
-    # endofm
-    "fdtn_probing/endofm/SYSU"
+#     # surgenet
+#     "fdtn_probing/surgenet/JIGSAWS"
+    
+#     # endovit
+#     "fdtn_probing/endovit/JIGSAWS"
+    
+#     # selfsupsurg
+#     "fdtn_probing/selfsupsurg/JIGSAWS"
+    
+#     # videomaev2
+#     "fdtn_probing/videomaev2/JIGSAWS"
+#     "fdtn_probing/videomaev2/JIGSAWS"
+    
+#     # surgvlp
+#     "fdtn_probing/surgvlp/JIGSAWS"
+    
+#     # endofm
+#     "fdtn_probing/endofm/JIGSAWS"
     
 
-    # endossl
-    "fdtn_probing/endossl/SYSU"
-    "fdtn_probing/endossl/SYSU"
+#     # endossl
+#     "fdtn_probing/endossl/JIGSAWS"
+#     "fdtn_probing/endossl/JIGSAWS"
 )
 
 FNAMES=(
-    # gsvit
-    "gsvit_vit_64f_SYSU.yaml"
-    
-    # gastronet
-    "gastronet_vits_64f_SYSU.yaml"
-    
-    # surgenet
-    "surgenetxl_caformer_64f_sysu.yaml"
-    
-    # endovit
-    "endovit_vitl_64f_SYSU.yaml"
-    
-    # selfsupsurg
-    "selfsupsurg_res50_64f_SYSU.yaml"
-    
     # dinov3
-    "dinov3_vitl_64f_sysu.yaml"
-    "dinov3_vith_64f_sysu.yaml"
+    "dinov3_vitl_64f_jigsaws.yaml"
+    "dinov3_vith_64f_jigsaws.yaml"
+
+#     # gsvit
+#     "gsvit_vit_64f_jigsaws.yaml"
     
-    # videomaev2
-    "videomaev2_giant_64f_sysu.yaml"
-    "videomaev2_large_64f_sysu.yaml"
+#     # gastronet
+#     "gastronet_vits_64f_jigsaws.yaml"
     
-    # surgvlp
-    "surgvlp_res50_64f_sysu.yaml"
+#     # surgenet
+#     "surgenetxl_caformer_64f_jigsaws.yaml"
     
-    # endofm
-    "endofm_vitb_64f_SYSU.yaml"
+#     # endovit
+#     "endovit_vitl_64f_jigsaws.yaml"
+    
+#     # selfsupsurg
+#     "selfsupsurg_res50_64f_jigsaws.yaml"
+    
+#     # videomaev2
+#     "videomaev2_giant_64f_jigsaws.yaml"
+#     "videomaev2_large_64f_jigsaws.yaml"
+    
+#     # surgvlp
+#     "surgvlp_res50_64f_jigsaws.yaml"
+    
+#     # endofm
+#     "endofm_vitb_64f_jigsaws.yaml"
     
     
-    # endossl
-    "endossl_vitl_laparo_64f_SYSU.yaml"
-    "endossl_vitl_colono_64f_SYSU.yaml"
+#     # endossl
+#     "endossl_vitl_laparo_64f_jigsaws.yaml"
+#     "endossl_vitl_colono_64f_jigsaws.yaml"
 )
 
 
@@ -130,7 +132,7 @@ fi
 mkdir -p logs/foundation
 
 echo "========================================"
-echo "   Batch Submit SYSU Probing Tasks (Async)"
+echo "   Batch Submit JIGSAWS Probing Tasks (Async)"
 echo "========================================"
 echo "Time: $(date)"
 echo "Total tasks: ${#TASKS[@]}"

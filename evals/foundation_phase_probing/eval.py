@@ -8,6 +8,7 @@ import torch.multiprocessing as mp
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel
 from sklearn.metrics import precision_score, recall_score, jaccard_score, f1_score, accuracy_score
+from scipy.stats import spearmanr
 import wandb
 import itertools
 
@@ -16,7 +17,7 @@ from evals.surgical_video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
 from evals.utils.bootstrap import bootstrap_per_video_metrics, print_bootstrap_results
 from src.datasets.data_manager import init_data
-from src.models.attentive_pooler import AttentiveClassifier
+from src.models.attentive_pooler import AttentiveClassifier, AttentiveRegressor
 from src.utils.checkpoint_loader import robust_checkpoint_loader
 from src.utils.distributed import AllReduce, init_distributed
 from src.utils.logging import AverageMeter
@@ -98,11 +99,276 @@ def segmental_edit_distance(seq1, seq2):
 
 
 # ----------------------
+# Regression Metrics
+# ----------------------
+def compute_regression_metrics(predictions, targets):
+    """
+    Compute regression metrics: MAE and Spearman correlation.
+
+    Args:
+        predictions: Array of predicted values
+        targets: Array of ground truth values
+
+    Returns:
+        Dictionary with MAE and Spearman correlation
+    """
+    predictions = np.array(predictions)
+    targets = np.array(targets)
+
+    # Mean Absolute Error
+    mae = np.mean(np.abs(predictions - targets))
+
+    # Spearman correlation
+    spearman_corr, spearman_pval = spearmanr(predictions, targets)
+
+    return {
+        "MAE": mae,
+        "Spearman": spearman_corr,
+        "Spearman_PValue": spearman_pval
+    }
+
+
+def evaluate_per_video_regression(predictions_df, use_bootstrap=False, n_bootstrap=1000, random_seed=None, head_id=None):
+    """
+    Evaluate per-video regression metrics with optional bootstrap uncertainty estimation.
+
+    Args:
+        predictions_df: DataFrame with columns [data_idx, vid, prediction, label]
+        use_bootstrap: If True, perform bootstrap resampling for uncertainty estimation
+        n_bootstrap: Number of bootstrap iterations (default: 1000)
+        random_seed: Random seed for reproducibility (default: None)
+        head_id: Regressor head ID for logging purposes (optional)
+
+    Returns:
+        per_video: List of per-video metrics
+        stats: Aggregated statistics (with bootstrap uncertainty if use_bootstrap=True)
+    """
+    # Sort predictions by video and temporal index
+    predictions_df = predictions_df.sort_values(['vid', 'data_idx'])
+
+    # Per-video metrics
+    per_video = []
+    for vid_name, vid_data in predictions_df.groupby("vid"):
+        gt = vid_data['label'].values
+        pred = vid_data['prediction'].values
+
+        metrics = compute_regression_metrics(pred, gt)
+        metrics["vid"] = vid_name
+        per_video.append(metrics)
+
+    # Overall metrics
+    all_gt = predictions_df['label'].values
+    all_pred = predictions_df['prediction'].values
+    overall_metrics = compute_regression_metrics(all_pred, all_gt)
+
+    # Bootstrap uncertainty estimation
+    if use_bootstrap:
+        head_str = f" for head_{head_id}" if head_id is not None else ""
+        logger.info(f"Performing bootstrap with {n_bootstrap} iterations{head_str}...")
+
+        bootstrap_results = bootstrap_per_video_metrics(
+            per_video_results=per_video,
+            metric_keys=["MAE", "Spearman"],
+            n_bootstrap=n_bootstrap,
+            random_seed=random_seed
+        )
+
+        stats = {}
+        for metric in ["MAE", "Spearman"]:
+            stats[f"{metric}_Mean"] = bootstrap_results["mean"][metric]
+            stats[f"{metric}_Std"] = bootstrap_results["std"][metric]
+            stats[f"{metric}_CI_Lower"] = bootstrap_results["ci_lower"][metric]
+            stats[f"{metric}_CI_Upper"] = bootstrap_results["ci_upper"][metric]
+
+        stats["Overall_MAE"] = overall_metrics["MAE"]
+        stats["Overall_Spearman"] = overall_metrics["Spearman"]
+    else:
+        # Simple averaging without bootstrap
+        stats = {
+            "MAE_Mean": np.mean([v["MAE"] for v in per_video]),
+            "Spearman_Mean": np.mean([v["Spearman"] for v in per_video]),
+            "Overall_MAE": overall_metrics["MAE"],
+            "Overall_Spearman": overall_metrics["Spearman"]
+        }
+
+    return per_video, stats
+
+
+def evaluate_global(predictions_df, use_bootstrap=False, n_bootstrap=1000, random_seed=None, head_id=None, dataset_name=None, config_tags=None):
+    """
+    Evaluate global metrics (action recognition style) with optional bootstrap uncertainty estimation.
+    Aggregates all samples across all videos.
+
+    Args:
+        predictions_df: DataFrame with columns [data_idx, vid, prediction, label]
+        use_bootstrap: If True, perform bootstrap resampling for uncertainty estimation
+        n_bootstrap: Number of bootstrap iterations (default: 1000)
+        random_seed: Random seed for reproducibility (default: None)
+        head_id: Classifier head ID for logging purposes (optional)
+        dataset_name: Name/Path of the dataset to decide evaluation strategy (optional)
+        config_tags: List of tags from the configuration file (optional)
+
+    Returns:
+        per_video: None (not applicable for global evaluation)
+        stats: Aggregated statistics (with bootstrap uncertainty if use_bootstrap=True)
+        phases: List of class names
+    """
+    all_labels = np.concatenate([predictions_df['label'].values, predictions_df['prediction'].values])
+    classes = np.unique(all_labels)
+    phases = [str(c) for c in classes]
+
+    # Compute overall (across all videos) per-class metrics
+    all_gt = predictions_df['label'].values
+    all_pred = predictions_df['prediction'].values
+
+    # Get unique classes present in the data
+    unique_classes = np.unique(np.concatenate([all_gt, all_pred]))
+
+    # Per-class metrics
+    per_class_precision = precision_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_recall = recall_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_f1 = f1_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_iou = jaccard_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+
+    metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1", "Edit_Score"]
+    stats = {}
+
+    # Calculate metrics globally
+    acc = accuracy_score(all_gt, all_pred) * 100
+    macro_prec = precision_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+    macro_rec = recall_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+    macro_iou = jaccard_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+    macro_f1 = f1_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+    
+    # Edit score is not applicable for global evaluation, set to 0
+    edit_score_mean = 0.0
+
+    stats["Accuracy_Mean"] = acc
+    stats["Macro_Precision_Mean"] = macro_prec
+    stats["Macro_Recall_Mean"] = macro_rec
+    stats["Macro_IoU_Mean"] = macro_iou
+    stats["Macro_F1_Mean"] = macro_f1
+    stats["Edit_Score_Mean"] = edit_score_mean
+
+    # No per-video std for global metrics
+    stats["Accuracy_Std"] = 0.0
+    stats["Macro_Precision_Std"] = 0.0
+    stats["Macro_Recall_Std"] = 0.0
+    stats["Macro_IoU_Std"] = 0.0
+    stats["Macro_F1_Std"] = 0.0
+    stats["Edit_Score_Std"] = 0.0
+    
+    if use_bootstrap:
+        # For global metrics, we just replicate the mean as CI for compatibility
+        # Or implement sample-level bootstrap if needed. Here we keep it simple.
+        for m in metrics:
+                stats[f"{m}_CI_Lower"] = stats[f"{m}_Mean"]
+                stats[f"{m}_CI_Upper"] = stats[f"{m}_Mean"]
+
+    # Add per-class metrics to stats
+    per_class_metrics = {}
+    for i, cls in enumerate(unique_classes):
+        per_class_metrics[f"Phase_{cls}"] = {
+            "Precision": per_class_precision[i],
+            "Recall": per_class_recall[i],
+            "F1": per_class_f1[i],
+            "IoU": per_class_iou[i]
+        }
+    stats["per_class"] = per_class_metrics
+
+    return None, stats, phases
+
+
+# ----------------------
+# Action级评估函数 (Global)
+# ----------------------
+def evaluate_global_action(predictions_df, phases=None, head_id=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None, dataset_name=None, config_tags=None):
+    """
+    Evaluate global metrics (action recognition style) by concatenating all predictions.
+    
+    Args:
+        predictions_df: DataFrame with columns [data_idx, vid, prediction, label]
+        phases: List of phase names (optional)
+        head_id: Classifier head ID for logging purposes (optional)
+        use_bootstrap: Not used for global action currently, kept for interface compatibility
+        n_bootstrap: Not used
+        random_seed: Not used
+        dataset_name: Not used
+        config_tags: Not used
+
+    Returns:
+        per_video: Empty list (not used for global action)
+        stats: Aggregated statistics
+        phases: List of phase names
+    """
+    if phases is None:
+        all_labels = np.concatenate([predictions_df['label'].values, predictions_df['prediction'].values])
+        classes = np.unique(all_labels)
+        phases = [str(c) for c in classes]
+
+    # Compute overall (across all videos) per-class metrics
+    all_gt = predictions_df['label'].values
+    all_pred = predictions_df['prediction'].values
+    
+    # Get unique classes present in the data
+    unique_classes = np.unique(np.concatenate([all_gt, all_pred]))
+
+    # Global metrics
+    acc = accuracy_score(all_gt, all_pred) * 100
+    macro_prec = precision_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+    macro_rec = recall_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+    macro_iou = jaccard_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+    macro_f1 = f1_score(all_gt, all_pred, average='macro', zero_division=0) * 100
+    
+    stats = {}
+    stats["Accuracy_Mean"] = acc
+    stats["Macro_Precision_Mean"] = macro_prec
+    stats["Macro_Recall_Mean"] = macro_rec
+    stats["Macro_IoU_Mean"] = macro_iou
+    stats["Macro_F1_Mean"] = macro_f1
+    # Edit score is not relevant for action recognition
+    stats["Edit_Score_Mean"] = 0.0
+
+    # Stds are 0 for global single calculation
+    stats["Accuracy_Std"] = 0.0
+    stats["Macro_Precision_Std"] = 0.0
+    stats["Macro_Recall_Std"] = 0.0
+    stats["Macro_IoU_Std"] = 0.0
+    stats["Macro_F1_Std"] = 0.0
+    stats["Edit_Score_Std"] = 0.0
+    
+    if use_bootstrap:
+        # Dummy CIs for compatibility
+        metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1", "Edit_Score"]
+        for m in metrics:
+             stats[f"{m}_CI_Lower"] = stats[f"{m}_Mean"]
+             stats[f"{m}_CI_Upper"] = stats[f"{m}_Mean"]
+
+    # Per-class metrics
+    per_class_precision = precision_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_recall = recall_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_f1 = f1_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+    per_class_iou = jaccard_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
+
+    per_class_metrics = {}
+    for i, cls in enumerate(unique_classes):
+        per_class_metrics[f"Phase_{cls}"] = {
+            "Precision": per_class_precision[i],
+            "Recall": per_class_recall[i],
+            "F1": per_class_f1[i],
+            "IoU": per_class_iou[i]
+        }
+    stats["per_class"] = per_class_metrics
+
+    return [], stats, phases
+
+
+# ----------------------
 # 视频级评估函数
 # ----------------------
-def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None, head_id=None, dataset_name=None, config_tags=None, metric_aggregation=None):
+def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None, head_id=None, dataset_name=None, config_tags=None):
     """
-    Evaluate per-video metrics with optional bootstrap uncertainty estimation.
+    Evaluate Phase task (Per-video metrics aggregation).
 
     Args:
         predictions_df: DataFrame with columns [data_idx, vid, prediction, label]
@@ -113,7 +379,6 @@ def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_boots
         head_id: Classifier head ID for logging purposes (optional)
         dataset_name: Name/Path of the dataset to decide evaluation strategy (optional)
         config_tags: List of tags from the configuration file (optional)
-        metric_aggregation: "per_video" or "global" (optional, overrides default logic)
 
     Returns:
         per_video: List of per-video metrics
@@ -174,45 +439,7 @@ def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_boots
     metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1", "Edit_Score"]
     stats = {}
 
-    # Check if we should use global metrics (concatenate all videos) instead of averaging per-video metrics
-    use_global_metrics = False
-
-    if metric_aggregation == "global":
-        use_global_metrics = True
-        logger.info("Using GLOBAL metrics based on metric_aggregation parameter")
-
-    if use_global_metrics:
-        # Calculate metrics globally (over all samples concatenated)
-        acc = accuracy_score(all_gt, all_pred) * 100
-        macro_prec = precision_score(all_gt, all_pred, average='macro', zero_division=0) * 100
-        macro_rec = recall_score(all_gt, all_pred, average='macro', zero_division=0) * 100
-        macro_iou = jaccard_score(all_gt, all_pred, average='macro', zero_division=0) * 100
-        macro_f1 = f1_score(all_gt, all_pred, average='macro', zero_division=0) * 100
-        
-        # Edit score is typically per-video, assume average or 0 if not applicable
-        edit_scores = [v["Edit_Score"] for v in per_video]
-        edit_score_mean = np.mean(edit_scores) if edit_scores else 0.0
-
-        stats["Accuracy_Mean"] = acc
-        stats["Macro_Precision_Mean"] = macro_prec
-        stats["Macro_Recall_Mean"] = macro_rec
-        stats["Macro_IoU_Mean"] = macro_iou
-        stats["Macro_F1_Mean"] = macro_f1
-        stats["Edit_Score_Mean"] = edit_score_mean
-
-        stats["Accuracy_Std"] = 0.0
-        stats["Macro_Precision_Std"] = 0.0
-        stats["Macro_Recall_Std"] = 0.0
-        stats["Macro_IoU_Std"] = 0.0
-        stats["Macro_F1_Std"] = 0.0
-        stats["Edit_Score_Std"] = np.std(edit_scores) if edit_scores else 0.0
-        
-        if use_bootstrap:
-            for m in metrics:
-                 stats[f"{m}_CI_Lower"] = stats[f"{m}_Mean"]
-                 stats[f"{m}_CI_Upper"] = stats[f"{m}_Mean"]
-
-    elif use_bootstrap:
+    if use_bootstrap:
         # Perform bootstrap resampling for uncertainty estimation
         head_str = f" for head_{head_id}" if head_id is not None else ""
         logger.info(f"Performing bootstrap with {n_bootstrap} iterations{head_str}...")
@@ -274,9 +501,11 @@ def main(args_eval, resume_preempt=False):
     quick_run = args_eval.get("quick_run", False)
     quick_run_num_videos = args_eval.get("quick_run_num_videos", 2)
 
-    # Metric aggregation configuration
-    eval_metric_aggregation = args_eval.get("metric_aggregation", None) # "global" or "per_video" or None
-
+    # Task type: 'phase', 'action' or 'regression'
+    task_type = args_eval.get("task_type", "phase")
+    if task_type not in ["phase", "action", "regression"]:
+        raise ValueError(f"task_type must be 'phase', 'action' or 'regression', got '{task_type}'")
+    logger.info(f"Task type: {task_type}")
 
     # Bootstrap configuration (default: enabled)
     use_bootstrap = args_eval.get("use_bootstrap", True)
@@ -489,27 +718,40 @@ def main(args_eval, resume_preempt=False):
             logger.info(f"💻 Running on single GPU: {device}")
 
 
-    # 构建多个分类头
+    # 构建多个分类头或回归头
     # If head_to_dataset_map is provided, use per-dataset num_classes
-    if head_to_dataset_map is not None:
+    if task_type in ["phase", "action"]:
+        if head_to_dataset_map is not None:
+            classifiers = [
+                AttentiveClassifier(
+                    embed_dim=encoder_embed_dim,
+                    num_heads=num_heads,
+                    depth=num_probe_blocks,
+                    num_classes=num_classes_list[head_to_dataset_map[idx]],
+                    use_activation_checkpointing=True,
+                ).to(device)
+                for idx in range(len(opt_kwargs))
+            ]
+        else:
+            # Default: all heads use the first dataset's num_classes
+            classifiers = [
+                AttentiveClassifier(
+                    embed_dim=encoder_embed_dim,
+                    num_heads=num_heads,
+                    depth=num_probe_blocks,
+                    num_classes=num_classes_list[0],
+                    use_activation_checkpointing=True,
+                ).to(device)
+                for _ in opt_kwargs
+            ]
+    else:  # regression
+        # For regression, all heads output a single value
         classifiers = [
-            AttentiveClassifier(
+            AttentiveRegressor(
                 embed_dim=encoder_embed_dim,
                 num_heads=num_heads,
                 depth=num_probe_blocks,
-                num_classes=num_classes_list[head_to_dataset_map[idx]],
-                use_activation_checkpointing=True,
-            ).to(device)
-            for idx in range(len(opt_kwargs))
-        ]
-    else:
-        # Default: all heads use the first dataset's num_classes
-        classifiers = [
-            AttentiveClassifier(
-                embed_dim=encoder_embed_dim,
-                num_heads=num_heads,
-                depth=num_probe_blocks,
-                num_classes=num_classes_list[0],
+                num_outputs=1,
                 use_activation_checkpointing=True,
             ).to(device)
             for _ in opt_kwargs
@@ -756,7 +998,8 @@ def main(args_eval, resume_preempt=False):
                 save_checkpoint_fn=save_checkpoint,
                 skip_iters=skip_iters,
                 base_global_step=current_base_global_step,
-                use_wandb=use_wandb
+                use_wandb=use_wandb,
+                task_type=task_type
             )
             start_iter = None
             base_global_step = 0
@@ -787,7 +1030,7 @@ def main(args_eval, resume_preempt=False):
             save_checkpoint_fn=None,
             dataset_paths=val_data_path,
             config_tags=config_tags,
-            metric_aggregation=eval_metric_aggregation,
+            task_type=task_type,
             use_wandb=use_wandb
         )
 
@@ -817,12 +1060,16 @@ def run_one_epoch(
     epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20,
     head_to_dataset_map=None, use_bootstrap=False, n_bootstrap=1000, bootstrap_seed=None,
     rank=0, train_loader_len=None, checkpoint_interval=1000, save_checkpoint_fn=None, skip_iters=None,
-    base_global_step=0, dataset_paths=None, config_tags=None, metric_aggregation=None, use_wandb=False
+    base_global_step=0, dataset_paths=None, config_tags=None, task_type="phase", use_wandb=False
 ):
     for c in classifiers:
         c.train(mode=training)
 
-    criterion = torch.nn.CrossEntropyLoss()
+    if task_type in ["phase", "action"]:
+        criterion = torch.nn.CrossEntropyLoss()
+    else:
+        criterion = torch.nn.MSELoss()
+
     acc_meters = [AverageMeter() for _ in classifiers]
     loss_meters = [AverageMeter() for _ in classifiers]
 
@@ -866,6 +1113,11 @@ def run_one_epoch(
             # 每个分类器独立 loss with optional masking for multi-dataset training
             losses = []
             has_samples = []  # Track which heads have actual samples in this batch
+            
+            if task_type == "regression":
+                # For regression: convert labels to float and squeeze outputs
+                labels_float = labels.float()
+            
             if head_to_dataset_map is not None and dataset_indices is not None:
                 # Multi-dataset training: mask loss by dataset
                 for head_idx, coutputs in enumerate(outputs):
@@ -875,7 +1127,10 @@ def run_one_epoch(
                     for o in coutputs:
                         mask = (dataset_indices == assigned_dataset)
                         if mask.sum() > 0:
-                            loss = criterion(o[mask], labels[mask])
+                            if task_type in ["phase", "action"]:
+                                loss = criterion(o[mask], labels[mask])
+                            else: # regression
+                                loss = criterion(o[mask].squeeze(), labels_float[mask])
                             head_has_samples = True
                         else:
                             # No samples from this dataset in batch, create dummy loss
@@ -885,7 +1140,10 @@ def run_one_epoch(
                     has_samples.append(head_has_samples)
             else:
                 # Single dataset or no masking: standard loss calculation
-                losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
+                if task_type in ["phase", "action"]:
+                    losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
+                else: # regression
+                    losses = [[criterion(o.squeeze(), labels_float) for o in coutputs] for coutputs in outputs]
                 has_samples = [True] * len(losses)
 
         if training:
@@ -913,8 +1171,13 @@ def run_one_epoch(
 
         with torch.no_grad():
             for idx, coutputs in enumerate(outputs):
-                avg_output = torch.stack([F.softmax(o, dim=1) for o in coutputs]).mean(0)
-                preds = avg_output.argmax(dim=1)
+                if task_type in ["phase", "action"]:
+                    avg_output = torch.stack([F.softmax(o, dim=1) for o in coutputs]).mean(0)
+                    preds = avg_output.argmax(dim=1)
+                else: # regression
+                    # Average predictions across views and squeeze
+                    avg_output = torch.stack([o.squeeze() for o in coutputs]).mean(0)
+                    preds = avg_output
 
                 # Calculate metrics: if masking, only for assigned dataset samples
                 if head_to_dataset_map is not None and dataset_indices is not None:
@@ -923,13 +1186,19 @@ def run_one_epoch(
                     if mask.sum() > 0:
                         masked_preds = preds[mask]
                         masked_labels = labels[mask]
-                        acc = 100.0 * masked_preds.eq(masked_labels).sum() / mask.sum()
+                        if task_type in ["phase", "action"]:
+                            acc = 100.0 * masked_preds.eq(masked_labels).sum() / mask.sum()
+                        else: # regression
+                            acc = torch.abs(masked_preds - masked_labels.float()).mean()
                         acc = float(AllReduce.apply(acc))
                         acc_meters[idx].update(acc, mask.sum().item())
                     # else: no samples from this dataset in batch, skip update
                 else:
                     # No masking: standard accuracy calculation
-                    acc = 100.0 * preds.eq(labels).sum() / batch_size
+                    if task_type in ["phase", "action"]:
+                        acc = 100.0 * preds.eq(labels).sum() / batch_size
+                    else: # regression
+                        acc = torch.abs(preds - labels.float()).mean()
                     acc = float(AllReduce.apply(acc))
                     acc_meters[idx].update(acc)
 
@@ -952,9 +1221,10 @@ def run_one_epoch(
 
         if itr % log_interval == 0:
             if training:
+                metric_name = "Acc" if task_type in ["phase", "action"] else "MAE"
                 logger.info(
                     f"[Train][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
-                    + " ".join([f"Head{h}: Acc={am.avg:.2f}%, Loss={lm.avg:.4f}"
+                    + " ".join([f"Head{h}: {metric_name}={am.avg:.2f}{'%' if task_type != 'regression' else ''}, Loss={lm.avg:.4f}"
                                 for h, (am, lm) in enumerate(zip(acc_meters, loss_meters))])
                 )
 
@@ -969,20 +1239,21 @@ def run_one_epoch(
                     
                     wandb_metrics = {}
                     for h, (am, lm) in enumerate(zip(acc_meters, loss_meters)):
-                        wandb_metrics[f"train/head_{h}/Acc"] = am.avg
+                        wandb_metrics[f"train/head_{h}/{metric_name}"] = am.avg
                         wandb_metrics[f"train/head_{h}/Loss"] = lm.avg
                     wandb.log(wandb_metrics, step=global_step)
             else:
+                metric_name = "Acc" if task_type in ["phase", "action"] else "MAE"
                 logger.info(
                     f"[Val][Epoch {epoch}][Iter {itr}/{len(data_loader)}] "
-                    + " ".join([f"Head{h}: Acc={am.avg:.2f}%" for h, am in enumerate(acc_meters)])
+                    + " ".join([f"Head{h}: {metric_name}={am.avg:.2f}{'%' if task_type != 'regression' else ''}" for h, am in enumerate(acc_meters)])
                 )
         if training and checkpoint_interval > 0 and (itr + 1) % checkpoint_interval == 0:
             logger.info(f"Saving checkpoint at epoch {epoch}, iter {itr + 1}")
             if save_checkpoint_fn is not None:  # ← 添加检查
                 save_checkpoint_fn(epoch, itr + 1)
 
-    metrics = {f"head_{i}": {"Acc": acc_meters[i].avg, "Loss": loss_meters[i].avg} for i in range(len(classifiers))}
+    metrics = {f"head_{i}": {"Acc" if task_type in ["phase", "action"] else "MAE": acc_meters[i].avg, "Loss": loss_meters[i].avg} for i in range(len(classifiers))}
 
     if not training and len(all_predictions) > 0:
         df = pd.DataFrame(all_predictions, columns=["head","data_idx","vid","prediction","label","dataset_idx"])
@@ -994,101 +1265,167 @@ def run_one_epoch(
 
         # Evaluate per head
         for head_id, g in df.groupby("head"):
-            per_video, stats, phases = evaluate_per_video(
-                g,
-                use_bootstrap=use_bootstrap,
-                n_bootstrap=n_bootstrap,
-                random_seed=bootstrap_seed,
-                head_id=head_id,
-                config_tags=config_tags,
-                metric_aggregation=metric_aggregation
-            )
+            if task_type == "phase":
+                per_video, stats, phases = evaluate_per_video(
+                    g,
+                    use_bootstrap=use_bootstrap,
+                    n_bootstrap=n_bootstrap,
+                    random_seed=bootstrap_seed,
+                    head_id=head_id,
+                    config_tags=config_tags
+                )
+            elif task_type == "action":
+                per_video, stats, phases = evaluate_global_action(
+                    g,
+                    use_bootstrap=use_bootstrap,
+                    n_bootstrap=n_bootstrap,
+                    random_seed=bootstrap_seed,
+                    head_id=head_id,
+                    config_tags=config_tags
+                )
+            else: # regression
+                per_video, stats = evaluate_per_video_regression(
+                    g,
+                    use_bootstrap=use_bootstrap,
+                    n_bootstrap=n_bootstrap,
+                    random_seed=bootstrap_seed,
+                    head_id=head_id
+                )
+            
             results[f"head_{head_id}"] = stats
 
             # Log to wandb (only on rank 0)
             if rank == 0 and use_wandb:
-                wandb_metrics = {
-                    f"val/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
-                    f"val/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
-                    f"val/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
-                    f"val/head_{head_id}/Macro_Precision": stats['Macro_Precision_Mean'],
-                    f"val/head_{head_id}/Macro_Recall": stats['Macro_Recall_Mean'],
-                    f"val/head_{head_id}/Edit_Score": stats['Edit_Score_Mean'],
-                }
+                if task_type in ["phase", "action"]:
+                    wandb_metrics = {
+                        f"val/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
+                        f"val/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
+                        f"val/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
+                        f"val/head_{head_id}/Macro_Precision": stats['Macro_Precision_Mean'],
+                        f"val/head_{head_id}/Macro_Recall": stats['Macro_Recall_Mean'],
+                        f"val/head_{head_id}/Edit_Score": stats['Edit_Score_Mean'],
+                    }
 
-                # Add uncertainty metrics if bootstrap was used
-                if use_bootstrap:
-                    wandb_metrics.update({
-                        f"val/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
-                        f"val/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
-                        f"val/head_{head_id}/Macro_IoU_Std": stats['Macro_IoU_Std'],
-                        f"val/head_{head_id}/Accuracy_CI_Width": stats['Accuracy_CI_Upper'] - stats['Accuracy_CI_Lower'],
-                        f"val/head_{head_id}/Macro_F1_CI_Width": stats['Macro_F1_CI_Upper'] - stats['Macro_F1_CI_Lower'],
-                    })
-
+                    # Add uncertainty metrics if bootstrap was used
+                    if use_bootstrap:
+                        wandb_metrics.update({
+                            f"val/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
+                            f"val/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
+                            f"val/head_{head_id}/Macro_IoU_Std": stats['Macro_IoU_Std'],
+                            f"val/head_{head_id}/Accuracy_CI_Width": stats['Accuracy_CI_Upper'] - stats['Accuracy_CI_Lower'],
+                            f"val/head_{head_id}/Macro_F1_CI_Width": stats['Macro_F1_CI_Upper'] - stats['Macro_F1_CI_Lower'],
+                        })
+                else:
+                    wandb_metrics = {
+                        f"val/head_{head_id}/MAE": stats['MAE_Mean'],
+                        f"val/head_{head_id}/Spearman": stats['Spearman_Mean'],
+                        f"val/head_{head_id}/Overall_MAE": stats['Overall_MAE'],
+                        f"val/head_{head_id}/Overall_Spearman": stats['Overall_Spearman'],
+                    }
+                    
+                    if use_bootstrap:
+                        wandb_metrics.update({
+                            f"val/head_{head_id}/MAE_Std": stats['MAE_Std'],
+                            f"val/head_{head_id}/Spearman_Std": stats['Spearman_Std'],
+                        })
+                
                 wandb.log(wandb_metrics, step=global_step)
 
         logger.info("=== Evaluation per head ===")
         for k, v in results.items():
-            logger.info(
-                f"{k}: "
-                f"Acc={v['Accuracy_Mean']:.2f}±{v['Accuracy_Std']:.2f}, "
-                f"F1={v['Macro_F1_Mean']:.2f}±{v['Macro_F1_Std']:.2f}, "
-                f"IoU={v['Macro_IoU_Mean']:.2f}±{v['Macro_IoU_Std']:.2f}, "
-                f"Prec={v['Macro_Precision_Mean']:.2f}±{v['Macro_Precision_Std']:.2f}, "
-                f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}, "
-                f"Edit={v['Edit_Score_Mean']:.2f}±{v['Edit_Score_Std']:.2f}"
-            )
+            if task_type in ["phase", "action"]:
+                logger.info(
+                    f"{k}: "
+                    f"Acc={v['Accuracy_Mean']:.2f}±{v['Accuracy_Std']:.2f}, "
+                    f"F1={v['Macro_F1_Mean']:.2f}±{v['Macro_F1_Std']:.2f}, "
+                    f"IoU={v['Macro_IoU_Mean']:.2f}±{v['Macro_IoU_Std']:.2f}, "
+                    f"Prec={v['Macro_Precision_Mean']:.2f}±{v['Macro_Precision_Std']:.2f}, "
+                    f"Rec={v['Macro_Recall_Mean']:.2f}±{v['Macro_Recall_Std']:.2f}, "
+                    f"Edit={v['Edit_Score_Mean']:.2f}±{v['Edit_Score_Std']:.2f}"
+                )
 
-            # Log per-class metrics
-            if "per_class" in v:
-                logger.info(f"  Per-class metrics for {k}:")
-                for phase_name, phase_metrics in v["per_class"].items():
-                    logger.info(
-                        f"    {phase_name}: "
-                        f"Prec={phase_metrics['Precision']:.2f}%, "
-                        f"Rec={phase_metrics['Recall']:.2f}%, "
-                        f"F1={phase_metrics['F1']:.2f}%, "
-                        f"IoU={phase_metrics['IoU']:.2f}%"
-                    )
+                # Log per-class metrics
+                if "per_class" in v:
+                    logger.info(f"  Per-class metrics for {k}:")
+                    for phase_name, phase_metrics in v["per_class"].items():
+                        logger.info(
+                            f"    {phase_name}: "
+                            f"Prec={phase_metrics['Precision']:.2f}%, "
+                            f"Rec={phase_metrics['Recall']:.2f}%, "
+                            f"F1={phase_metrics['F1']:.2f}%, "
+                            f"IoU={phase_metrics['IoU']:.2f}%"
+                        )
+            else: # regression
+                logger.info(
+                    f"{k}: "
+                    f"MAE={v['MAE_Mean']:.4f}±{v['MAE_Std']:.4f}, "
+                    f"Spearman={v['Spearman_Mean']:.4f}±{v['Spearman_Std']:.4f}"
+                )
 
-        # Find best head by Macro F1
-        best_head_name = max(results.items(), key=lambda x: x[1]['Macro_F1_Mean'])[0]
-        best_head_stats = results[best_head_name]
-
-        logger.info("\n" + "="*70)
-        logger.info(f"BEST HEAD: {best_head_name} (Macro_F1={best_head_stats['Macro_F1_Mean']:.2f})")
+        # Find best head
+        if task_type in ["phase", "action"]:
+            best_head_name = max(results.items(), key=lambda x: x[1]['Macro_F1_Mean'])[0]
+            best_head_stats = results[best_head_name]
+            
+            logger.info("\n" + "="*70)
+            logger.info(f"BEST HEAD: {best_head_name} (Macro_F1={best_head_stats['Macro_F1_Mean']:.2f})")
+        else:
+            best_head_name = min(results.items(), key=lambda x: x[1]['MAE_Mean'])[0]
+            best_head_stats = results[best_head_name]
+            
+            logger.info("\n" + "="*70)
+            logger.info(f"BEST HEAD: {best_head_name} (MAE={best_head_stats['MAE_Mean']:.4f})")
+            
         logger.info("="*70)
-        logger.info(
-            f"Acc={best_head_stats['Accuracy_Mean']:.2f}±{best_head_stats['Accuracy_Std']:.2f}, "
-            f"F1={best_head_stats['Macro_F1_Mean']:.2f}±{best_head_stats['Macro_F1_Std']:.2f}, "
-            f"IoU={best_head_stats['Macro_IoU_Mean']:.2f}±{best_head_stats['Macro_IoU_Std']:.2f}, "
-            f"Prec={best_head_stats['Macro_Precision_Mean']:.2f}±{best_head_stats['Macro_Precision_Std']:.2f}, "
-            f"Rec={best_head_stats['Macro_Recall_Mean']:.2f}±{best_head_stats['Macro_Recall_Std']:.2f}, "
-            f"Edit={best_head_stats['Edit_Score_Mean']:.2f}±{best_head_stats['Edit_Score_Std']:.2f}"
-        )
+        
+        if task_type in ["phase", "action"]:
+            logger.info(
+                f"Acc={best_head_stats['Accuracy_Mean']:.2f}±{best_head_stats['Accuracy_Std']:.2f}, "
+                f"F1={best_head_stats['Macro_F1_Mean']:.2f}±{best_head_stats['Macro_F1_Std']:.2f}, "
+                f"IoU={best_head_stats['Macro_IoU_Mean']:.2f}±{best_head_stats['Macro_IoU_Std']:.2f}, "
+                f"Prec={best_head_stats['Macro_Precision_Mean']:.2f}±{best_head_stats['Macro_Precision_Std']:.2f}, "
+                f"Rec={best_head_stats['Macro_Recall_Mean']:.2f}±{best_head_stats['Macro_Recall_Std']:.2f}, "
+                f"Edit={best_head_stats['Edit_Score_Mean']:.2f}±{best_head_stats['Edit_Score_Std']:.2f}"
+            )
+        else:
+            logger.info(
+                f"MAE={best_head_stats['MAE_Mean']:.4f}±{best_head_stats['MAE_Std']:.4f}, "
+                f"Spearman={best_head_stats['Spearman_Mean']:.4f}±{best_head_stats['Spearman_Std']:.4f}"
+            )
         logger.info("="*70)
 
         # Log best head to wandb (only on rank 0)
         if rank == 0 and use_wandb:
-            wandb_best_metrics = {
-                f"val/best_head/Accuracy": best_head_stats['Accuracy_Mean'],
-                f"val/best_head/Macro_F1": best_head_stats['Macro_F1_Mean'],
-                f"val/best_head/Macro_IoU": best_head_stats['Macro_IoU_Mean'],
-                f"val/best_head/Macro_Precision": best_head_stats['Macro_Precision_Mean'],
-                f"val/best_head/Macro_Recall": best_head_stats['Macro_Recall_Mean'],
-                f"val/best_head/Edit_Score": best_head_stats['Edit_Score_Mean'],
-            }
+            if task_type in ["phase", "action"]:
+                wandb_best_metrics = {
+                    f"val/best_head/Accuracy": best_head_stats['Accuracy_Mean'],
+                    f"val/best_head/Macro_F1": best_head_stats['Macro_F1_Mean'],
+                    f"val/best_head/Macro_IoU": best_head_stats['Macro_IoU_Mean'],
+                    f"val/best_head/Macro_Precision": best_head_stats['Macro_Precision_Mean'],
+                    f"val/best_head/Macro_Recall": best_head_stats['Macro_Recall_Mean'],
+                    f"val/best_head/Edit_Score": best_head_stats['Edit_Score_Mean'],
+                }
+            else:
+                wandb_best_metrics = {
+                    f"val/best_head/MAE": best_head_stats['MAE_Mean'],
+                    f"val/best_head/Spearman": best_head_stats['Spearman_Mean'],
+                    f"val/best_head/Overall_MAE": best_head_stats['Overall_MAE'],
+                    f"val/best_head/Overall_Spearman": best_head_stats['Overall_Spearman'],
+                }
 
             # Add uncertainty metrics if bootstrap was used
             if use_bootstrap:
-                wandb_best_metrics.update({
-                    f"val/best_head/Accuracy_Std": best_head_stats['Accuracy_Std'],
-                    f"val/best_head/Macro_F1_Std": best_head_stats['Macro_F1_Std'],
-                    f"val/best_head/Macro_IoU_Std": best_head_stats['Macro_IoU_Std'],
-                    f"val/best_head/Accuracy_CI_Width": best_head_stats['Accuracy_CI_Upper'] - best_head_stats['Accuracy_CI_Lower'],
-                    f"val/best_head/Macro_F1_CI_Width": best_head_stats['Macro_F1_CI_Upper'] - best_head_stats['Macro_F1_CI_Lower'],
-                })
+                if task_type in ["phase", "action"]:
+                    wandb_best_metrics.update({
+                        f"val/best_head/Accuracy_Std": best_head_stats['Accuracy_Std'],
+                        f"val/best_head/Macro_F1_Std": best_head_stats['Macro_F1_Std'],
+                        f"val/best_head/Macro_IoU_Std": best_head_stats['Macro_IoU_Std'],
+                    })
+                else:
+                    wandb_best_metrics.update({
+                        f"val/best_head/MAE_Std": best_head_stats['MAE_Std'],
+                        f"val/best_head/Spearman_Std": best_head_stats['Spearman_Std'],
+                    })
 
             wandb.log(wandb_best_metrics, step=global_step)
 
@@ -1110,51 +1447,85 @@ def run_one_epoch(
                     head_df = ds_df[ds_df['head'] == head_id]
                     
                     if len(head_df) > 0:
-                        per_video, stats, phases = evaluate_per_video(
-                            head_df,
-                            use_bootstrap=use_bootstrap,
-                            n_bootstrap=n_bootstrap,
-                            random_seed=bootstrap_seed,
-                            head_id=head_id,
-                            config_tags=config_tags,
-                            metric_aggregation=metric_aggregation
-                        )
-                        dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
+                        if task_type == "phase":
+                            per_video, stats, phases = evaluate_per_video(
+                                head_df,
+                                use_bootstrap=use_bootstrap,
+                                n_bootstrap=n_bootstrap,
+                                random_seed=bootstrap_seed,
+                                head_id=head_id,
+                                config_tags=config_tags
+                            )
+                        elif task_type == "action":
+                            per_video, stats, phases = evaluate_global_action(
+                                head_df,
+                                use_bootstrap=use_bootstrap,
+                                n_bootstrap=n_bootstrap,
+                                random_seed=bootstrap_seed,
+                                head_id=head_id,
+                                config_tags=config_tags
+                            )
+                        
+                        if task_type in ["phase", "action"]:
+                            dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
 
-                        # Log to wandb (only on rank 0)
-                        if rank == 0 and use_wandb:
-                            wandb_metrics = {
-                                f"val/dataset_{ds_idx}/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
-                                f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
-                                f"val/dataset_{ds_idx}/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
-                                f"val/dataset_{ds_idx}/head_{head_id}/Edit_Score": stats['Edit_Score_Mean'],
-                            }
-                            if use_bootstrap:
-                                wandb_metrics.update({
-                                    f"val/dataset_{ds_idx}/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
-                                    f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
-                                })
-                            wandb.log(wandb_metrics, step=global_step)
+                            # Log to wandb (only on rank 0)
+                            if rank == 0 and use_wandb:
+                                wandb_metrics = {
+                                    f"val/dataset_{ds_idx}/head_{head_id}/Accuracy": stats['Accuracy_Mean'],
+                                    f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1": stats['Macro_F1_Mean'],
+                                    f"val/dataset_{ds_idx}/head_{head_id}/Macro_IoU": stats['Macro_IoU_Mean'],
+                                    f"val/dataset_{ds_idx}/head_{head_id}/Edit_Score": stats['Edit_Score_Mean'],
+                                }
+                                if use_bootstrap:
+                                    wandb_metrics.update({
+                                        f"val/dataset_{ds_idx}/head_{head_id}/Accuracy_Std": stats['Accuracy_Std'],
+                                        f"val/dataset_{ds_idx}/head_{head_id}/Macro_F1_Std": stats['Macro_F1_Std'],
+                                    })
+                                wandb.log(wandb_metrics, step=global_step)
 
-                        logger.info(
-                            f"  Head {head_id}: "
-                            f"Acc={stats['Accuracy_Mean']:.2f}±{stats['Accuracy_Std']:.2f}, "
-                            f"F1={stats['Macro_F1_Mean']:.2f}±{stats['Macro_F1_Std']:.2f}, "
-                            f"IoU={stats['Macro_IoU_Mean']:.2f}±{stats['Macro_IoU_Std']:.2f}, "
-                            f"Edit={stats['Edit_Score_Mean']:.2f}±{stats['Edit_Score_Std']:.2f}"
-                        )
+                            logger.info(
+                                f"  Head {head_id}: "
+                                f"Acc={stats['Accuracy_Mean']:.2f}±{stats['Accuracy_Std']:.2f}, "
+                                f"F1={stats['Macro_F1_Mean']:.2f}±{stats['Macro_F1_Std']:.2f}, "
+                                f"IoU={stats['Macro_IoU_Mean']:.2f}±{stats['Macro_IoU_Std']:.2f}, "
+                                f"Edit={stats['Edit_Score_Mean']:.2f}±{stats['Edit_Score_Std']:.2f}"
+                            )
 
-                        # Log per-class metrics for this dataset
-                        if "per_class" in stats:
-                            logger.info(f"    Per-class metrics (Dataset {ds_idx}, Head {head_id}):")
-                            for phase_name, phase_metrics in stats["per_class"].items():
-                                logger.info(
-                                    f"      {phase_name}: "
-                                    f"Prec={phase_metrics['Precision']:.2f}%, "
-                                    f"Rec={phase_metrics['Recall']:.2f}%, "
-                                    f"F1={phase_metrics['F1']:.2f}%, "
-                                    f"IoU={phase_metrics['IoU']:.2f}%"
-                                )
+                            # Log per-class metrics for this dataset
+                            if "per_class" in stats:
+                                logger.info(f"    Per-class metrics (Dataset {ds_idx}, Head {head_id}):")
+                                for phase_name, phase_metrics in stats["per_class"].items():
+                                    logger.info(
+                                        f"      {phase_name}: "
+                                        f"Prec={phase_metrics['Precision']:.2f}%, "
+                                        f"Rec={phase_metrics['Recall']:.2f}%, "
+                                        f"F1={phase_metrics['F1']:.2f}%, "
+                                        f"IoU={phase_metrics['IoU']:.2f}%"
+                                    )
+                        else: # regression
+                             per_video, stats = evaluate_per_video_regression(
+                                head_df,
+                                use_bootstrap=use_bootstrap,
+                                n_bootstrap=n_bootstrap,
+                                random_seed=bootstrap_seed,
+                                head_id=head_id
+                            )
+                             dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
+                             
+                             if rank == 0 and use_wandb:
+                                wandb_metrics = {
+                                    f"val/dataset_{ds_idx}/head_{head_id}/MAE": stats['MAE_Mean'],
+                                    f"val/dataset_{ds_idx}/head_{head_id}/Spearman": stats['Spearman_Mean'],
+                                }
+                                wandb.log(wandb_metrics, step=global_step)
+                                
+                             logger.info(
+                                f"  Head {head_id}: "
+                                f"MAE={stats['MAE_Mean']:.4f}±{stats['MAE_Std']:.4f}, "
+                                f"Spearman={stats['Spearman_Mean']:.4f}±{stats['Spearman_Std']:.4f}"
+                            )
+
             metrics.update(dataset_results)
 
         if save_predictions and folder is not None:
