@@ -8,11 +8,12 @@ NUM_CLASSES = 3
 DATASET_TAG = 'AIxsuture'
 DATASET_NAME_LOWER = 'aixsuture'
 
-# 统一配置: 4 segments × 16 frames = 64 frames (与PitVis相同的总帧数)
-NUM_SEGMENTS = 4
+# 统一配置: 8 segments × 16 frames = 128 frames 
+NUM_SEGMENTS = 8
 FRAMES_PER_CLIP = 16
 BATCH_SIZE = 2
 MAX_FRAMES = 128  # 需要 >= num_segments * frames_per_clip
+NUM_EPOCHS = 4
 # 大模型配置
 LARGE_MODELS = ['huge', 'giant']
 LARGE_MODEL_BATCH_SIZE = 1
@@ -74,6 +75,10 @@ def process_content(content, filename=''):
     # Update max_frames (需要 >= num_segments * frames_per_clip)
     if re.search(r'max_frames: .*', content):
         content = re.sub(r'max_frames: \d+', f'max_frames: {MAX_FRAMES}', content)
+    
+    # Update num_epochs
+    if re.search(r'num_epochs: .*', content):
+        content = re.sub(r'num_epochs: \d+', f'num_epochs: {NUM_EPOCHS}', content)
     
     # Disable wrapper use_pos_embed to avoid index out of bounds
     # (clip_indices can exceed max_frames/tubelet_size)

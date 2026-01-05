@@ -49,7 +49,7 @@ experiment:
     - 3   # OphNet2024_phase has 15 steps
 
     frames_per_clip: 16
-    num_segments: 4
+    num_segments: 8
     num_views_per_segment: 1
     resolution: 256
 
@@ -168,7 +168,7 @@ experiment:
       start_lr: 0.005
       warmup: 0.0
       weight_decay: 0.8
-    num_epochs: 1
+    num_epochs: 4
     use_bfloat16: true
     use_pos_embed: false
 
