@@ -49,75 +49,75 @@ export WANDB_MODE=online
 TASKS=(
 
     # dinov3
-    "fdtn_probing/dinov3/JIGSAWS"
-    "fdtn_probing/dinov3/JIGSAWS"
+#     "fdtn_probing/dinov3/JIGSAWS"
+#     "fdtn_probing/dinov3/JIGSAWS"
 
 
-#     # gsvit
-#     "fdtn_probing/gsvit/JIGSAWS"
+    # gsvit
+    "fdtn_probing/gsvit/JIGSAWS"
     
-#     # gastronet
-#     "fdtn_probing/gastronet/JIGSAWS"
+    # gastronet
+    "fdtn_probing/gastronet/JIGSAWS"
     
-#     # surgenet
-#     "fdtn_probing/surgenet/JIGSAWS"
+    # surgenet
+    "fdtn_probing/surgenet/JIGSAWS"
     
-#     # endovit
-#     "fdtn_probing/endovit/JIGSAWS"
+    # endovit
+    "fdtn_probing/endovit/JIGSAWS"
     
-#     # selfsupsurg
-#     "fdtn_probing/selfsupsurg/JIGSAWS"
+    # selfsupsurg
+    "fdtn_probing/selfsupsurg/JIGSAWS"
     
-#     # videomaev2
-#     "fdtn_probing/videomaev2/JIGSAWS"
-#     "fdtn_probing/videomaev2/JIGSAWS"
+    # videomaev2
+    "fdtn_probing/videomaev2/JIGSAWS"
+    "fdtn_probing/videomaev2/JIGSAWS"
     
-#     # surgvlp
-#     "fdtn_probing/surgvlp/JIGSAWS"
+    # surgvlp
+    "fdtn_probing/surgvlp/JIGSAWS"
     
-#     # endofm
-#     "fdtn_probing/endofm/JIGSAWS"
+    # endofm
+    "fdtn_probing/endofm/JIGSAWS"
     
 
-#     # endossl
-#     "fdtn_probing/endossl/JIGSAWS"
-#     "fdtn_probing/endossl/JIGSAWS"
+    # endossl
+    "fdtn_probing/endossl/JIGSAWS"
+    "fdtn_probing/endossl/JIGSAWS"
 )
 
 FNAMES=(
-    # dinov3
-    "dinov3_vitl_64f_jigsaws.yaml"
-    "dinov3_vith_64f_jigsaws.yaml"
+#     # dinov3
+#     "dinov3_vitl_64f_jigsaws.yaml"
+#     "dinov3_vith_64f_jigsaws.yaml"
 
-#     # gsvit
-#     "gsvit_vit_64f_jigsaws.yaml"
+    # gsvit
+    "gsvit_vit_64f_jigsaws.yaml"
     
-#     # gastronet
-#     "gastronet_vits_64f_jigsaws.yaml"
+    # gastronet
+    "gastronet_vits_64f_jigsaws.yaml"
     
-#     # surgenet
-#     "surgenetxl_caformer_64f_jigsaws.yaml"
+    # surgenet
+    "surgenetxl_caformer_64f_jigsaws.yaml"
     
-#     # endovit
-#     "endovit_vitl_64f_jigsaws.yaml"
+    # endovit
+    "endovit_vitl_64f_jigsaws.yaml"
     
-#     # selfsupsurg
-#     "selfsupsurg_res50_64f_jigsaws.yaml"
+    # selfsupsurg
+    "selfsupsurg_res50_64f_jigsaws.yaml"
     
-#     # videomaev2
-#     "videomaev2_giant_64f_jigsaws.yaml"
-#     "videomaev2_large_64f_jigsaws.yaml"
+    # videomaev2
+    "videomaev2_giant_64f_jigsaws.yaml"
+    "videomaev2_large_64f_jigsaws.yaml"
     
-#     # surgvlp
-#     "surgvlp_res50_64f_jigsaws.yaml"
+    # surgvlp
+    "surgvlp_res50_64f_jigsaws.yaml"
     
-#     # endofm
-#     "endofm_vitb_64f_jigsaws.yaml"
+    # endofm
+    "endofm_vitb_64f_jigsaws.yaml"
     
     
-#     # endossl
-#     "endossl_vitl_laparo_64f_jigsaws.yaml"
-#     "endossl_vitl_colono_64f_jigsaws.yaml"
+    # endossl
+    "endossl_vitl_laparo_64f_jigsaws.yaml"
+    "endossl_vitl_colono_64f_jigsaws.yaml"
 )
 
 
