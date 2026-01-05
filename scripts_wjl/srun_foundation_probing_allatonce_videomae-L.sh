@@ -47,17 +47,17 @@ export WANDB_MODE=online
 # ==========================================
 
 TASKS=(
-    "configs/fdtn_probing/videomaev2/Cholec80"
-    "configs/fdtn_probing/videomaev2/AutoLaparo"
-    "configs/fdtn_probing/videomaev2/M2CAI16"
-    "fdtn_probing/videomaev2/EgoSurgery"
-    "fdtn_probing/videomaev2/PitVis"
-    "fdtn_probing/videomaev2/Atlas"
-    "fdtn_probing/videomaev2/OphNet"
-    "fdtn_probing/videomaev2/PmLR50"
-    "fdtn_probing/videomaev2/Surgical-Action-160"
-    "fdtn_probing/videomaev2/AVOS"
-    "fdtn_probing/videomaev2/PolypDiag"
+    "fdtn_probing/videomaev2/Cholec80"
+    "fdtn_probing/videomaev2/AutoLaparo"
+    "fdtn_probing/videomaev2/M2CAI16"
+    # "fdtn_probing/videomaev2/EgoSurgery"
+    # "fdtn_probing/videomaev2/PitVis"
+    # "fdtn_probing/videomaev2/Atlas"
+    # "fdtn_probing/videomaev2/OphNet"
+    # "fdtn_probing/videomaev2/PmLR50"
+    # "fdtn_probing/videomaev2/Surgical-Action-160"
+    # "fdtn_probing/videomaev2/AVOS"
+    # "fdtn_probing/videomaev2/PolypDiag"
 
 )
 
@@ -65,14 +65,14 @@ FNAMES=(
     "videomaev2_large_64f_cholec80.yaml"
     "videomaev2_large_64f_autolaparo.yaml"
     "videomaev2_large_64f_m2cai16.yaml"
-    "videomaev2_large_64f_egosurgery.yaml"
-    "videomaev2_large_64f_pitvis.yaml"
-    "videomaev2_large_64f_atlas.yaml"
-    "videomaev2_large_64f_ophnet.yaml"
-    "videomaev2_large_64f_pmlr50.yaml"
-    "videomaev2_large_64f_surgical-action-160.yaml"
-    "videomaev2_large_64f_avos.yaml"
-    "videomaev2_large_64f_polypdiag.yaml"
+    # "videomaev2_large_64f_egosurgery.yaml"
+    # "videomaev2_large_64f_pitvis.yaml"
+    # "videomaev2_large_64f_atlas.yaml"
+    # "videomaev2_large_64f_ophnet.yaml"
+    # "videomaev2_large_64f_pmlr50.yaml"
+    # "videomaev2_large_64f_surgical-action-160.yaml"
+    # "videomaev2_large_64f_avos.yaml"
+    # "videomaev2_large_64f_polypdiag.yaml"
 )
 
 
