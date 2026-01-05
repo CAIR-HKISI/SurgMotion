@@ -185,5 +185,5 @@ model_kwargs:
       uniform_power: true
       use_rope: true
   wrapper_kwargs:
-    max_frames: 128
+    max_frames: 256
     use_pos_embed: false

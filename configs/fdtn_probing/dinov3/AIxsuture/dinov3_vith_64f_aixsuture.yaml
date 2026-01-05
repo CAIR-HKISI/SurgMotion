@@ -170,6 +170,6 @@ model_kwargs:
     model_name: dinov3_vith16plus
   wrapper_kwargs:
     tubelet_size: 2
-    max_frames: 128
+    max_frames: 256
     use_pos_embed: true
 

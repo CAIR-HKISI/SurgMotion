@@ -12,6 +12,7 @@ DATASET_NAME_LOWER = 'aixsuture'
 NUM_SEGMENTS = 8
 FRAMES_PER_CLIP = 16
 BATCH_SIZE = 2
+MAX_FRAMES = 256  # 需要 >= num_segments * frames_per_clip
 # 大模型配置
 LARGE_MODELS = ['huge', 'giant']
 LARGE_MODEL_BATCH_SIZE = 1
@@ -69,6 +70,10 @@ def process_content(content, filename=''):
         batch_size = BATCH_SIZE
     if re.search(r'batch_size: .*', content):
         content = re.sub(r'batch_size: \d+', f'batch_size: {batch_size}', content)
+    
+    # Update max_frames (需要 >= num_segments * frames_per_clip)
+    if re.search(r'max_frames: .*', content):
+        content = re.sub(r'max_frames: \d+', f'max_frames: {MAX_FRAMES}', content)
 
     # 3. Replace PitVis references
     content = content.replace('PitVis', DATASET_TAG)
