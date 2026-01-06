@@ -31,7 +31,7 @@ experiment:
     dataset_val: data/Surge_Frames/AIxsuture_v1/test_clip_metadata.csv
     frames_per_clip: 16
     num_classes: 3
-    num_segments: 8
+    num_segments: 4
     num_views_per_segment: 1
     resolution: 224
 
@@ -158,7 +158,7 @@ experiment:
       start_lr: 0.0001
       warmup: 0.0
       weight_decay: 0.8
-    num_epochs: 4
+    num_epochs: 1
     use_bfloat16: true
     use_pos_embed: false
 
