@@ -12,6 +12,7 @@ from scipy.stats import spearmanr
 import wandb
 import itertools
 import torch.nn as nn
+from collections import Counter
 
 from evals.surgical_video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
@@ -32,6 +33,129 @@ _GLOBAL_SEED = 0
 np.random.seed(_GLOBAL_SEED)
 torch.manual_seed(_GLOBAL_SEED)
 torch.backends.cudnn.benchmark = True
+
+
+# ----------------------
+# Class Weight Calculation
+# ----------------------
+def compute_class_weights(dataset, device, num_classes=None):
+    """
+    Compute class weights for weighted CrossEntropyLoss.
+    Weights are inversely proportional to class frequencies:
+    weight[c] = total_samples / (num_classes * count[c])
+    """
+    logger.info("Computing class weights from dataset labels...")
+    
+    # Handle wrapped datasets (e.g., MonitoredDataset)
+    inner_dataset = dataset
+    while hasattr(inner_dataset, 'dataset') and not hasattr(inner_dataset, 'labels'):
+        inner_dataset = inner_dataset.dataset
+    
+    # Try to access labels
+    if hasattr(inner_dataset, 'labels'):
+        labels = inner_dataset.labels
+    else:
+        logger.warning("Dataset has no 'labels' attribute, cannot compute class weights. Using None.")
+        return None
+
+    # Handle if labels are list of lists (SurgicalVideoDataset)
+    if len(labels) > 0 and isinstance(labels[0], (list, tuple, np.ndarray)):
+        # Assume first element is label
+        flat_labels = [l[0] for l in labels]
+    else:
+        flat_labels = labels
+    
+    if len(flat_labels) == 0:
+        logger.warning("Dataset labels are empty. Using None.")
+        return None
+
+    # Calculate counts
+    counts = Counter(flat_labels)
+    classes = sorted(counts.keys())
+    
+    if num_classes is None:
+        if not classes:
+            return None
+        max_cls = max(classes)
+        num_classes = max_cls + 1
+    
+    weights = torch.ones(num_classes, device=device)
+    total = len(flat_labels)
+    
+    for cls, count in counts.items():
+        if count > 0 and cls < num_classes:
+            # Standard sklearn-style balanced weight
+            weights[int(cls)] = total / (num_classes * count)
+        
+    logger.info(f"Computed class weights: {weights}")
+    return weights
+
+
+def compute_per_dataset_class_weights(dataset, device, num_classes_list=None):
+    """
+    Compute class weights per sub-dataset (for multi-dataset training).
+    Returns a list of weight tensors (one per sub-dataset).
+    """
+    # Handle wrapped datasets (e.g., MonitoredDataset)
+    inner_dataset = dataset
+    while hasattr(inner_dataset, 'dataset') and not hasattr(inner_dataset, 'labels'):
+        inner_dataset = inner_dataset.dataset
+    
+    if not hasattr(inner_dataset, 'labels') or not hasattr(inner_dataset, 'num_samples_per_dataset'):
+        logger.warning("Dataset missing attributes for per-dataset weights. Using global weights.")
+        return None
+        
+    all_labels = inner_dataset.labels
+    ns_per_ds = inner_dataset.num_samples_per_dataset
+    
+    # Validation
+    if isinstance(all_labels, list) and len(all_labels) != sum(ns_per_ds):
+        # Only warn if lengths mismatch significantly (VideoDataset logic might be tricky)
+        # But usually len(labels) == sum(num_samples_per_dataset)
+        pass
+        
+    weights_per_dataset = []
+    start_idx = 0
+    
+    logger.info(f"Computing per-dataset class weights for {len(ns_per_ds)} datasets...")
+    
+    for i, count in enumerate(ns_per_ds):
+        end_idx = start_idx + count
+        ds_labels_raw = all_labels[start_idx:end_idx]
+        start_idx = end_idx
+        
+        # Extract label if list
+        if len(ds_labels_raw) > 0 and isinstance(ds_labels_raw[0], (list, tuple, np.ndarray)):
+            ds_labels = [l[0] for l in ds_labels_raw]
+        else:
+            ds_labels = ds_labels_raw
+            
+        if len(ds_labels) == 0:
+            weights_per_dataset.append(None)
+            continue
+            
+        c = Counter(ds_labels)
+        classes = sorted(c.keys())
+        
+        # Determine num_classes for this dataset
+        if num_classes_list is not None and i < len(num_classes_list):
+            num_classes = num_classes_list[i]
+        else:
+             if not classes:
+                 num_classes = 1
+             else:
+                 num_classes = max(classes) + 1
+        
+        w = torch.ones(num_classes, device=device)
+        total = len(ds_labels)
+        for cls, cnt in c.items():
+            if cnt > 0 and cls < num_classes:
+                w[int(cls)] = total / (num_classes * cnt)
+        
+        weights_per_dataset.append(w)
+        logger.info(f"Dataset {i} weights: {w}")
+        
+    return weights_per_dataset
 
 
 # ----------------------
@@ -570,6 +694,7 @@ def main(args_eval, resume_preempt=False):
     batch_size = args_opt.get("batch_size")
     num_epochs = args_opt.get("num_epochs")
     use_bfloat16 = args_opt.get("use_bfloat16")
+    use_weighted_loss = args_opt.get("use_weighted_loss", False)
     opt_kwargs = args_opt.get("multihead_kwargs")  # list，每个分类头一个 kwargs
 
     try:
@@ -966,6 +1091,37 @@ def main(args_eval, resume_preempt=False):
     # ----------------
     # 训练循环
     # ----------------
+    
+    # Calculate class weights for weighted loss
+    train_class_weights_list = None
+    if use_weighted_loss and task_type in ["phase", "action"]:
+        logger.info("⚖️  Weighted Loss Enabled: Calculating class weights...")
+        if head_to_dataset_map is not None:
+             # Multi-dataset
+             dataset_weights = compute_per_dataset_class_weights(
+                 train_loader.dataset, 
+                 device=device,
+                 num_classes_list=num_classes_list if isinstance(num_classes_list, list) else None
+             )
+             
+             if dataset_weights:
+                 train_class_weights_list = []
+                 for h_idx in range(len(classifiers)):
+                     if h_idx < len(head_to_dataset_map):
+                         ds_idx = head_to_dataset_map[h_idx]
+                         if ds_idx < len(dataset_weights):
+                             train_class_weights_list.append(dataset_weights[ds_idx])
+                         else:
+                             train_class_weights_list.append(None)
+                     else:
+                         train_class_weights_list.append(None)
+        else:
+             # Single dataset / global
+             nc = num_classes_list[0] if len(num_classes_list) > 0 else None
+             
+             w = compute_class_weights(train_loader.dataset, device=device, num_classes=nc)
+             train_class_weights_list = [w] * len(classifiers)
+
     for epoch in range(start_epoch, num_epochs):
         train_sampler.set_epoch(epoch)
 
@@ -997,7 +1153,8 @@ def main(args_eval, resume_preempt=False):
                 skip_iters=skip_iters,
                 base_global_step=current_base_global_step,
                 use_wandb=use_wandb,
-                task_type=task_type
+                task_type=task_type,
+                class_weights_list=train_class_weights_list
             )
             start_iter = None
             base_global_step = 0
@@ -1058,15 +1215,27 @@ def run_one_epoch(
     epoch=0, folder=None, save_predictions=False, fps=1.0, log_interval=20,
     head_to_dataset_map=None, use_bootstrap=False, n_bootstrap=1000, bootstrap_seed=None,
     rank=0, train_loader_len=None, checkpoint_interval=1000, save_checkpoint_fn=None, skip_iters=None,
-    base_global_step=0, dataset_paths=None, config_tags=None, task_type="phase", use_wandb=False
+    base_global_step=0, dataset_paths=None, config_tags=None, task_type="phase", use_wandb=False,
+    class_weights_list=None
 ):
     for c in classifiers:
         c.train(mode=training)
 
-    if task_type in ["phase", "action"]:
-        criterion = torch.nn.CrossEntropyLoss()
+    # Initialize loss functions (per head)
+    criteria = []
+    if class_weights_list is not None and len(class_weights_list) == len(classifiers):
+        for idx in range(len(classifiers)):
+            w = class_weights_list[idx] if class_weights_list[idx] is not None else None
+            if task_type in ["phase", "action"]:
+                criteria.append(torch.nn.CrossEntropyLoss(weight=w))
+            else:
+                criteria.append(torch.nn.MSELoss())
     else:
-        criterion = torch.nn.MSELoss()
+        for _ in classifiers:
+            if task_type in ["phase", "action"]:
+                criteria.append(torch.nn.CrossEntropyLoss())
+            else:
+                criteria.append(torch.nn.MSELoss())
 
     acc_meters = [AverageMeter() for _ in classifiers]
     loss_meters = [AverageMeter() for _ in classifiers]
@@ -1126,9 +1295,9 @@ def run_one_epoch(
                         mask = (dataset_indices == assigned_dataset)
                         if mask.sum() > 0:
                             if task_type in ["phase", "action"]:
-                                loss = criterion(o[mask], labels[mask])
+                                loss = criteria[head_idx](o[mask], labels[mask])
                             else: # regression
-                                loss = criterion(o[mask].squeeze(), labels_float[mask])
+                                loss = criteria[head_idx](o[mask].squeeze(), labels_float[mask])
                             head_has_samples = True
                         else:
                             # No samples from this dataset in batch, create dummy loss
@@ -1139,9 +1308,9 @@ def run_one_epoch(
             else:
                 # Single dataset or no masking: standard loss calculation
                 if task_type in ["phase", "action"]:
-                    losses = [[criterion(o, labels) for o in coutputs] for coutputs in outputs]
+                    losses = [[criteria[head_idx](o, labels) for o in coutputs] for head_idx, coutputs in enumerate(outputs)]
                 else: # regression
-                    losses = [[criterion(o.squeeze(), labels_float) for o in coutputs] for coutputs in outputs]
+                    losses = [[criteria[head_idx](o.squeeze(), labels_float) for o in coutputs] for head_idx, coutputs in enumerate(outputs)]
                 has_samples = [True] * len(losses)
 
         if training:

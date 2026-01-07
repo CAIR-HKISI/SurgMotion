@@ -80,6 +80,12 @@ def process_content(content, filename=''):
     if re.search(r'num_epochs: .*', content):
         content = re.sub(r'num_epochs: \d+', f'num_epochs: {NUM_EPOCHS}', content)
     
+    # Enable weighted loss for class imbalance (add after num_epochs line)
+    if not re.search(r'use_weighted_loss:', content):
+        content = re.sub(r'(num_epochs: \d+)', r'\1\n    use_weighted_loss: true', content)
+    else:
+        content = re.sub(r'use_weighted_loss: .*', 'use_weighted_loss: true', content)
+    
     # Update resume_checkpoint
     if re.search(r'resume_checkpoint: .*', content):
         content = re.sub(r'resume_checkpoint: .*', 'resume_checkpoint: false', content)
