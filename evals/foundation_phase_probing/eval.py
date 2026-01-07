@@ -11,7 +11,7 @@ from sklearn.metrics import precision_score, recall_score, jaccard_score, f1_sco
 from scipy.stats import spearmanr
 import wandb
 import itertools
-
+import torch.nn as nn
 
 from evals.surgical_video_classification_frozen.models import init_module
 from evals.video_classification_frozen.utils import make_transforms
@@ -692,8 +692,6 @@ def main(args_eval, resume_preempt=False):
         wrapper_kwargs=args_wrapper,
         device=device,
     )
-
-    import torch.nn as nn
     
     # 检测可用GPU数量
     available_gpus = list(range(torch.cuda.device_count()))

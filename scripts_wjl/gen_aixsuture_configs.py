@@ -80,6 +80,10 @@ def process_content(content, filename=''):
     if re.search(r'num_epochs: .*', content):
         content = re.sub(r'num_epochs: \d+', f'num_epochs: {NUM_EPOCHS}', content)
     
+    # Update resume_checkpoint
+    if re.search(r'resume_checkpoint: .*', content):
+        content = re.sub(r'resume_checkpoint: .*', 'resume_checkpoint: false', content)
+    
     # Disable wrapper use_pos_embed to avoid index out of bounds
     # (clip_indices can exceed max_frames/tubelet_size)
     # Match use_pos_embed in wrapper_kwargs section (after max_frames line)

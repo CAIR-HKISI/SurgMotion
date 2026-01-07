@@ -4,7 +4,7 @@ folder: logs/foundation/surgenetxl_caformer_aixsuture
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
-resume_checkpoint: true
+resume_checkpoint: false
 tag: surgenetxl_caformer_64f_aixsuture
 tasks_per_node: 1
 task_type: action

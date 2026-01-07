@@ -14,7 +14,7 @@ NUM_SEGMENTS = 8
 FRAMES_PER_CLIP = 16
 BATCH_SIZE = 2
 MAX_FRAMES = 128  # 需要 >= num_segments * frames_per_clip
-NUM_EPOCHS = 4
+NUM_EPOCHS = 1
 # 大模型配置
 LARGE_MODELS = ['huge', 'giant']
 LARGE_MODEL_BATCH_SIZE = 1
