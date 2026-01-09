@@ -81,10 +81,17 @@ def process_content(content, filename=''):
         content = re.sub(r'num_epochs: \d+', f'num_epochs: {NUM_EPOCHS}', content)
     
     # Enable weighted loss for class imbalance (add after num_epochs line)
+    # Use 'inverse_freq' strategy for extreme class imbalance (7% vs 72% vs 20%)
     if not re.search(r'use_weighted_loss:', content):
-        content = re.sub(r'(num_epochs: \d+)', r'\1\n    use_weighted_loss: true', content)
+        content = re.sub(r'(num_epochs: \d+)', r'\1\n    use_weighted_loss: true\n    weight_strategy: inverse_freq', content)
     else:
         content = re.sub(r'use_weighted_loss: .*', 'use_weighted_loss: true', content)
+    
+    # Update or add weight_strategy
+    if not re.search(r'weight_strategy:', content):
+        content = re.sub(r'(use_weighted_loss: true)', r'\1\n    weight_strategy: inverse_freq', content)
+    else:
+        content = re.sub(r'weight_strategy: .*', 'weight_strategy: inverse_freq', content)
     
     # Update resume_checkpoint
     if re.search(r'resume_checkpoint: .*', content):

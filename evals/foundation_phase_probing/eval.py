@@ -38,13 +38,24 @@ torch.backends.cudnn.benchmark = True
 # ----------------------
 # Class Weight Calculation
 # ----------------------
-def compute_class_weights(dataset, device, num_classes=None):
+def compute_class_weights(dataset, device, num_classes=None, strategy='balanced'):
     """
     Compute class weights for weighted CrossEntropyLoss.
-    Weights are inversely proportional to class frequencies:
-    weight[c] = total_samples / (num_classes * count[c])
+    
+    Args:
+        dataset: Dataset object with labels attribute
+        device: torch device
+        num_classes: Number of classes (auto-detected if None)
+        strategy: Weight calculation strategy
+            - 'balanced': sklearn-style, weight = total / (num_classes * count)
+            - 'inverse_sqrt': weight = sqrt(max_count / count), more moderate
+            - 'inverse_freq': weight = max_count / count, more aggressive
+            - 'effective_number': based on paper "Class-Balanced Loss" (beta=0.9999)
+    
+    Returns:
+        Tensor of class weights, normalized so min weight = 1.0
     """
-    logger.info("Computing class weights from dataset labels...")
+    logger.info(f"Computing class weights from dataset labels (strategy={strategy})...")
     
     # Handle wrapped datasets (e.g., MonitoredDataset)
     inner_dataset = dataset
@@ -81,20 +92,49 @@ def compute_class_weights(dataset, device, num_classes=None):
     
     weights = torch.ones(num_classes, device=device)
     total = len(flat_labels)
+    max_count = max(counts.values()) if counts else 1
+    
+    # Log class distribution
+    logger.info(f"Class distribution: {dict(sorted(counts.items()))}, total={total}")
     
     for cls, count in counts.items():
         if count > 0 and cls < num_classes:
-            # Standard sklearn-style balanced weight
-            weights[int(cls)] = total / (num_classes * count)
+            if strategy == 'balanced':
+                # Standard sklearn-style balanced weight
+                weights[int(cls)] = total / (num_classes * count)
+            elif strategy == 'inverse_sqrt':
+                # More moderate: sqrt of inverse frequency
+                weights[int(cls)] = math.sqrt(max_count / count)
+            elif strategy == 'inverse_freq':
+                # More aggressive: direct inverse frequency
+                weights[int(cls)] = max_count / count
+            elif strategy == 'effective_number':
+                # Class-Balanced Loss (Cui et al., CVPR 2019)
+                beta = 0.9999
+                effective_num = (1.0 - beta ** count) / (1.0 - beta)
+                weights[int(cls)] = 1.0 / effective_num
+            else:
+                logger.warning(f"Unknown strategy '{strategy}', using 'balanced'")
+                weights[int(cls)] = total / (num_classes * count)
+    
+    # Normalize weights so minimum weight is 1.0 (avoid scaling down any class)
+    if weights.min() > 0:
+        weights = weights / weights.min()
         
-    logger.info(f"Computed class weights: {weights}")
+    logger.info(f"Computed class weights ({strategy}): {weights}")
     return weights
 
 
-def compute_per_dataset_class_weights(dataset, device, num_classes_list=None):
+def compute_per_dataset_class_weights(dataset, device, num_classes_list=None, strategy='balanced'):
     """
     Compute class weights per sub-dataset (for multi-dataset training).
     Returns a list of weight tensors (one per sub-dataset).
+    
+    Args:
+        dataset: Dataset object with labels and num_samples_per_dataset attributes
+        device: torch device
+        num_classes_list: List of num_classes per dataset (auto-detected if None)
+        strategy: Weight calculation strategy (see compute_class_weights for options)
     """
     # Handle wrapped datasets (e.g., MonitoredDataset)
     inner_dataset = dataset
@@ -117,7 +157,7 @@ def compute_per_dataset_class_weights(dataset, device, num_classes_list=None):
     weights_per_dataset = []
     start_idx = 0
     
-    logger.info(f"Computing per-dataset class weights for {len(ns_per_ds)} datasets...")
+    logger.info(f"Computing per-dataset class weights for {len(ns_per_ds)} datasets (strategy={strategy})...")
     
     for i, count in enumerate(ns_per_ds):
         end_idx = start_idx + count
@@ -148,12 +188,30 @@ def compute_per_dataset_class_weights(dataset, device, num_classes_list=None):
         
         w = torch.ones(num_classes, device=device)
         total = len(ds_labels)
+        max_count = max(c.values()) if c else 1
+        
         for cls, cnt in c.items():
             if cnt > 0 and cls < num_classes:
-                w[int(cls)] = total / (num_classes * cnt)
+                if strategy == 'balanced':
+                    w[int(cls)] = total / (num_classes * cnt)
+                elif strategy == 'inverse_sqrt':
+                    w[int(cls)] = math.sqrt(max_count / cnt)
+                elif strategy == 'inverse_freq':
+                    w[int(cls)] = max_count / cnt
+                elif strategy == 'effective_number':
+                    beta = 0.9999
+                    effective_num = (1.0 - beta ** cnt) / (1.0 - beta)
+                    w[int(cls)] = 1.0 / effective_num
+                else:
+                    w[int(cls)] = total / (num_classes * cnt)
+        
+        # Normalize weights so minimum weight is 1.0
+        if w.min() > 0:
+            w = w / w.min()
         
         weights_per_dataset.append(w)
-        logger.info(f"Dataset {i} weights: {w}")
+        logger.info(f"Dataset {i} class distribution: {dict(sorted(c.items()))}")
+        logger.info(f"Dataset {i} weights ({strategy}): {w}")
         
     return weights_per_dataset
 
@@ -695,6 +753,8 @@ def main(args_eval, resume_preempt=False):
     num_epochs = args_opt.get("num_epochs")
     use_bfloat16 = args_opt.get("use_bfloat16")
     use_weighted_loss = args_opt.get("use_weighted_loss", False)
+    # Weight strategy: 'balanced', 'inverse_sqrt', 'inverse_freq', 'effective_number'
+    weight_strategy = args_opt.get("weight_strategy", "balanced")
     opt_kwargs = args_opt.get("multihead_kwargs")  # list，每个分类头一个 kwargs
 
     try:
@@ -1095,13 +1155,14 @@ def main(args_eval, resume_preempt=False):
     # Calculate class weights for weighted loss
     train_class_weights_list = None
     if use_weighted_loss and task_type in ["phase", "action"]:
-        logger.info("⚖️  Weighted Loss Enabled: Calculating class weights...")
+        logger.info(f"⚖️  Weighted Loss Enabled: Calculating class weights (strategy={weight_strategy})...")
         if head_to_dataset_map is not None:
              # Multi-dataset
              dataset_weights = compute_per_dataset_class_weights(
                  train_loader.dataset, 
                  device=device,
-                 num_classes_list=num_classes_list if isinstance(num_classes_list, list) else None
+                 num_classes_list=num_classes_list if isinstance(num_classes_list, list) else None,
+                 strategy=weight_strategy
              )
              
              if dataset_weights:
@@ -1119,7 +1180,7 @@ def main(args_eval, resume_preempt=False):
              # Single dataset / global
              nc = num_classes_list[0] if len(num_classes_list) > 0 else None
              
-             w = compute_class_weights(train_loader.dataset, device=device, num_classes=nc)
+             w = compute_class_weights(train_loader.dataset, device=device, num_classes=nc, strategy=weight_strategy)
              train_class_weights_list = [w] * len(classifiers)
 
     for epoch in range(start_epoch, num_epochs):
