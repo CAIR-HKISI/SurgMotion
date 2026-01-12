@@ -1,5 +1,23 @@
 import os
+import ssl
+import urllib3
 from pathlib import Path
+
+# ============ 禁用 SSL 验证 (解决企业网络 SSL 证书问题) ============
+# 方法1: 设置环境变量
+os.environ['CURL_CA_BUNDLE'] = ''
+os.environ['REQUESTS_CA_BUNDLE'] = ''
+os.environ['HF_HUB_DISABLE_SSL_VERIFY'] = '1'
+
+# 方法2: 禁用 urllib3 的 SSL 警告
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# 方法3: 修改默认 SSL 上下文 (如果上面方法不生效)
+try:
+    ssl._create_default_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+
 from huggingface_hub import hf_hub_download, login
 
 # ============ 配置区域 ============
