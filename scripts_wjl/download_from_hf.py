@@ -4,19 +4,54 @@ import urllib3
 from pathlib import Path
 
 # ============ 禁用 SSL 验证 (解决企业网络 SSL 证书问题) ============
-# 方法1: 设置环境变量
+# 必须在导入 requests 之前设置环境变量
 os.environ['CURL_CA_BUNDLE'] = ''
 os.environ['REQUESTS_CA_BUNDLE'] = ''
 os.environ['HF_HUB_DISABLE_SSL_VERIFY'] = '1'
 
-# 方法2: 禁用 urllib3 的 SSL 警告
+# 禁用 urllib3 的 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# 方法3: 修改默认 SSL 上下文 (如果上面方法不生效)
+# 修改默认 SSL 上下文
 try:
     ssl._create_default_https_context = ssl._create_unverified_context
 except AttributeError:
     pass
+
+# Monkey-patch requests 库来禁用 SSL 验证
+import requests
+from requests.adapters import HTTPAdapter
+
+# 保存原始方法
+_original_request = requests.Session.request
+
+def _patched_request(self, method, url, **kwargs):
+    kwargs['verify'] = False
+    return _original_request(self, method, url, **kwargs)
+
+# 应用 patch
+requests.Session.request = _patched_request
+
+# 同时 patch requests 模块级别的函数
+_original_get = requests.get
+_original_post = requests.post
+_original_head = requests.head
+
+def _patched_get(url, **kwargs):
+    kwargs['verify'] = False
+    return _original_get(url, **kwargs)
+
+def _patched_post(url, **kwargs):
+    kwargs['verify'] = False
+    return _original_post(url, **kwargs)
+
+def _patched_head(url, **kwargs):
+    kwargs['verify'] = False
+    return _original_head(url, **kwargs)
+
+requests.get = _patched_get
+requests.post = _patched_post
+requests.head = _patched_head
 
 from huggingface_hub import hf_hub_download, login
 
