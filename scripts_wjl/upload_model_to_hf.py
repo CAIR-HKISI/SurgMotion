@@ -1,0 +1,171 @@
+import os
+import ssl
+import urllib3
+from pathlib import Path
+
+# ============ 禁用 SSL 验证 (解决企业网络 SSL 证书问题) ============
+# 必须在导入 requests 之前设置环境变量
+os.environ['CURL_CA_BUNDLE'] = ''
+os.environ['REQUESTS_CA_BUNDLE'] = ''
+os.environ['HF_HUB_DISABLE_SSL_VERIFY'] = '1'
+
+# 禁用 urllib3 的 SSL 警告
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# 修改默认 SSL 上下文
+try:
+    ssl._create_default_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+
+# Monkey-patch requests 库来禁用 SSL 验证
+import requests
+from requests.adapters import HTTPAdapter
+
+# 保存原始方法
+_original_request = requests.Session.request
+
+def _patched_request(self, method, url, **kwargs):
+    kwargs['verify'] = False
+    return _original_request(self, method, url, **kwargs)
+
+# 应用 patch
+requests.Session.request = _patched_request
+
+# 同时 patch requests 模块级别的函数
+_original_get = requests.get
+_original_post = requests.post
+_original_head = requests.head
+_original_put = requests.put
+
+def _patched_get(url, **kwargs):
+    kwargs['verify'] = False
+    return _original_get(url, **kwargs)
+
+def _patched_post(url, **kwargs):
+    kwargs['verify'] = False
+    return _original_post(url, **kwargs)
+
+def _patched_head(url, **kwargs):
+    kwargs['verify'] = False
+    return _original_head(url, **kwargs)
+
+def _patched_put(url, **kwargs):
+    kwargs['verify'] = False
+    return _original_put(url, **kwargs)
+
+requests.get = _patched_get
+requests.post = _patched_post
+requests.head = _patched_head
+requests.put = _patched_put
+
+from huggingface_hub import HfApi, login
+
+# ============ 配置区域 ============
+# Hugging Face 用户名或组织名
+HF_USERNAME = "CAIR-HKISI"
+
+# Hugging Face Token
+HF_TOKEN = "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"
+
+# 仓库名称 (模型仓库)
+REPO_NAME = "NSJepa"
+
+# 本地模型文件路径
+LOCAL_FILE = "/home/projects/med-multi-llm/jinlin_wu/NSJepa_20251112/logs/cooldown_vitg-256px-64f_40epoch/latest.pt"
+
+# 仓库中的文件名 (可以和本地文件名不同)
+# 如果设置为 None，则使用本地文件的原名
+REMOTE_FILENAME = "cooldown_vitg-256px-64f_40epoch.pt"
+
+# 仓库类型: "model" 用于模型
+REPO_TYPE = "model"
+
+# 是否为私有仓库
+PRIVATE = True
+# ==================================
+
+
+def main():
+    # 1. 处理 Token
+    token = HF_TOKEN
+    if not token or token == "xxx":
+        print("未检测到有效 Token。")
+        print("请输入 Hugging Face Token (在 https://huggingface.co/settings/tokens 获取):")
+        token = input("Token: ").strip()
+    
+    if not token:
+        print("错误: 未提供 Token，程序退出。")
+        return
+
+    # 2. 登录 Hugging Face
+    try:
+        login(token=token, add_to_git_credential=True)
+        print("✅ 登录成功!")
+    except Exception as e:
+        print(f"❌ 登录失败: {e}")
+        return
+
+    # 3. 检查文件是否存在
+    local_path = Path(LOCAL_FILE)
+    if not local_path.exists():
+        print(f"❌ 错误: 本地文件不存在 - {local_path.absolute()}")
+        return
+
+    file_size_mb = local_path.stat().st_size / (1024**2)
+    file_size_gb = local_path.stat().st_size / (1024**3)
+    
+    print(f"📦 准备上传模型: {LOCAL_FILE}")
+    if file_size_gb >= 1:
+        print(f"📊 文件大小: {file_size_gb:.2f} GB")
+    else:
+        print(f"📊 文件大小: {file_size_mb:.2f} MB")
+
+    # 4. 初始化 API
+    api = HfApi()
+
+    # 仓库 ID
+    repo_id = f"{HF_USERNAME}/{REPO_NAME}"
+
+    # 5. 创建仓库（如果不存在）
+    try:
+        api.create_repo(
+            repo_id=repo_id,
+            repo_type=REPO_TYPE,
+            private=PRIVATE,
+            exist_ok=True,
+        )
+        print(f"✅ 仓库已就绪: {repo_id} (私有: {PRIVATE})")
+    except Exception as e:
+        print(f"❌ 创建仓库时出错: {e}")
+        return
+
+    # 确定在仓库中的文件名
+    path_in_repo = REMOTE_FILENAME if REMOTE_FILENAME else local_path.name
+
+    # 6. 上传文件
+    print(f"🚀 开始上传到 {repo_id}...")
+    print(f"📄 仓库中的文件名: {path_in_repo}")
+    print("⏳ 这可能需要一些时间，取决于网络速度...")
+
+    try:
+        # upload_file 会自动处理大文件 (LFS)
+        api.upload_file(
+            path_or_fileobj=str(local_path),
+            path_in_repo=path_in_repo,
+            repo_id=repo_id,
+            repo_type=REPO_TYPE,
+        )
+        print(f"\n🎉 上传成功!")
+        print(f"🔗 访问链接: https://huggingface.co/{repo_id}")
+        print(f"📥 下载链接: https://huggingface.co/{repo_id}/resolve/main/{path_in_repo}")
+        
+    except Exception as e:
+        print(f"\n❌ 上传失败: {e}")
+        if "401" in str(e) or "403" in str(e):
+            print("💡 提示: 请检查 Token 是否正确，以及是否有该仓库的写入权限。")
+        return
+
+
+if __name__ == "__main__":
+    main()
