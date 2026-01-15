@@ -3,6 +3,11 @@ import ssl
 import urllib3
 from pathlib import Path
 
+# ============ 启用 hf_transfer 加速上传 ============
+# hf_transfer 是基于 Rust 的高速传输工具，支持并行传输
+# 安装: pip install hf_transfer
+os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'
+
 # ============ 禁用 SSL 验证 (解决企业网络 SSL 证书问题) ============
 # 必须在导入 requests 之前设置环境变量
 os.environ['CURL_CA_BUNDLE'] = ''
@@ -60,6 +65,15 @@ requests.head = _patched_head
 requests.put = _patched_put
 
 from huggingface_hub import HfApi, login
+import shutil
+import tempfile
+
+# 检查 hf_transfer 是否可用
+try:
+    import hf_transfer
+    HF_TRANSFER_AVAILABLE = True
+except ImportError:
+    HF_TRANSFER_AVAILABLE = False
 
 # ============ 配置区域 ============
 # Hugging Face 用户名或组织名
@@ -106,6 +120,13 @@ def main():
         print(f"❌ 登录失败: {e}")
         return
 
+    # 检查 hf_transfer 状态
+    if HF_TRANSFER_AVAILABLE:
+        print("⚡ hf_transfer 已启用 (高速传输模式)")
+    else:
+        print("⚠️  hf_transfer 未安装，使用默认上传模式")
+        print("💡 安装方法: pip install hf_transfer")
+
     # 3. 检查文件是否存在
     local_path = Path(LOCAL_FILE)
     if not local_path.exists():
@@ -143,28 +164,43 @@ def main():
     # 确定在仓库中的文件名
     path_in_repo = REMOTE_FILENAME if REMOTE_FILENAME else local_path.name
 
-    # 6. 上传文件
+    # 6. 使用 upload_folder 上传 (支持断点续传和多线程)
     print(f"🚀 开始上传到 {repo_id}...")
     print(f"📄 仓库中的文件名: {path_in_repo}")
-    print("⏳ 这可能需要一些时间，取决于网络速度...")
+    print("⏳ 使用多线程上传，支持断点续传...")
 
-    try:
-        # upload_file 会自动处理大文件 (LFS)
-        api.upload_file(
-            path_or_fileobj=str(local_path),
-            path_in_repo=path_in_repo,
-            repo_id=repo_id,
-            repo_type=REPO_TYPE,
-        )
-        print(f"\n🎉 上传成功!")
-        print(f"🔗 访问链接: https://huggingface.co/{repo_id}")
-        print(f"📥 下载链接: https://huggingface.co/{repo_id}/resolve/main/{path_in_repo}")
+    # 创建临时目录，将文件软链接到目标名称
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        # 创建软链接或复制文件到临时目录，使用目标文件名
+        link_path = tmp_path / path_in_repo
         
-    except Exception as e:
-        print(f"\n❌ 上传失败: {e}")
-        if "401" in str(e) or "403" in str(e):
-            print("💡 提示: 请检查 Token 是否正确，以及是否有该仓库的写入权限。")
-        return
+        try:
+            # 优先使用软链接（节省空间和时间）
+            os.symlink(local_path.absolute(), link_path)
+        except (OSError, NotImplementedError):
+            # 如果软链接失败，则复制文件
+            print("📋 正在准备文件...")
+            shutil.copy2(local_path, link_path)
+
+        try:
+            # upload_folder 支持多线程和断点续传
+            api.upload_folder(
+                folder_path=str(tmp_path),
+                repo_id=repo_id,
+                repo_type=REPO_TYPE,
+                multi_commits=True,           # 大文件分多次提交，支持断点续传
+                multi_commits_verbose=True,   # 显示进度
+            )
+            print(f"\n🎉 上传成功!")
+            print(f"🔗 访问链接: https://huggingface.co/{repo_id}")
+            print(f"📥 下载链接: https://huggingface.co/{repo_id}/resolve/main/{path_in_repo}")
+            
+        except Exception as e:
+            print(f"\n❌ 上传失败: {e}")
+            if "401" in str(e) or "403" in str(e):
+                print("💡 提示: 请检查 Token 是否正确，以及是否有该仓库的写入权限。")
+            return
 
 
 if __name__ == "__main__":
