@@ -81,8 +81,8 @@ REPO_TYPE = "model"
 PRIVATE = True
 
 # ============ 分卷配置 ============
-# 分卷大小 (MB)，设为 450MB 以确保低于 500MB 限制
-CHUNK_SIZE_MB = 450
+# 分卷大小 (MB)，设为 190MB 以确保低于 200MB 限制
+CHUNK_SIZE_MB = 190
 # 临时分卷目录 (设为 None 则使用系统临时目录)
 TEMP_SPLIT_DIR = None
 # 上传后是否删除临时分卷文件
@@ -209,9 +209,9 @@ def main():
     path_in_repo = REMOTE_FILENAME if REMOTE_FILENAME else local_path.name
 
     # 判断是否需要分卷
-    if file_size_mb <= CHUNK_SIZE_MB:
-        # 文件小于分卷大小，直接上传
-        print(f"🚀 文件小于 {CHUNK_SIZE_MB}MB，直接上传...")
+    if file_size_mb <= 200:
+        # 文件小于 200MB，直接上传
+        print(f"🚀 文件小于 200MB，直接上传...")
         try:
             api.upload_file(
                 path_or_fileobj=str(local_path),
@@ -226,7 +226,7 @@ def main():
             return
     else:
         # 需要分卷上传
-        print(f"📦 文件超过 {CHUNK_SIZE_MB}MB 限制，将进行分卷上传...")
+        print(f"📦 文件超过 200MB 限制，将进行分卷上传 (每卷 {CHUNK_SIZE_MB}MB)...")
         
         # 确定分卷目录
         if TEMP_SPLIT_DIR:
