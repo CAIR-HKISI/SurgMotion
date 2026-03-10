@@ -169,10 +169,14 @@ class SurgicalVideoDataset(torch.utils.data.Dataset):
                     
                     # 检查必要的列是否存在
                     print(f"processing {data_path}")
-                    required_columns = ['clip_path', 'label', 'case_id', "Index"]
+                    required_columns = ['clip_path', 'case_id', "Index"]
                     missing_columns = [col for col in required_columns if col not in data.columns]
                     if missing_columns:
                         raise ValueError(f"{data_path} CSV文件缺少必要的列: {missing_columns}")
+                    if 'label' not in data.columns:
+                        logger.warning(f"{data_path} 缺少 label 列，将使用占位值 0")
+                        data = data.copy()
+                        data['label'] = 0
                     
                     # 提取路径
                     samples += list(data['clip_path'].values)

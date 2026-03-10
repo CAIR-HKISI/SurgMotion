@@ -42,6 +42,7 @@ def init_data(
     persistent_workers=False,
     deterministic=True,
     log_dir=None,
+    target_names=None,
 ):
     if data.lower() == "imagenet":
         from src.datasets.imagenet1k import make_imagenet1k
@@ -117,6 +118,35 @@ def init_data(
             rank=rank,
             deterministic=deterministic,
             log_dir=log_dir,
+        )
+
+    elif data.lower() == "surgical_anticipation_dataset":
+        from src.datasets.video_surgical_anticipation import make_surgical_anticipation_dataset
+        dataset, data_loader, dist_sampler = make_surgical_anticipation_dataset(
+            data_paths=root_path,
+            batch_size=batch_size,
+            frames_per_clip=clip_len,
+            dataset_fpcs=dataset_fpcs,
+            frame_step=frame_sample_rate,
+            duration=duration,
+            fps=fps,
+            num_clips=num_clips,
+            random_clip_sampling=random_clip_sampling,
+            allow_clip_overlap=allow_clip_overlap,
+            filter_short_videos=filter_short_videos,
+            filter_long_videos=filter_long_videos,
+            shared_transform=shared_transform,
+            transform=transform,
+            datasets_weights=datasets_weights,
+            collator=collator,
+            num_workers=num_workers,
+            pin_mem=pin_mem,
+            persistent_workers=persistent_workers,
+            world_size=world_size,
+            rank=rank,
+            deterministic=deterministic,
+            log_dir=log_dir,
+            target_names=target_names,
         )
 
     return (data_loader, dist_sampler)

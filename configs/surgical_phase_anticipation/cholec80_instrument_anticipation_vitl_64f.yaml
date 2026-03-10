@@ -1,0 +1,176 @@
+# Cholec80 instrument anticipation probe training config.
+
+cpus_per_task: 4
+eval_name: surgical_phase_anticipation
+dataset: cholec80_instrument_anticipation
+folder: logs/surgical_phase_anticipation/cholec80
+mem_per_gpu: 120G
+nodes: 1
+max_workers: 4
+num_workers: 8
+resume_checkpoint: false
+tag: cholec80_instrument_anticipation_vitl_64f
+tasks_per_node: 1
+
+task_type: anticipation
+metric_horizons: [2.0, 3.0, 5.0]
+quick_run: false
+
+use_bootstrap: true
+n_bootstrap: 1000
+bootstrap_seed: 42
+
+wandb:
+  project: nsjepa-surgical-anticipation
+  entity: null
+  name: cholec80_instrument_anticipation_vitl_64f
+  tags:
+    - cholec80
+    - instrument-anticipation
+    - vitl
+    - 64f
+  group: surgical-instrument-anticipation
+  notes: "Frozen ViT-L encoder with attentive regressor heads for Cholec80 instrument anticipation."
+
+experiment:
+  classifier:
+    num_heads: 16
+    num_probe_blocks: 4
+  data:
+    dataset_type: surgical_anticipation_dataset
+    dataset_train:
+      - data/Surge_Frames/Cholec80/clips_64f_instrument_anticipation/train_dense_64f_detailed.csv
+    dataset_val:
+      - data/Surge_Frames/Cholec80/clips_64f_instrument_anticipation/val_dense_64f_detailed.csv
+    target_names:
+      - Bipolar
+      - Scissors
+      - Clipper
+      - Irrigator
+      - SpecimenBag
+    num_classes: 5
+    frames_per_clip: 64
+    num_segments: 1
+    num_views_per_segment: 1
+    resolution: 256
+
+  optimization:
+    batch_size: 4
+    num_epochs: 10
+    use_bfloat16: true
+    loss:
+      type: mse
+    multihead_kwargs:
+      - final_lr: 0.0
+        final_weight_decay: 0.01
+        lr: 0.005
+        start_lr: 0.005
+        warmup: 0.0
+        weight_decay: 0.01
+      - final_lr: 0.0
+        final_weight_decay: 0.01
+        lr: 0.003
+        start_lr: 0.003
+        warmup: 0.0
+        weight_decay: 0.01
+      - final_lr: 0.0
+        final_weight_decay: 0.01
+        lr: 0.001
+        start_lr: 0.001
+        warmup: 0.0
+        weight_decay: 0.01
+      - final_lr: 0.0
+        final_weight_decay: 0.01
+        lr: 0.0003
+        start_lr: 0.0003
+        warmup: 0.0
+        weight_decay: 0.01
+      - final_lr: 0.0
+        final_weight_decay: 0.01
+        lr: 0.0001
+        start_lr: 0.0001
+        warmup: 0.0
+        weight_decay: 0.01
+      - final_lr: 0.0
+        final_weight_decay: 0.1
+        lr: 0.005
+        start_lr: 0.005
+        warmup: 0.0
+        weight_decay: 0.1
+      - final_lr: 0.0
+        final_weight_decay: 0.1
+        lr: 0.003
+        start_lr: 0.003
+        warmup: 0.0
+        weight_decay: 0.1
+      - final_lr: 0.0
+        final_weight_decay: 0.1
+        lr: 0.001
+        start_lr: 0.001
+        warmup: 0.0
+        weight_decay: 0.1
+      - final_lr: 0.0
+        final_weight_decay: 0.1
+        lr: 0.0003
+        start_lr: 0.0003
+        warmup: 0.0
+        weight_decay: 0.1
+      - final_lr: 0.0
+        final_weight_decay: 0.1
+        lr: 0.0001
+        start_lr: 0.0001
+        warmup: 0.0
+        weight_decay: 0.1
+      - final_lr: 0.0
+        final_weight_decay: 0.4
+        lr: 0.005
+        start_lr: 0.005
+        warmup: 0.0
+        weight_decay: 0.4
+      - final_lr: 0.0
+        final_weight_decay: 0.4
+        lr: 0.003
+        start_lr: 0.003
+        warmup: 0.0
+        weight_decay: 0.4
+      - final_lr: 0.0
+        final_weight_decay: 0.4
+        lr: 0.001
+        start_lr: 0.001
+        warmup: 0.0
+        weight_decay: 0.4
+      - final_lr: 0.0
+        final_weight_decay: 0.4
+        lr: 0.0003
+        start_lr: 0.0003
+        warmup: 0.0
+        weight_decay: 0.4
+      - final_lr: 0.0
+        final_weight_decay: 0.4
+        lr: 0.0001
+        start_lr: 0.0001
+        warmup: 0.0
+        weight_decay: 0.4
+      - final_lr: 0.0
+        final_weight_decay: 0.8
+        lr: 0.005
+        start_lr: 0.005
+        warmup: 0.0
+        weight_decay: 0.8
+
+model_kwargs:
+  # 可在命令行或 slurm 脚本里通过 --checkpoint 覆盖。
+  checkpoint: ckpts/vitl.pt
+  module_name: evals.video_classification_frozen.modelcustom.vit_encoder_multiclip
+  pretrain_kwargs:
+    encoder:
+      checkpoint_key: target_encoder
+      img_temporal_dim_size: null
+      model_name: vit_large
+      patch_size: 16
+      tubelet_size: 2
+      uniform_power: true
+      use_rope: true
+  wrapper_kwargs:
+    max_frames: 128
+    use_pos_embed: false
