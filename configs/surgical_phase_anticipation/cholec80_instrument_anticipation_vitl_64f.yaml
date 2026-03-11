@@ -166,7 +166,7 @@ model_kwargs:
     encoder:
       checkpoint_key: target_encoder
       img_temporal_dim_size: null
-      model_name: vit_large
+      model_name: vit_giant_xformers
       patch_size: 16
       tubelet_size: 2
       uniform_power: true
