@@ -12,6 +12,10 @@
 说明:
   - 复用已有 clip_path，不重复生成 clip txt 文件
   - 目标为 5 维器械 anticipation 回归值，保持原始标注值，不做归一化
+  - `ant_reg_*` 的语义与 phase anticipation 完全一致:
+      0.0 表示器械当前已出现
+      0 < v < 5.0 表示器械会在 5 分钟 horizon 内出现, v 为剩余时间
+      v >= 5.0 表示器械位于 horizon 外
 """
 
 import argparse
@@ -42,6 +46,7 @@ def load_annotation(ann_path):
 
 
 def keep_raw_regression_value(val):
+    """保留 benchmark 原始 anticipation 值，不做缩放。"""
     return float(val)
 
 

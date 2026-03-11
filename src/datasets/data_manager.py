@@ -43,6 +43,7 @@ def init_data(
     deterministic=True,
     log_dir=None,
     target_names=None,
+    anticipation_horizon=None,
 ):
     if data.lower() == "imagenet":
         from src.datasets.imagenet1k import make_imagenet1k
@@ -147,6 +148,7 @@ def init_data(
             deterministic=deterministic,
             log_dir=log_dir,
             target_names=target_names,
+            anticipation_horizon=anticipation_horizon,
         )
 
     return (data_loader, dist_sampler)

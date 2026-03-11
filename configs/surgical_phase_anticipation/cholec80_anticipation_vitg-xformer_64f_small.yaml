@@ -1,5 +1,11 @@
 # Cholec80 phase anticipation probe training config.
-# 默认冻结 encoder，仅训练 anticipation regression heads。
+# 默认冻结 encoder，仅训练 joint anticipation heads:
+#   - regression branch fits normalized targets in [0, 1]
+#   - classification branch fits 3 horizon states
+# 原始 CSV `ant_reg_*` 语义:
+#   - 0.0: present
+#   - 0 < v < anticipation_horizon: inside_horizon
+#   - v >= anticipation_horizon: outside_horizon
 
 cpus_per_task: 4
 eval_name: surgical_phase_anticipation
@@ -10,28 +16,28 @@ nodes: 1
 max_workers: 4
 num_workers: 8
 resume_checkpoint: false
-tag: cholec80_phase_anticipation_vitl_64f
+tag: cholec80_phase_anticipation_vitg-xformer_64f_small
 tasks_per_node: 1
 
 task_type: anticipation
-metric_horizons: [2.0, 3.0, 5.0]
-quick_run: false
-
-use_bootstrap: true
-n_bootstrap: 1000
-bootstrap_seed: 42
+# Shared horizon threshold used to:
+#   - normalize raw `ant_reg_*` targets for regression
+#   - derive present / outside / inside horizon states
+#   - rescale predictions back to the raw benchmark units for MAE
+anticipation_horizon: 5.0
 
 wandb:
   project: nsjepa-surgical-anticipation
   entity: null
-  name: cholec80_phase_anticipation_vitl_64f
+  name: cholec80_phase_anticipation_vitg-xformer_64f_small
   tags:
     - cholec80
     - phase-anticipation
-    - vitl
+    - vitg-xformer
     - 64f
+    - small
   group: surgical-phase-anticipation
-  notes: "Frozen ViT-L encoder with attentive regressor heads for Cholec80 phase anticipation."
+  notes: "Frozen ViT Giant xFormers encoder with attentive regressor heads for Cholec80 phase anticipation on a small fixed CSV split."
 
 experiment:
   classifier:
@@ -40,9 +46,9 @@ experiment:
   data:
     dataset_type: surgical_anticipation_dataset
     dataset_train:
-      - data/Surge_Frames/Cholec80/clips_64f_anticipation/train_dense_64f_detailed.csv
+      - data/Surge_Frames/Cholec80/clips_64f_anticipation/train_dense_64f_detailed_small.csv
     dataset_val:
-      - data/Surge_Frames/Cholec80/clips_64f_anticipation/val_dense_64f_detailed.csv
+      - data/Surge_Frames/Cholec80/clips_64f_anticipation/val_dense_64f_detailed_small.csv
     target_names:
       - Preparation
       - CalotTriangleDissection
@@ -58,9 +64,11 @@ experiment:
     resolution: 256
 
   optimization:
-    batch_size: 4
-    num_epochs: 10
+    batch_size: 12
+    num_epochs: 1
     use_bfloat16: true
+    # Total loss = regression MSE + horizon_ce_weight * 3-state CE.
+    horizon_ce_weight: 0.1
     loss:
       type: mse
     multihead_kwargs:

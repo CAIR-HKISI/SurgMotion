@@ -1,14 +1,22 @@
 """
-SurgicalAnticipationDataset: 支持手术流程预测/器械预测的多目标时间回归 Dataset。
+SurgicalAnticipationDataset: 支持手术流程 / 器械 anticipation 的多目标监督数据集。
 
-与 SurgicalVideoDataset 共享帧加载逻辑，但监督信号改为多维连续值：
-  - target_reg: [num_targets] float tensor
-  - vid_id: case_id 哈希
-  - data_idx: 样本在 CSV 中的行索引
-  - dataset_idx: 多数据源场景下的数据集索引
+与 `SurgicalVideoDataset` 共享帧加载逻辑，但标签会被整理为同时服务:
+  - 三态分类: present_horizon / outside_horizon / inside_horizon
+  - 截断剩余时间回归: 基于 benchmark 原始 `ant_reg_*` 值
 
-CSV 需包含列: ant_reg_{TargetName}
-若未显式给出 target_names，则会从 CSV 中自动推断 ant_reg_* 列。
+CSV 需包含列 `ant_reg_{TargetName}`。这些列保存的是 benchmark 的原始 horizon 语义:
+  - 0.0: 当前 target 已发生 / 已出现
+  - 0 < v < anticipation_horizon: target 位于 horizon 内, v 为剩余时间
+  - v >= anticipation_horizon: target 位于 horizon 外
+
+`__getitem__` 返回的标签为:
+  - normalized_reg: [num_targets], 供回归分支训练, 值域 [0, 1]
+  - horizon_state: [num_targets], 供三态分类分支训练
+  - raw_target_reg: [num_targets], 保留原始尺度, 用于评测与日志
+  - vid_id / data_idx / dataset_idx: 样本标识信息
+
+若未显式给出 `target_names`，会从 CSV 中自动推断 `ant_reg_*` 列。
 """
 
 import os
@@ -24,6 +32,10 @@ from src.datasets.utils.weighted_sampler import DistributedWeightedSampler
 
 logger = getLogger()
 ANTICIPATION_PREFIX = "ant_reg_"
+DEFAULT_ANTICIPATION_HORIZON = 5.0
+PRESENT_HORIZON = 0
+OUTSIDE_HORIZON = 1
+INSIDE_HORIZON = 2
 
 CHOLEC80_PHASES = [
     "Preparation",
@@ -42,11 +54,14 @@ class SurgicalAnticipationDataset(SurgicalVideoDataset):
     覆盖 label 加载以支持 anticipation 任务。
     """
 
-    def __init__(self, data_paths, phase_names=None, target_names=None, **kwargs):
+    def __init__(self, data_paths, phase_names=None, target_names=None, anticipation_horizon=DEFAULT_ANTICIPATION_HORIZON, **kwargs):
         self.target_names = list(target_names or phase_names) if (target_names or phase_names) else None
         self.num_targets = len(self.target_names) if self.target_names is not None else None
         self.anticipation_reg = []
         self._ant_loaded = False
+        self.anticipation_horizon = float(anticipation_horizon)
+        if self.anticipation_horizon <= 0:
+            raise ValueError(f"anticipation_horizon 必须为正数，收到: {self.anticipation_horizon}")
 
         super().__init__(data_paths=data_paths, **kwargs)
 
@@ -55,6 +70,26 @@ class SurgicalAnticipationDataset(SurgicalVideoDataset):
     @staticmethod
     def _infer_target_names(df):
         return [c[len(ANTICIPATION_PREFIX):] for c in df.columns if c.startswith(ANTICIPATION_PREFIX)]
+
+    def _build_multitask_targets(self, raw_target_reg):
+        """
+        把 benchmark 原始 `ant_reg_*` 值拆成训练所需的两类标签。
+
+        输入 `raw_target_reg` 仍保持原始尺度:
+          - 0.0 表示 present
+          - (0, horizon) 表示 inside
+          - [horizon, +inf) 表示 outside
+
+        返回:
+          - normalized_reg: `raw / horizon` 后裁剪到 [0, 1], 供 MSE 回归使用
+          - horizon_states: 3 类离散状态, 供 CrossEntropy 分类使用
+        """
+        normalized_reg = torch.clamp(raw_target_reg / self.anticipation_horizon, 0.0, 1.0)
+        horizon_states = torch.full_like(raw_target_reg, OUTSIDE_HORIZON, dtype=torch.long)
+        horizon_states[raw_target_reg <= 0.0] = PRESENT_HORIZON
+        inside_mask = (raw_target_reg > 0.0) & (raw_target_reg < self.anticipation_horizon)
+        horizon_states[inside_mask] = INSIDE_HORIZON
+        return normalized_reg, horizon_states
 
     def _load_anticipation_labels(self, data_paths):
         if self._ant_loaded:
@@ -109,7 +144,10 @@ class SurgicalAnticipationDataset(SurgicalVideoDataset):
 
         reg_array = torch.tensor(self.anticipation_reg, dtype=torch.float32)
         reg_mean = reg_array.mean(dim=0).tolist()
-        print(f"[AnticipationDataset] {len(self.samples)} samples, {self.num_targets} regression targets")
+        print(
+            f"[AnticipationDataset] {len(self.samples)} samples, {self.num_targets} regression targets, "
+            f"horizon={self.anticipation_horizon:.1f} min"
+        )
         print(f"[AnticipationDataset] Targets: {self.target_names}")
         print(f"[AnticipationDataset] Mean target values: {dict(zip(self.target_names, [round(v, 4) for v in reg_mean]))}")
 
@@ -119,12 +157,13 @@ class SurgicalAnticipationDataset(SurgicalVideoDataset):
             return None
         buffer, label_list, clip_indices = result
 
-        target_reg = torch.tensor(self.anticipation_reg[index], dtype=torch.float32)
+        target_reg_raw = torch.tensor(self.anticipation_reg[index], dtype=torch.float32)
+        target_reg, target_state = self._build_multitask_targets(target_reg_raw)
         vid_id = label_list[1]  # case_id hash
         data_idx = label_list[2]  # Index
         dataset_idx = label_list[3] if len(label_list) > 3 else 0
 
-        new_label = (target_reg, vid_id, data_idx, dataset_idx)
+        new_label = (target_reg, target_state, target_reg_raw, vid_id, data_idx, dataset_idx)
         return buffer, new_label, clip_indices
 
     def get_item_image(self, index):
@@ -133,12 +172,13 @@ class SurgicalAnticipationDataset(SurgicalVideoDataset):
             return None
         buffer, label_list, clip_indices = result
 
-        target_reg = torch.tensor(self.anticipation_reg[index], dtype=torch.float32)
+        target_reg_raw = torch.tensor(self.anticipation_reg[index], dtype=torch.float32)
+        target_reg, target_state = self._build_multitask_targets(target_reg_raw)
         vid_id = label_list[1]
         data_idx = label_list[2]
         dataset_idx = label_list[3] if len(label_list) > 3 else 0
 
-        new_label = (target_reg, vid_id, data_idx, dataset_idx)
+        new_label = (target_reg, target_state, target_reg_raw, vid_id, data_idx, dataset_idx)
         return buffer, new_label, clip_indices
 
 
@@ -169,6 +209,7 @@ def make_surgical_anticipation_dataset(
     log_dir=None,
     phase_names=None,
     target_names=None,
+    anticipation_horizon=DEFAULT_ANTICIPATION_HORIZON,
 ):
     dataset = SurgicalAnticipationDataset(
         data_paths=data_paths,
@@ -187,6 +228,7 @@ def make_surgical_anticipation_dataset(
         transform=transform,
         phase_names=phase_names,
         target_names=target_names,
+        anticipation_horizon=anticipation_horizon,
     )
 
     log_dir = pathlib.Path(log_dir) if log_dir else None

@@ -15,8 +15,13 @@ Cholec80 手术流程预测 (Phase Anticipation) 纯回归数据处理脚本。
 CSV 仅保留训练所需元信息与 7 个连续目标 `ant_reg_*`。
 标注值保持 benchmark 原始语义，不做归一化:
   - 0.0: 当前阶段
-  - 0<v<1: 目标阶段位于 anticipation horizon 内
-  - 5.0: 目标阶段位于 anticipation horizon 外
+  - 0 < v < horizon: 目标阶段位于 anticipation horizon 内, v 为剩余时间
+  - v >= horizon: 目标阶段位于 anticipation horizon 外
+
+当前 benchmark 默认使用 `horizon = 5.0`，因此常见取值会落在:
+  - 0.0: present
+  - 0.0 ~ 5.0: 剩余时间
+  - 5.0: outside
 """
 
 import argparse
@@ -51,7 +56,9 @@ def load_annotation(ann_path):
 
 def annotation_to_regression_targets(ann_row):
     """
-    将单帧标注转换为 7 维回归目标。
+    将单帧标注转换为 7 维原始 anticipation 回归目标。
+
+    返回值保持 benchmark 原始尺度，不在这里做归一化或离散化。
 
     Returns:
         target_reg: list[float], 长度 7
@@ -275,7 +282,7 @@ def main():
     print(f"\n=== 完成 ===")
     print(f"输出目录: {args.output_dir}")
     print(f"\nCSV 中新增列:")
-    print(f"  ant_reg_{{PhaseName}}: 纯回归目标 (0.0=present, 0~1=inside, 1.0=outside)")
+    print(f"  ant_reg_{{PhaseName}}: 原始 anticipation 目标 (0.0=present, 0<v<5.0=inside, v>=5.0=outside)")
 
 
 if __name__ == "__main__":
