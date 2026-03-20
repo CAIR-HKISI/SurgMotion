@@ -16,7 +16,7 @@
 ### 快速安装主环境（不含 EndoMamba）
 
 ```bash
-conda create -n SurgMotion python=3.11 -y
+conda create -n SurgMotion python=3.12 -y
 conda activate SurgMotion
 pip install torch torchvision   # 按 CUDA 从官网选择 wheel 源
 pip install -r requirements.txt
