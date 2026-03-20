@@ -49,3 +49,5 @@ wandb
 docs/
 vis_results_jepa_motion/*
 motion_vis_results/*
+checkpoint
+backup
