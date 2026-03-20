@@ -1,6 +1,6 @@
 # SurgMotion 环境配置指南
 
-面向快速上手：分三步安装。**目标脚本**：`scripts/run_foundation_probing_bleeding.sh`、`scripts/run_probing.sh`（均调用 `python -m evals.main`）。
+面向快速上手：分三步安装。**目标脚本**：`scripts/run_foundation_probing.sh`、`scripts/run_probing.sh`（均调用 `python -m evals.main`）。
 
 ## 0. 前置条件
 
@@ -14,7 +14,7 @@ git submodule update --init --recursive
 ```
 
 - **权重与数据**：将各 YAML 中 `checkpoint` / 数据路径指向本地；`ckpts/` 通常较大，勿提交到 Git。
-- **Conda 环境名**：示例脚本里使用 `conda activate NSJepa`，请改为你自己的环境名（如 `surgmotion`）。
+- **Conda 环境名**：示例脚本里使用 `conda activate SurgMotion`，请改为你自己的环境名。
 
 ---
 
@@ -36,7 +36,7 @@ pip install -e .   # 可选：以可编辑方式安装包 vjepa2
 
 ## 2. 多基金会模型 Probing（不含 EndoMamba）
 
-用于：`scripts/run_foundation_probing_bleeding.sh` 中除 EndoMamba 外的任务（GastroNet、DINOv3、EndoFM、EndoViT、EndoSSL、GSViT、SurgVLP、VideoMAEv2、SurgeNet、SelfSupSurg 等），以及同一环境下的 `run_probing.sh`。
+用于：`scripts/run_foundation_probing.sh` 中除 EndoMamba 外的任务（GastroNet、DINOv3、EndoFM、EndoViT、EndoSSL、GSViT、SurgVLP、VideoMAEv2、SurgeNet、SelfSupSurg 等），以及同一环境下的 `run_probing.sh`。
 
 ```bash
 conda create -n surgmotion python=3.11 -y
@@ -82,7 +82,7 @@ bash scripts/srun_endomamba_complie.sh
 4. 安装一组 pip 依赖（与 `requirements-endomamba.txt` 类似；**以脚本中的 `pip install ...` 行为准**）
 5. 在 `foundation_models/EndoMamba` 下编译安装 `causal-conv1d` 与 `videomamba/_mamba`
 
-运行 Bleeding 中的 EndoMamba 任务时：使用 `endomamba` 环境，并在 `run_foundation_probing_bleeding.sh` 中取消注释 `endomamba/Bleeding` 与 `conda activate endomamba`（注释掉主环境）。
+运行仅 EndoMamba 能加载的配置时：使用 `endomamba` 环境，并在 `scripts/run_foundation_probing.sh`（或你的批处理脚本）中切换到 `conda activate endomamba`，并启用对应 `TASKS`/`FNAMES`。
 
 ---
 

@@ -1,6 +1,6 @@
 #!/bin/bash
-# run_foundation_probing_bleeding.sh - 批量运行 Bleeding probing 任务（多 YAML，按规划目录读取）
-# 用法：在下方 TASKS / FNAMES 中配置任务，然后执行本脚本。日志写入 logs/foundation/bleeding/
+# run_foundation_probing_Cholec80.sh - 批量运行 Cholec80 probing 任务（多 YAML，按规划目录读取）
+# 用法：在下方 TASKS / FNAMES 中配置任务，然后执行本脚本。日志写入 logs/foundation/Cholec80/
 
 # >>> conda initialize >>>
 CONDA_PATH="${CONDA_PATH:-$HOME/miniconda3}"
@@ -17,7 +17,7 @@ unset __conda_setup 2>/dev/null
 
 [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
 conda deactivate 2>/dev/null
-conda activate NSJepa
+conda activate SurgMotion
 #conda activate endomamba
 
 # 项目根目录（脚本所在目录的上一级）
@@ -39,34 +39,34 @@ NUM_GPUS=${#GPU_LIST[@]}
 # 完整路径 = configs/${TASKS[i]}/${FNAMES[i]}
 # ==========================================
 TASKS=(
-    #"endomamba/Bleeding"
-    "gastronet/Bleeding"
-    "dinov3/Bleeding"
-    "endofm/Bleeding"
-    "endovit/Bleeding"
-    "endossl/Bleeding"
-    "gsvit/Bleeding"
-    "surgvlp/Bleeding"
-    "videomaev2/Bleeding"
-    "surgenet/Bleeding"
-    "selfsupsurg/Bleeding"
+    #"endomamba/Cholec80"
+    "gastronet/Cholec80"
+    "dinov3/Cholec80"
+    "endofm/Cholec80"
+    "endovit/Cholec80"
+    "endossl/Cholec80"
+    "gsvit/Cholec80"
+    "surgvlp/Cholec80"
+    "videomaev2/Cholec80"
+    "surgenet/Cholec80"
+    "selfsupsurg/Cholec80"
 )
 
 FNAMES=(
-    #"endomamba_small_clip_bleeding.yaml"
-    "gastronet_vits_clip_bleeding.yaml"
-    "dinov3_vitl_clip_bleeding.yaml"
-    "endofm_vitb_clip_bleeding.yaml"
-    "endovit_vitl_clip_bleeding.yaml"
-    "endossl_vitl_laparo_clip_bleeding.yaml"
-    "gsvit_vit_clip_bleeding.yaml"
-    "surgvlp_res50_clip_bleeding.yaml"
-    "videomaev2_large_clip_bleeding.yaml"
-    "surgenetxl_caformer_clip_bleeding.yaml"
-    "selfsupsurg_res50_clip_bleeding.yaml"
+    #"endomamba_small_64f_Cholec80.yaml"
+    "gastronet_vits_64f_Cholec80.yaml"
+    "dinov3_vitl_64f_Cholec80.yaml"
+    "endofm_vitb_64f_Cholec80.yaml"
+    "endovit_vitl_64f_Cholec80.yaml"
+    "endossl_vitl_laparo_64f_Cholec80.yaml"
+    "gsvit_vit_64f_Cholec80.yaml"
+    "surgvlp_res50_64f_Cholec80.yaml"
+    "videomaev2_large_64f_Cholec80.yaml"
+    "surgenetxl_caformer_64f_Cholec80.yaml"
+    "selfsupsurg_res50_64f_Cholec80.yaml"
 )
 
-LOG_DIR="logs/foundation/bleeding_V2"
+LOG_DIR="logs/foundation/Cholec80"
 mkdir -p "$LOG_DIR"
 
 if [ ${#TASKS[@]} -ne ${#FNAMES[@]} ]; then
@@ -78,7 +78,7 @@ TOTAL_TASKS=${#TASKS[@]}
 TIME=$(date +"%Y%m%d_%H%M%S")
 
 echo "========================================"
-echo "   Foundation Probing - Bleeding (Batch)"
+echo "   Foundation Probing - Cholec80 (Batch)"
 echo "========================================"
 echo "Time: $(date)"
 echo "Project: $PROJECT_ROOT"
