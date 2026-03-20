@@ -1,6 +1,6 @@
 #!/bin/bash
-# run_foundation_probing_Cholec80.sh - 批量运行 Cholec80 probing 任务（多 YAML，按规划目录读取）
-# 用法：在下方 TASKS / FNAMES 中配置任务，然后执行本脚本。日志写入 logs/foundation/Cholec80/
+# run_foundation_probing_AutoLaparo.sh - 批量运行 AutoLaparo probing 任务（多 YAML，按规划目录读取）
+# 用法：在下方 TASKS / FNAMES 中配置任务，然后执行本脚本。日志写入 logs/foundation/AutoLaparo/
 
 # >>> conda initialize >>>
 CONDA_PATH="${CONDA_PATH:-$HOME/miniconda3}"
@@ -18,7 +18,7 @@ unset __conda_setup 2>/dev/null
 [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
 conda deactivate 2>/dev/null
 conda activate SurgMotion
-#conda activate endomamba
+#conda activate endomamba 
 
 # 项目根目录（脚本所在目录的上一级）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,34 +39,34 @@ NUM_GPUS=${#GPU_LIST[@]}
 # 完整路径 = configs/${TASKS[i]}/${FNAMES[i]}
 # ==========================================
 TASKS=(
-    #"endomamba/Cholec80"
-    "gastronet/Cholec80"
-    "dinov3/Cholec80"
-    "endofm/Cholec80"
-    "endovit/Cholec80"
-    "endossl/Cholec80"
-    "gsvit/Cholec80"
-    "surgvlp/Cholec80"
-    "videomaev2/Cholec80"
-    "surgenet/Cholec80"
-    "selfsupsurg/Cholec80"
+    #"endomamba/AutoLaparo"
+    "gastronet/AutoLaparo"
+    "dinov3/AutoLaparo"
+    "endofm/AutoLaparo"
+    "endovit/AutoLaparo"
+    "endossl/AutoLaparo"
+    "gsvit/AutoLaparo"
+    "surgvlp/AutoLaparo"
+    "videomaev2/AutoLaparo"
+    "surgenet/AutoLaparo"
+    "selfsupsurg/AutoLaparo"
 )
 
 FNAMES=(
-    #"endomamba_small_64f_Cholec80.yaml"
-    "gastronet_vits_64f_Cholec80.yaml"
-    "dinov3_vitl_64f_Cholec80.yaml"
-    "endofm_vitb_64f_Cholec80.yaml"
-    "endovit_vitl_64f_Cholec80.yaml"
-    "endossl_vitl_laparo_64f_Cholec80.yaml"
-    "gsvit_vit_64f_Cholec80.yaml"
-    "surgvlp_res50_64f_Cholec80.yaml"
-    "videomaev2_large_64f_Cholec80.yaml"
-    "surgenetxl_caformer_64f_Cholec80.yaml"
-    "selfsupsurg_res50_64f_Cholec80.yaml"
+    #"endomamba_small_64f_AutoLaparo.yaml"
+    "gastronet_vits_64f_AutoLaparo.yaml"
+    "dinov3_vitl_64f_AutoLaparo.yaml"
+    "endofm_vitb_64f_AutoLaparo.yaml"
+    "endovit_vitl_64f_AutoLaparo.yaml"
+    "endossl_vitl_laparo_64f_AutoLaparo.yaml"
+    "gsvit_vit_64f_AutoLaparo.yaml"
+    "surgvlp_res50_64f_AutoLaparo.yaml"
+    "videomaev2_large_64f_AutoLaparo.yaml"
+    "surgenetxl_caformer_64f_AutoLaparo.yaml"
+    "selfsupsurg_res50_64f_AutoLaparo.yaml"
 )
 
-LOG_DIR="logs/foundation/Cholec80"
+LOG_DIR="logs/foundation/AutoLaparo"
 mkdir -p "$LOG_DIR"
 
 if [ ${#TASKS[@]} -ne ${#FNAMES[@]} ]; then
@@ -78,7 +78,7 @@ TOTAL_TASKS=${#TASKS[@]}
 TIME=$(date +"%Y%m%d_%H%M%S")
 
 echo "========================================"
-echo "   Foundation Probing - Cholec80 (Batch)"
+echo "   Foundation Probing - AutoLaparo (Batch)"
 echo "========================================"
 echo "Time: $(date)"
 echo "Project: $PROJECT_ROOT"

@@ -14,8 +14,8 @@ import itertools
 import torch.nn as nn
 from collections import Counter
 
-from evals.surgical_video_classification_frozen.models import init_module
-from evals.video_classification_frozen.utils import make_transforms
+from evals.foundation_phase_probing.models import init_module
+from evals.foundation_phase_probing.utils import make_transforms
 from evals.utils.bootstrap import bootstrap_per_video_metrics, print_bootstrap_results
 from src.datasets.data_manager import init_data
 from src.models.attentive_pooler import AttentiveClassifier, AttentiveRegressor
