@@ -82,7 +82,7 @@ def init_module(
 
 class ClipAggregation(nn.Module):
     """
-    Process each clip indepdnently and concatenate all tokens
+    Process each clip independently and concatenate all tokens
     """
 
     def __init__(
@@ -151,46 +151,31 @@ class ClipAggregation(nn.Module):
         return multiviews_postprocess(outputs)
 
 
-
-import logging
-
-import torch
-import torch.nn as nn
-
-import src.models.vision_transformer as vit
-from src.masks.utils import apply_masks
-from src.models.utils.pos_embs import get_1d_sincos_pos_embed
-
-logging.basicConfig()
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-# debug
-def log_param_changes(model, logger, before_params, tag_before="加载前", tag_after="加载后", threshold=1e-5):
+def log_param_changes(model, logger, before_params, tag_before="before_load", tag_after="after_load", threshold=1e-5):
     """
-    对比并日志输出参数在加载权重前后的变化信息。
-    
-    - before_params: 加载前模型参数的 state_dict
-    - threshold: 数值差异阈值，超过才打印
+    Compare and log parameter changes before and after loading weights.
+
+    - before_params: model state_dict before loading
+    - threshold: numerical difference threshold; only log if exceeded
     """
-    logger.info(f"==== 参数变化对比 ({tag_before} vs {tag_after}) ====")
+    logger.info(f"==== Parameter change comparison ({tag_before} vs {tag_after}) ====")
     changed_count = 0
     total_params = 0
-    
+
     after_params = model.state_dict()
-    
+
     for key in after_params:
         total_params += 1
         if key not in before_params:
-            logger.info(f'【新增参数】{key}')
+            logger.info(f'[New parameter] {key}')
             changed_count += 1
             continue
         diff = (after_params[key] - before_params[key]).abs().max().item()
         if diff > threshold:
             changed_count += 1
-            logger.info(f'参数 {key} 变化显著，max(abs diff)={diff:.6e}')
+            logger.info(f'Parameter {key} changed significantly, max(abs diff)={diff:.6e}')
     
-    logger.info(f"参数总数: {total_params}, 变化或新增参数数: {changed_count}")
+    logger.info(f"Total parameters: {total_params}, changed or new parameters: {changed_count}")
 
 def init_videomae_module(
     resolution: int,
@@ -209,7 +194,7 @@ def init_videomae_module(
     enc_model_name = enc_kwargs.get("model_name")
 
     model = vit.__dict__[enc_model_name](img_size=resolution, num_frames=frames_per_clip, **enc_kwargs)
-    # 记录加载前的参数快照
+    # Snapshot parameters before loading
     before_state_dict = {k: v.clone() for k, v in model.state_dict().items()}
 
     pretrained_dict = checkpoint[enc_ckp_key]
@@ -225,9 +210,9 @@ def init_videomae_module(
             pretrained_dict[k] = v
     msg = model.load_state_dict(pretrained_dict, strict=False)
     logger.info(f"loaded pretrained model with msg: {msg}")
-    
-    # 对比差异并打印
-    log_param_changes(model, logger, before_state_dict, tag_before="加载前", tag_after="加载后", threshold=1e-5)
+
+    # Compare differences and log
+    log_param_changes(model, logger, before_state_dict, tag_before="before_load", tag_after="after_load", threshold=1e-5)
     print(model)
 
     model = ClipAggregation(
@@ -239,37 +224,36 @@ def init_videomae_module(
     return model
 
 
-# 在evals/video_classification_frozen/modelcustom.py中新增
+# Added in evals/video_classification_frozen/modelcustom.py
 from transformers import AutoModel, AutoVideoProcessor
-import torch
 
 def hf_model_loader(model_name_or_path):
-    """加载HuggingFace模型和处理器"""
+    """Load HuggingFace model and processor."""
     model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
-    model.eval()  # 冻结权重
+    model.eval()  # Freeze weights
     return model
 
 def hf_videomae_feature_extractor(model, x):
     """
-    适配VideoMAE的特征提取（HuggingFace格式）
-    x: 输入张量 [B, C, T, H, W]（需与模型输入格式一致）
-    返回: patch特征 [B, num_patches, embed_dim]
+    Feature extraction for VideoMAE (HuggingFace format).
+    x: input tensor [B, C, T, H, W] (must match model input format)
+    Returns: patch features [B, num_patches, embed_dim]
     """
     with torch.inference_mode():
-        # VideoMAE的输入是[B, T, C, H, W]，需转换维度
+        # VideoMAE expects [B, T, C, H, W]; permute dimensions
         x = x.permute(0, 2, 1, 3, 4)  # [B, T, C, H, W]
         outputs = model(x, output_hidden_states=True)
-        # 取最后一层隐藏状态，排除cls token（第0位）
+        # Take last hidden state, exclude cls token (index 0)
         patch_features = outputs.hidden_states[-1][:, :, 1:]  # [B, T, num_patches, embed_dim]
-        # 若需时序聚合，可在此添加（如取平均）
+        # Temporal aggregation (e.g., mean) can be added here if needed
         return patch_features.mean(dim=1)  # [B, num_patches, embed_dim]
 
 def hf_timesformer_feature_extractor(model, x):
-    """适配TimeSformer的特征提取"""
+    """Feature extraction for TimeSformer."""
     with torch.inference_mode():
         x = x.permute(0, 2, 1, 3, 4)  # [B, T, C, H, W]
         outputs = model(x, output_hidden_states=True)
-        # TimeSformer通常无cls token，直接取全部patch特征
+        # TimeSformer typically has no cls token; use all patch features directly
         patch_features = outputs.hidden_states[-1]  # [B, T, num_patches, embed_dim]
         return patch_features.mean(dim=1)  # [B, num_patches, embed_dim]
 

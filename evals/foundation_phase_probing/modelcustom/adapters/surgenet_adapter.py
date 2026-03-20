@@ -1,25 +1,28 @@
 """
 SurgeNet Foundation Model Adapter
 
-基于 SurgeNet 仓库 (https://github.com/TimJaspers0801/SurgeNet)
-支持 CAFormer-S18 backbone 及其变体 (ConvNextv2, PVTv2)
+Based on SurgeNet repository (https://github.com/TimJaspers0801/SurgeNet)
+Supports CAFormer-S18 backbone and its variants (ConvNextv2, PVTv2)
 
-SurgeNet 是在大规模手术视频数据上使用 DINO 自监督学习预训练的模型，
-在手术场景分割、阶段识别等任务上表现优异。
+SurgeNet is a model pre-trained with DINO self-supervised learning on large-scale surgical video data,
+and performs well on tasks such as surgical scene segmentation and phase recognition.
 """
 
 import sys
+if "." not in sys.path:
+    sys.path.append(".")
+
+import logging
+logger = logging.getLogger(__name__)
+
 import torch
 import torch.nn as nn
 from typing import Optional
 from pathlib import Path
-from .base_adapter import BaseFoundationModelAdapter
 
-# Ensure current directory is in path for relative imports if needed
-if "." not in sys.path:
-    sys.path.append(".")
+from evals.foundation_phase_probing.modelcustom.adapters.base_adapter import BaseFoundationModelAdapter
 
-# SurgeNet 预训练权重 URL
+# SurgeNet pretrained weight URLs
 SURGENET_URLS = {
     "surgenetxl": "https://huggingface.co/TimJaspersTue/SurgeNetModels/resolve/main/SurgeNetXL_checkpoint_epoch0050_teacher.pth?download=true",
     "surgenet": "https://huggingface.co/TimJaspersTue/SurgeNetModels/resolve/main/SurgeNet_checkpoint_epoch0050_teacher.pth?download=true",
@@ -32,16 +35,16 @@ SURGENET_URLS = {
     "surgenet_pvtv2": "https://huggingface.co/TimJaspersTue/SurgeNetModels/resolve/main/SurgeNet_PVTv2_checkpoint_epoch0050_teacher.pth?download=true",
 }
 
-# 本地权重文件名映射
+# Local weight filename mapping
 SURGENET_FILENAMES = {
     "surgenetxl": "SurgeNetXL_checkpoint_epoch0050_teacher.pth",
     "surgenet_convnextv2": "SurgeNet_ConvNextv2_checkpoint_epoch0050_teacher.pth",
 }
 
-# 本地权重目录
+# Local weight directory
 LOCAL_CHECKPOINT_DIR = Path("ckpts/ckpts_foundation/SurgeNetModels")
 
-# 不同 backbone 的输出维度
+# Output dimensions for different backbones
 BACKBONE_DIMS = {
     "caformer": 512,       # CAFormer-S18
     "convnextv2": 768,     # ConvNextv2-Tiny
@@ -51,12 +54,12 @@ BACKBONE_DIMS = {
 
 class SurgeNetAdapter(BaseFoundationModelAdapter):
     """
-    SurgeNet 模型的 Adapter - 输入格式: [B, C, F, H, W]
+    SurgeNet model Adapter - Input format: [B, C, F, H, W]
     
-    SurgeNet 使用 CAFormer-S18 (MetaFormer架构) 作为默认 backbone，
-    也支持 ConvNextv2 和 PVTv2 作为备选 backbone。
+    SurgeNet uses CAFormer-S18 (MetaFormer architecture) as the default backbone,
+    and also supports ConvNextv2 and PVTv2 as alternative backbones.
     
-    模型输出维度:
+    Model output dimensions:
     - CAFormer-S18: 512
     - ConvNextv2-Tiny: 768
     - PVTv2-B2: 512
@@ -66,7 +69,7 @@ class SurgeNetAdapter(BaseFoundationModelAdapter):
         super().__init__(model, embed_dim)
         self.model_name = model_name
         self.backbone_type = backbone_type
-        self._first_forward = True  # 用于控制日志输出
+        self._first_forward = True  # Used to control log output
     
     @classmethod
     def from_config(
@@ -77,19 +80,19 @@ class SurgeNetAdapter(BaseFoundationModelAdapter):
         backbone_type: Optional[str] = None
     ):
         """
-        从配置创建 SurgeNet adapter
+        Create SurgeNet adapter from config
         
         Args:
-            resolution: 输入分辨率 (建议使用 224)
-            checkpoint: 本地 checkpoint 路径 (如果为 None，从 HuggingFace 下载)
-            model_name: 模型名称
-            backbone_type: backbone类型 ('caformer', 'convnextv2', 'pvtv2')。
-                          如果为 None，将尝试从 model_name 推断。
+            resolution: Input resolution (224 recommended)
+            checkpoint: Local checkpoint path (if None, download from HuggingFace)
+            model_name: Model name
+            backbone_type: Backbone type ('caformer', 'convnextv2', 'pvtv2').
+                          If None, will try to infer from model_name.
         
         Returns:
-            SurgeNetAdapter 实例
+            SurgeNetAdapter instance
         """
-        # 1. 推断 backbone_type
+        # 1. Infer backbone_type
         if backbone_type is None:
             if 'convnextv2' in model_name.lower():
                 backbone_type = 'convnextv2'
@@ -98,38 +101,38 @@ class SurgeNetAdapter(BaseFoundationModelAdapter):
             else:
                 backbone_type = 'caformer'
                 
-        print(f"Loading SurgeNet model: {model_name} (backbone: {backbone_type})")
+        logger.info("Loading SurgeNet model: %s (backbone: %s)", model_name, backbone_type)
         
-        # 2. 尝试自动查找本地权重
+        # 2. Try to auto-find local weights
         if checkpoint is None:
             model_key = model_name.lower().replace('-', '_')
             if model_key in SURGENET_FILENAMES:
                 local_path = LOCAL_CHECKPOINT_DIR / SURGENET_FILENAMES[model_key]
                 if local_path.exists():
                     checkpoint = str(local_path)
-                    print(f"Found local checkpoint: {checkpoint}")
+                    logger.info("Found local checkpoint: %s", checkpoint)
         
-        # 3. 添加 SurgeNet 仓库路径到 sys.path
+        # 3. Add SurgeNet repository path to sys.path
         surgenet_path = Path(__file__).parent.parent.parent.parent.parent / "foundation_models" / "SurgeNet"
         if str(surgenet_path) not in sys.path:
             sys.path.insert(0, str(surgenet_path))
-            print(f"Added SurgeNet path: {surgenet_path}")
+            logger.debug("Added SurgeNet path: %s", surgenet_path)
         
         try:
-            # 4. 根据 backbone 类型加载模型
+            # 4. Load model according to backbone type
             if backbone_type == 'caformer':
                 from foundation_models.SurgeNet.metaformer import caformer_s18
                 
-                # 确定权重 URL
+                # Determine weight URL
                 model_key = model_name.lower().replace('-', '_')
                 weights_url = SURGENET_URLS.get(model_key, SURGENET_URLS.get('surgenetxl'))
                 
-                # 如果有本地 checkpoint，不通过 URL 加载
+                # If local checkpoint exists, do not load via URL
                 if checkpoint and Path(checkpoint).exists():
                     weights_url = None
-                    print(f"Using local checkpoint: {checkpoint}")
+                    logger.info("Using local checkpoint: %s", checkpoint)
                 
-                # 创建模型
+                # Create model
                 model = caformer_s18(
                     num_classes=0,
                     pretrained='SurgeNet',
@@ -143,11 +146,11 @@ class SurgeNetAdapter(BaseFoundationModelAdapter):
                 
                 weights_url = SURGENET_URLS.get('surgenet_convnextv2')
                 
-                # 如果有本地 checkpoint，不通过 URL 加载
+                # If local checkpoint exists, do not load via URL
                 if checkpoint and Path(checkpoint).exists():
                     weights_url = None
                 
-                # 创建模型 (pretrained_weights=None 避免自动下载)
+                # Create model (pretrained_weights=None to avoid auto-download)
                 model = convnextv2_tiny(
                     num_classes=0,
                     pretrained_weights=None if checkpoint else weights_url
@@ -171,33 +174,33 @@ class SurgeNetAdapter(BaseFoundationModelAdapter):
             else:
                 raise ValueError(f"Unsupported backbone type: {backbone_type}")
             
-            # 5. 加载本地权重 (通用逻辑)
+            # 5. Load local weights (generic logic)
             if checkpoint and Path(checkpoint).exists():
                 state_dict = torch.load(checkpoint, map_location='cpu')
                 
-                # 处理可能的嵌套结构
+                # Handle possible nested structure
                 if 'state_dict' in state_dict:
                     state_dict = state_dict['state_dict']
                 elif 'model' in state_dict:
                     state_dict = state_dict['model']
                 
-                # 移除分类头权重
+                # Remove classification head weights
                 state_dict = {k: v for k, v in state_dict.items() if not k.startswith('head.')}
                 
-                # 移除可能的前缀 (针对 CAFormer 等)
+                # Remove possible prefixes (for CAFormer etc.)
                 for prefix in ['module.', 'backbone.', 'encoder.']:
                     state_dict = {k.replace(prefix, ''): v for k, v in state_dict.items()}
                 
                 msg = model.load_state_dict(state_dict, strict=False)
-                print(f"Loaded checkpoint: {msg}")
+                logger.info("Loaded checkpoint: %s", msg)
             
-            print(f"✓ SurgeNet loaded successfully:")
-            print(f"  - Model: {model_name}")
-            print(f"  - Backbone: {backbone_type}")
-            print(f"  - embed_dim: {embed_dim}")
+            logger.info(
+                "SurgeNet loaded: model=%s backbone=%s embed_dim=%s",
+                model_name, backbone_type, embed_dim
+            )
             
         except Exception as e:
-            print(f"Error loading SurgeNet model: {e}")
+            logger.exception("Error loading SurgeNet model: %s", e)
             import traceback
             traceback.print_exc()
             raise e
@@ -207,27 +210,28 @@ class SurgeNetAdapter(BaseFoundationModelAdapter):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x: [B, C, F, H, W] 视频输入
+            x: [B, C, F, H, W] video input
+               - B: batch size, C: channels (3), F: frames, H, W: height and width
+
         Returns:
-            features: [B, F*N, D] 
+            features: [B, F*N, D]
+               - F*N: flattened spatial feature positions from all frames; D: backbone embed_dim
         """
         B, C, F, H, W = x.shape
         
-        # 标准输入尺寸 (SurgeNet 推荐使用 224x224)
         target_H, target_W = 224, 224
-        
-        # 如果尺寸不匹配，进行 resize
         if H != target_H or W != target_W:
             import torch.nn.functional as fn
+            # [B, C, F, H, W] → [B, F, C, H, W] → [B*F, C, H, W] → resize → [B, C, F, H', W']
             x = x.permute(0, 2, 1, 3, 4).reshape(B * F, C, H, W)
             x = fn.interpolate(x, size=(target_H, target_W), mode='bilinear', align_corners=False)
             x = x.reshape(B, F, C, target_H, target_W).permute(0, 2, 1, 3, 4)
             H, W = target_H, target_W
         
-        # SurgeNet 是图像模型，需要将时间维度展开
+        # [B, C, F, H, W] → [B, F, C, H, W] → [B*F, C, H, W]
         x = x.permute(0, 2, 1, 3, 4).reshape(B * F, C, H, W)
         
-        # 通过 SurgeNet 提取特征
+        # Extract features via SurgeNet
         with torch.no_grad():
             if self.backbone_type == 'convnextv2':
                  features = self.model.forward_features(x)
@@ -256,13 +260,7 @@ class SurgeNetAdapter(BaseFoundationModelAdapter):
         # Restructure to [B, F*N, D]
         N = H_feat * W_feat
         features = features.reshape(B, F * N, C_out)
-        
-        if self._first_forward:
-            print(f"📊 SurgeNet feature extraction:")
-            print(f"   Input: [{B}, {C}, {F}, {H}, {W}]")
-            print(f"   Output: {features.shape}")
-            self._first_forward = False
-        
+        self._first_forward = False
         return features
     
     def get_feature_info(self):

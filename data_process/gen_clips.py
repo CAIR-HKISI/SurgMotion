@@ -493,8 +493,11 @@ def process_train_and_val(base_data_path, output_base_path, window_size, stride,
     """处理 train / val / test 三个子集"""
     subsets = ["train", "val", "test"]
     for subset in subsets:
-        print(f"\n=== 处理 {subset} 集 ===")
         input_csv = os.path.join(base_data_path, f"{subset}_metadata.csv")
+        if not os.path.exists(input_csv):
+            print(f"\n=== 跳过 {subset} 集 (未找到 {input_csv}) ===")
+            continue
+        print(f"\n=== 处理 {subset} 集 ===")
         output_csv = os.path.join(output_base_path, f"{subset}_dense_{window_size}f.csv")
         clip_dir = os.path.join(output_base_path, f"clip_dense_{window_size}f_info/{subset}")
 

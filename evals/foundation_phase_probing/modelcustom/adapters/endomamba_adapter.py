@@ -1,19 +1,81 @@
 """
 EndoMamba Foundation Model Adapter
-基于官方EndoMamba仓库定义，支持加载EndoMamba checkpoint
+Based on official EndoMamba repo definition, supports loading EndoMamba checkpoint
 """
+
+import sys
+sys.path.append(".")
+
+import logging
+logger = logging.getLogger(__name__)
 
 import torch
 import torch.nn as nn
-from typing import Optional
+import torch.nn.functional as F
+from typing import Optional, Dict, Any
 from pathlib import Path
 from functools import partial
-from base_adapter import BaseFoundationModelAdapter
-from utils import load_and_apply_checkpoint
+
+from evals.foundation_phase_probing.modelcustom.adapters.base_adapter import BaseFoundationModelAdapter
+from evals.foundation_phase_probing.modelcustom.adapters.utils import load_checkpoint_generic
+
+
+def interpolate_pos_embed(pos_embed: torch.Tensor, target_num_patches: int) -> torch.Tensor:
+    """
+    Interpolate position encoding to match target patch count
+    
+    Args:
+        pos_embed: [1, N+1, D] Original position encoding (includes CLS token)
+        target_num_patches: Target patch count (excluding CLS)
+    
+    Returns:
+        Interpolated position encoding [1, target_num_patches+1, D]
+    """
+    # Separate CLS token and patch tokens
+    cls_token = pos_embed[:, :1, :]  # [1, 1, D]
+    patch_pos_embed = pos_embed[:, 1:, :]  # [1, N, D]
+    
+    N = patch_pos_embed.shape[1]
+    if N == target_num_patches:
+        return pos_embed
+    
+    # Compute source and target spatial dimensions
+    src_size = int(N ** 0.5)
+    tgt_size = int(target_num_patches ** 0.5)
+    
+    logger.debug("Interpolating pos_embed: %sx%s -> %sx%s", src_size, src_size, tgt_size, tgt_size)
+    
+    # Reshape to 2D spatial format for interpolation
+    # [1, N, D] -> [1, D, src_size, src_size]
+    D = patch_pos_embed.shape[-1]
+    patch_pos_embed = patch_pos_embed.reshape(1, src_size, src_size, D).permute(0, 3, 1, 2)
+    
+    # Bicubic interpolation
+    patch_pos_embed = F.interpolate(
+        patch_pos_embed,
+        size=(tgt_size, tgt_size),
+        mode='bicubic',
+        align_corners=False
+    )
+    
+    # [1, D, tgt_size, tgt_size] -> [1, target_num_patches, D]
+    patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).reshape(1, target_num_patches, D)
+    
+    # Reconcatenate CLS token
+    return torch.cat([cls_token, patch_pos_embed], dim=1)
 
 
 class EndoMambaAdapter(BaseFoundationModelAdapter):
-    """EndoMamba模型的Adapter - 输入格式: [B, C, F, H, W]"""
+    """
+    Adapter for EndoMamba video model.
+
+    Input format: [B, C, F, H, W]. Model consumes 5D directly (F = temporal). Optional resize to 224×224.
+    Output: [B, F*N, D] (patch tokens from all frames, CLS removed).
+    """
+    
+    # Original image size used when training the checkpoint
+    CHECKPOINT_IMG_SIZE = 224
+    PATCH_SIZE = 16
     
     def __init__(self, model, embed_dim: int, model_name: str):
         super().__init__(model, embed_dim)
@@ -22,26 +84,26 @@ class EndoMambaAdapter(BaseFoundationModelAdapter):
     @classmethod
     def from_config(cls, resolution: int, checkpoint: Optional[str] = None, model_name: str = 'endomamba_small'):
         """
-        从配置创建adapter，使用官方EndoMamba定义
+        Create adapter from config, using official EndoMamba definition
         
         Args:
-            resolution: 输入分辨率（通常是224）
-            checkpoint: checkpoint路径
-            model_name: 模型架构名称 ('endomamba_tiny', 'endomamba_small', 'endomamba_middle')
+            resolution: Input resolution (typically 224)
+            checkpoint: Checkpoint path
+            model_name: Model architecture name ('endomamba_tiny', 'endomamba_small', 'endomamba_middle')
         """
         import sys
         
-        # 添加EndoMamba路径到sys.path
+        # Add EndoMamba path to sys.path
         endomamba_path = Path(__file__).parent.parent.parent.parent.parent / "foundation_models" / "EndoMamba" / "videomamba"
         if str(endomamba_path) not in sys.path:
             sys.path.insert(0, str(endomamba_path))
-        # 导入官方的模型定义
+        # Import official model definition
         from video_sm.models.endomamba import endomamba_small
         
-        print(f"Loading EndoMamba model: {model_name}")
+        logger.info("Loading EndoMamba model: %s", model_name)
         
         try:
-            # 根据model_name选择模型架构
+            # Select model architecture based on model_name
             model_factory = {
                 'endomamba_small': endomamba_small
             }
@@ -49,36 +111,58 @@ class EndoMambaAdapter(BaseFoundationModelAdapter):
             if model_name not in model_factory:
                 raise ValueError(f"Unknown model_name: {model_name}. Choose from {list(model_factory.keys())}")
             
-            # 创建模型（pretrained=False，因为我们稍后会加载checkpoint）
-            model = model_factory[model_name](pretrained=False, 
-                                              img_size=resolution,
-                                              num_classes=0,  # 不使用分类头
-                                              with_head=False)  # 不使用head
-            
-            # 获取embed_dim
+            # Get embed_dim
             embed_dim_map = {
                 'endomamba_small': 384,
             }
             embed_dim = embed_dim_map.get(model_name, 384)
-            patch_size = 16
+            patch_size = cls.PATCH_SIZE
             
-            print(f"EndoMamba model created: embed_dim={embed_dim}, patch_size={patch_size}")
-            
-            # 使用通用工具函数加载checkpoint
-            success, info = load_and_apply_checkpoint(
-                model=model,
-                checkpoint_path=checkpoint,
-                default_path="/home/chen_chuxi/NSJepa/ckpts_foundation/endomamba_checkpoint-best.pth",
-                strict=False,
-                key_prefix_to_remove=None,  # EndoMamba的checkpoint可能不需要移除前缀
-                verbose=True
+            # Create model using checkpoint's original image size (224)
+            model = model_factory[model_name](
+                pretrained=False, 
+                img_size=cls.CHECKPOINT_IMG_SIZE,  # Use size from checkpoint training
+                num_classes=0,
+                with_head=False
             )
             
-            if not success:
-                print(f"Warning: {info}")
+            logger.info("EndoMamba model created: embed_dim=%s patch_size=%s img_size=%s", embed_dim, patch_size, cls.CHECKPOINT_IMG_SIZE)
+            
+            # Load checkpoint
+            default_path = "ckpts/ckpts_foundation/endomamba_checkpoint-best.pth"
+            ckpt_path = checkpoint if checkpoint else default_path
+            
+            ckpt, _ = load_checkpoint_generic(ckpt_path, verbose=True)
+            
+            if ckpt is not None:
+                # Get state_dict
+                if 'model' in ckpt:
+                    state_dict = ckpt['model']
+                elif 'state_dict' in ckpt:
+                    state_dict = ckpt['state_dict']
+                else:
+                    state_dict = ckpt
+                
+                # Check if pos_embed interpolation is needed
+                model_num_patches = model.patch_embed.num_patches
+                if 'pos_embed' in state_dict:
+                    ckpt_pos_embed = state_dict['pos_embed']
+                    ckpt_num_patches = ckpt_pos_embed.shape[1] - 1  # Subtract CLS token
+                    
+                    if ckpt_num_patches != model_num_patches:
+                        logger.debug("pos_embed mismatch: checkpoint has %s patches, model expects %s", ckpt_num_patches, model_num_patches)
+                        state_dict['pos_embed'] = interpolate_pos_embed(ckpt_pos_embed, model_num_patches)
+                
+                # Load state_dict (strict=False to ignore head and other unneeded params)
+                msg = model.load_state_dict(state_dict, strict=False)
+                logger.info("Checkpoint loaded: missing_keys=%s unexpected_keys=%s", len(msg.missing_keys), len(msg.unexpected_keys))
+                if msg.unexpected_keys:
+                    logger.debug("Unexpected keys (ignored): %s", msg.unexpected_keys[:5])
+            else:
+                logger.warning("Could not load checkpoint from %s", ckpt_path)
 
         except Exception as e:
-            print(f"Error loading EndoMamba model: {e}")
+            logger.exception("Error loading EndoMamba model: %s", e)
             raise e
         
         return cls(model, embed_dim, model_name)
@@ -86,24 +170,24 @@ class EndoMambaAdapter(BaseFoundationModelAdapter):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x: [B, C, F, H, W] 视频输入
+            x: [B, C, F, H, W] Video input
                - B: batch size
-               - C: channels (通常是3)
-               - F: frames (时间维度)
-               - H, W: 高度和宽度
+               - C: channels (typically 3)
+               - F: frames (temporal dimension)
+               - H, W: height and width
         
         Returns:
             features: [B, F*N, D] 
-               - F*N: 所有帧的所有patch tokens拼接
+               - F*N: all patch tokens from all frames concatenated
                - D: embed_dim
         """
         B, C, F, H, W = x.shape
 
-        # EndoMamba期望输入格式为 [B, C, T, H, W]，其中T是时间维度
-        # 我们的输入是 [B, C, F, H, W]，所以F对应T
-        # 直接使用，因为维度顺序相同
+        # EndoMamba expects input format [B, C, T, H, W] where T is temporal dimension
+        # Our input is [B, C, F, H, W], so F corresponds to T
+        # Use directly since dimension order is the same
         
-        # 如果尺寸不匹配，进行resize（EndoMamba通常使用224×224）
+        # Resize if dimensions do not match (EndoMamba typically uses 224x224)
         target_H, target_W = 224, 224
         if H != target_H or W != target_W:
             import torch.nn.functional as fn
@@ -115,28 +199,49 @@ class EndoMambaAdapter(BaseFoundationModelAdapter):
             x = x_resized.reshape(B, F, C, target_H, target_W).permute(0, 2, 1, 3, 4)
             H, W = target_H, target_W
         
-        # EndoMamba的forward_features期望输入 [B, C, T, H, W]
-        # 我们的输入已经是 [B, C, F, H, W]，F对应T
-        # 调用forward_features，注意EndoMamba的forward_features返回 (hidden_states, inference_params)
+        # EndoMamba's forward_features expects input [B, C, T, H, W], Our input is already [B, C, F, H, W], F corresponds to T
+        # EndoMamba's forward_features returns (hidden_states, inference_params)
         with torch.no_grad():
-            # forward_features返回 (B, T*N, C) 格式的特征
+            # forward_features returns features in format [B, T, N+1, D]
+            # where N+1 includes CLS token (position 0) and N patch tokens
             features, _ = self.model.forward_features(x, inference_params=None)
         
-        # 验证输出形状
-        if features.dim() != 2:
-            raise ValueError(f"Expected 2D features [B, T*N], got shape: {features.shape}")
+        # Handle different output formats
+        if features.dim() == 4:
+            # Output format: [B, T, N+1, D] - includes CLS token and patch tokens per frame
+            B_out, T, N_plus_1, D = features.shape
+            assert B_out == B, f"Batch size mismatch: {B_out} != {B}"
+            assert T == F, f"Frame count mismatch: {T} != {F}"
+            
+            # Remove CLS token (position 0) per frame, keep only patch tokens
+            # [B, T, N+1, D] -> [B, T, N, D]
+            patch_tokens = features[:, :, 1:, :]  # Skip CLS token
+            
+            # Concatenate patch tokens from all frames into [B, T*N, D]
+            # [B, T, N, D] -> [B, T*N, D]
+            N = N_plus_1 - 1  # Patch count (excluding CLS)
+            features = patch_tokens.reshape(B, T * N, D)
+            
+        elif features.dim() == 3:
+            # Output format: [B, T*N, D] - already flattened
+            B_out, TN, D = features.shape
+            assert B_out == B, f"Batch size mismatch: {B_out} != {B}"
+            
+        elif features.dim() == 2:
+            # Output format: [B, D] - globally pooled features
+            # Need to expand dim to match expected [B, N, D] format
+            B_out, D = features.shape
+            features = features.unsqueeze(1)  # [B, 1, D]
+            
+        else:
+            raise ValueError(f"Unexpected features shape: {features.shape}")
         
-        # EndoMamba的forward_features返回 (B, T*N, C)，需要转换为 [B, F*N, D]
-        # 其中 T 对应我们的 F
-        B_out, TN, D = features.shape
-        assert B_out == B, f"Batch size mismatch: {B_out} != {B}"
-        assert D == self.embed_dim, f"Embed dim mismatch: {D} != {self.embed_dim}"
+        assert features.shape[-1] == self.embed_dim, f"Embed dim mismatch: {features.shape[-1]} != {self.embed_dim}"
         
-        # features已经是 [B, F*N, D] 格式，直接返回
         return features
 
     def get_feature_info(self):
-        """返回特征提取的信息（用于调试）"""
+        """Return feature extraction info (for debugging)"""
         return {
             'model_name': self.model_name,
             'embed_dim': self.embed_dim,
@@ -144,29 +249,35 @@ class EndoMambaAdapter(BaseFoundationModelAdapter):
         }
 
 
-# 测试代码（可选）
+# Test code (optional)
 if __name__ == "__main__":
     """
     Input shape: torch.Size([2, 3, 4, 224, 224])
-    Output shape: torch.Size([2, 784, 384])  # 对于small模型
+    Output shape: torch.Size([2, 784, 384])  # For small model
     Expected: [2, 4*196, 384] = [2, 784, 384]
     """
-    # 测试输入输出格式
+    # Ensure GPU is used
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+    
+    # Test input/output format
     adapter = EndoMambaAdapter.from_config(
         resolution=224,
         checkpoint="/home/chen_chuxi/NSJepa/ckpts_foundation/endomamba_checkpoint-best.pth",
         model_name='endomamba_small'
     )
+    adapter = adapter.to(device)  # Move model to GPU
     
-    # 模拟输入: [B=2, C=3, F=4, H=224, W=224]
-    dummy_input = torch.randn(2, 3, 4, 224, 224)
+    # Simulate input: [B=2, C=3, F=4, H=224, W=224]
+    dummy_input = torch.randn(2, 3, 4, 224, 224).to(device)  # Move input to GPU
     
     print(f"Input shape: {dummy_input.shape}")
     
     with torch.no_grad():
         output = adapter(dummy_input)
     
-    print(f"Output shape: {output.shape}")  # 应该是 [2, 4*N, D]
+    print(f"Output shape: {output.shape}")  # Should be [2, 4*N, D]
     num_patches_per_frame = (224 // 16) ** 2  # 196 patches per frame
     print(f"Expected: [2, {4 * num_patches_per_frame}, {adapter.embed_dim}]")
     print(f"Feature info: {adapter.get_feature_info()}")
+    print("✅ EndoMamba adapter test passed!")

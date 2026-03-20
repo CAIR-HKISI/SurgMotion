@@ -1,12 +1,16 @@
 """
-通用工具函数：用于Foundation Model Adapters
+Common utility functions for Foundation Model Adapters.
 """
+
+import argparse
+import logging
+import sys
+
+logger = logging.getLogger(__name__)
 
 import torch
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
-import argparse
-import sys
 
 
 def load_checkpoint_generic(
@@ -16,84 +20,78 @@ def load_checkpoint_generic(
     verbose: bool = True
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
-    通用的checkpoint加载函数，处理各种checkpoint格式
+    Generic checkpoint loading function that handles various checkpoint formats.
     
     Args:
-        checkpoint_path: 指定的checkpoint路径，None表示使用默认路径
-        default_path: 默认checkpoint路径
-        strict: 是否严格加载（传递给load_state_dict）
-        verbose: 是否打印详细信息
+        checkpoint_path: Path to checkpoint; None means use default_path
+        default_path: Default checkpoint path
+        strict: Whether to strictly load (passed to load_state_dict)
+        verbose: Whether to print detailed info
     
     Returns:
         Tuple of (state_dict, info_message):
-            - state_dict: 加载的权重字典，如果失败则为None
-            - info_message: 加载信息字符串
+            - state_dict: Loaded weight dict, or None on failure
+            - info_message: Loading info string
     """
-    # 确定实际使用的checkpoint路径
+    # Determine the actual checkpoint path to use
     if checkpoint_path is None and default_path is not None:
         checkpoint_path = default_path
         if verbose:
-            print(f"📍 Using default checkpoint: {checkpoint_path}")
+            logger.info("Using default checkpoint: %s", checkpoint_path)
     
-    # 检查文件是否存在
+    # Check if file exists
     if checkpoint_path is None:
         if verbose:
-            print("No checkpoint specified, using randomly initialized weights")
+            logger.info("No checkpoint specified, using randomly initialized weights")
         return None, "no_checkpoint"
     
     ckpt_path = Path(checkpoint_path)
     if not ckpt_path.exists():
         if verbose:
-            print(f"Checkpoint not found: {checkpoint_path}")
-            print("   Using randomly initialized weights")
+            logger.warning("Checkpoint not found: %s, using randomly initialized weights", checkpoint_path)
         return None, "checkpoint_not_found"
     
-    # 加载checkpoint
+    # Load checkpoint
     try:
         if verbose:
-            print(f"📂 Loading checkpoint from: {checkpoint_path}")
+            logger.info("Loading checkpoint from: %s", checkpoint_path)
         
         ckpt = torch.load(checkpoint_path, map_location='cpu')
         
-        # 处理不同的checkpoint格式
+        # Handle different checkpoint formats
         state_dict = None
         load_key = None
         
         if isinstance(ckpt, dict):
-            # 尝试常见的key
+            # Try common keys
             for key in ['model', 'state_dict', 'model_state_dict', 'teacher', 'student']:
                 if key in ckpt:
                     state_dict = ckpt[key]
                     load_key = key
                     break
             
-            # 如果没有找到特定key，假设整个dict就是state_dict
+            # If no specific key found, assume the entire dict is the state_dict
             if state_dict is None:
                 state_dict = ckpt
                 load_key = "direct"
         else:
-            # 非字典格式，尝试直接使用
+            # Non-dict format, try using directly
             state_dict = ckpt
             load_key = "raw"
         
         if verbose:
             if load_key == "direct":
-                print("Loaded as direct state_dict")
+                logger.info("Loaded as direct state_dict")
             else:
-                print(f"Loaded from '{load_key}' key")
-            
-            # 显示一些统计信息
+                logger.info("Loaded from '%s' key", load_key)
             if isinstance(state_dict, dict):
-                print(f"State dict contains {len(state_dict)} keys")
-                # 显示前3个key作为示例
-                sample_keys = list(state_dict.keys())[:3]
-                print(f"Sample keys: {sample_keys}")
+                logger.debug("State dict contains %s keys, sample: %s", len(state_dict), list(state_dict.keys())[:3])
         
         return state_dict, f"loaded_from_{load_key}"
     
     except Exception as e:
         if verbose:
-            print(f"Error loading checkpoint: {e}")
+            logger.exception("Error loading checkpoint: %s", e)
         return None, f"error: {str(e)}"
 
 
@@ -105,24 +103,24 @@ def apply_checkpoint_to_model(
     verbose: bool = True
 ) -> Optional[Any]:
     """
-    将加载的state_dict应用到模型
+    Apply loaded state_dict to model.
     
     Args:
-        model: 要加载权重的模型
-        state_dict: 权重字典
-        strict: 是否严格匹配所有keys
-        key_prefix_to_remove: 需要从key中移除的前缀（如 'module.', 'backbone.'）
-        verbose: 是否打印详细信息
+        model: Model to load weights into
+        state_dict: Weight dictionary
+        strict: Whether to strictly match all keys
+        key_prefix_to_remove: Prefix to remove from keys (e.g. 'module.', 'backbone.')
+        verbose: Whether to print detailed info
     
     Returns:
-        load_state_dict的返回信息（missing_keys, unexpected_keys）
+        Return info from load_state_dict (missing_keys, unexpected_keys)
     """
     if state_dict is None:
         if verbose:
-            print("No state_dict provided, model remains randomly initialized")
+            logger.info("No state_dict provided, model remains randomly initialized")
         return None
     
-    # 清理key名称
+    # Clean key names
     if key_prefix_to_remove:
         cleaned_state_dict = {}
         for k, v in state_dict.items():
@@ -132,44 +130,24 @@ def apply_checkpoint_to_model(
             cleaned_state_dict[new_key] = v
         state_dict = cleaned_state_dict
         if verbose:
-            print(f"Removed prefix '{key_prefix_to_remove}' from keys")
+            logger.info("Removed prefix '%s' from keys", key_prefix_to_remove)
     
-    # 加载到模型
+    # Load into model
     try:
         msg = model.load_state_dict(state_dict, strict=strict)
         
         if verbose:
-            print("Checkpoint loaded successfully")
-            
+            logger.info("Checkpoint loaded successfully")
             if msg.missing_keys:
-                print(f"Missing keys: {len(msg.missing_keys)}")
-                if len(msg.missing_keys) <= 10:
-                    for key in msg.missing_keys:
-                        print(f"      - {key}")
-                else:
-                    print(f"      (showing first 5)")
-                    for key in msg.missing_keys[:5]:
-                        print(f"      - {key}")
-            else:
-                print("No missing keys")
-            
+                logger.debug("Missing keys (%s): %s", len(msg.missing_keys), msg.missing_keys[:10] if len(msg.missing_keys) > 10 else msg.missing_keys)
             if msg.unexpected_keys:
-                print(f"Unexpected keys: {len(msg.unexpected_keys)}")
-                if len(msg.unexpected_keys) <= 10:
-                    for key in msg.unexpected_keys:
-                        print(f"      - {key}")
-                else:
-                    print(f"      (showing first 5)")
-                    for key in msg.unexpected_keys[:5]:
-                        print(f"      - {key}")
-            else:
-                print("No unexpected keys")
+                logger.debug("Unexpected keys (%s): %s", len(msg.unexpected_keys), msg.unexpected_keys[:10] if len(msg.unexpected_keys) > 10 else msg.unexpected_keys)
         
         return msg
     
     except Exception as e:
         if verbose:
-            print(f"Error applying checkpoint to model: {e}")
+            logger.exception("Error applying checkpoint to model: %s", e)
         raise e
 
 
@@ -182,22 +160,22 @@ def load_and_apply_checkpoint(
     verbose: bool = True
 ) -> Tuple[bool, str]:
     """
-    一站式checkpoint加载和应用函数
+    One-stop checkpoint loading and applying function.
     
     Args:
-        model: 要加载权重的模型
-        checkpoint_path: checkpoint路径
-        default_path: 默认checkpoint路径
-        strict: 是否严格加载
-        key_prefix_to_remove: 需要移除的key前缀
-        verbose: 是否打印详细信息
+        model: Model to load weights into
+        checkpoint_path: Checkpoint path
+        default_path: Default checkpoint path
+        strict: Whether to strictly load
+        key_prefix_to_remove: Key prefix to remove
+        verbose: Whether to print detailed info
     
     Returns:
         Tuple of (success, message):
-            - success: 是否成功加载
-            - message: 状态信息
+            - success: Whether loading succeeded
+            - message: Status info
     """
-    # 加载checkpoint
+    # Load checkpoint
     state_dict, load_info = load_checkpoint_generic(
         checkpoint_path=checkpoint_path,
         default_path=default_path,
@@ -205,7 +183,7 @@ def load_and_apply_checkpoint(
         verbose=verbose
     )
     
-    # 应用到模型
+    # Apply to model
     if state_dict is not None:
         msg = apply_checkpoint_to_model(
             model=model,
@@ -276,13 +254,13 @@ def parse_args():
 
 def load_config(args):
     """
-    Given the arguemnts, load and initialize the configs.
+    Given the arguments, load and initialize the configs.
     Args:
         args (argument): arguments includes `shard_id`, `num_shards`,
             `init_method`, `cfg_file`, and `opts`.
     """
     # Setup cfg.
-    from .defaults import get_cfg
+    from evals.foundation_phase_probing.modelcustom.adapters.defaults import get_cfg
     cfg = get_cfg()
     # Load config from cfg.
     if args.cfg_file is not None:

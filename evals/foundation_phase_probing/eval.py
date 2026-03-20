@@ -181,10 +181,10 @@ def compute_per_dataset_class_weights(dataset, device, num_classes_list=None, st
         if num_classes_list is not None and i < len(num_classes_list):
             num_classes = num_classes_list[i]
         else:
-             if not classes:
-                 num_classes = 1
-             else:
-                 num_classes = max(classes) + 1
+            if not classes:
+                num_classes = 1
+            else:
+                num_classes = max(classes) + 1
         
         w = torch.ones(num_classes, device=device)
         total = len(ds_labels)
@@ -444,8 +444,8 @@ def evaluate_global(predictions_df, use_bootstrap=False, n_bootstrap=1000, rando
         # For global metrics, we just replicate the mean as CI for compatibility
         # Or implement sample-level bootstrap if needed. Here we keep it simple.
         for m in metrics:
-                stats[f"{m}_CI_Lower"] = stats[f"{m}_Mean"]
-                stats[f"{m}_CI_Upper"] = stats[f"{m}_Mean"]
+            stats[f"{m}_CI_Lower"] = stats[f"{m}_Mean"]
+            stats[f"{m}_CI_Upper"] = stats[f"{m}_Mean"]
 
     # Add per-class metrics to stats
     per_class_metrics = {}
@@ -462,7 +462,7 @@ def evaluate_global(predictions_df, use_bootstrap=False, n_bootstrap=1000, rando
 
 
 # ----------------------
-# Action级评估函数 (Global)
+# Action-Level Evaluation (Global)
 # ----------------------
 def evaluate_global_action(predictions_df, phases=None, head_id=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None, dataset_name=None, config_tags=None):
     """
@@ -523,8 +523,8 @@ def evaluate_global_action(predictions_df, phases=None, head_id=None, use_bootst
         # Dummy CIs for compatibility
         metrics = ["Accuracy", "Macro_Precision", "Macro_Recall", "Macro_IoU", "Macro_F1", "Edit_Score"]
         for m in metrics:
-             stats[f"{m}_CI_Lower"] = stats[f"{m}_Mean"]
-             stats[f"{m}_CI_Upper"] = stats[f"{m}_Mean"]
+            stats[f"{m}_CI_Lower"] = stats[f"{m}_Mean"]
+            stats[f"{m}_CI_Upper"] = stats[f"{m}_Mean"]
 
     # Per-class metrics
     per_class_precision = precision_score(all_gt, all_pred, labels=unique_classes, average=None, zero_division=0) * 100
@@ -546,7 +546,7 @@ def evaluate_global_action(predictions_df, phases=None, head_id=None, use_bootst
 
 
 # ----------------------
-# 视频级评估函数
+# Per-Video Evaluation
 # ----------------------
 def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_bootstrap=1000, random_seed=None, head_id=None, dataset_name=None, config_tags=None):
     """
@@ -663,14 +663,14 @@ def evaluate_per_video(predictions_df, phases=None, use_bootstrap=False, n_boots
 
 
 # ----------------------
-# 主入口
+# Main Entry Point
 # ----------------------
 def main(args_eval, resume_preempt=False):
 
     val_only = args_eval.get("val_only", False)
     pretrain_folder = args_eval.get("folder", None)
     resume_checkpoint = args_eval.get("resume_checkpoint", False) or resume_preempt
-    resume_iter = args_eval.get("resume_iter", None)  # 如果指定，将覆盖checkpoint中的iter信息
+    resume_iter = args_eval.get("resume_iter", None)  # If specified, overrides iter info from checkpoint
     eval_tag = args_eval.get("tag", None)
     num_workers = args_eval.get("num_workers", 8)
 
@@ -755,24 +755,23 @@ def main(args_eval, resume_preempt=False):
     use_weighted_loss = args_opt.get("use_weighted_loss", False)
     # Weight strategy: 'balanced', 'inverse_sqrt', 'inverse_freq', 'effective_number'
     weight_strategy = args_opt.get("weight_strategy", "balanced")
-    opt_kwargs = args_opt.get("multihead_kwargs")  # list，每个分类头一个 kwargs
+    opt_kwargs = args_opt.get("multihead_kwargs")  # list, one kwargs dict per classifier head
 
     try:
         mp.set_start_method("spawn")
     except Exception:
         pass
 
-    #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     world_size, rank = init_distributed()
 
     if torch.cuda.is_available():
         if world_size > 1:
-            # DDP模式：由于CUDA_VISIBLE_DEVICES已被设置，每个进程使用cuda:0
-            # （这是该进程可见的唯一GPU）
+            # DDP mode: since CUDA_VISIBLE_DEVICES is set, each process uses cuda:0
+            # (which is the only GPU visible to this process)
             device = torch.device("cuda:0")
             logger.info(f"DDP mode: Rank {rank}/{world_size} using device cuda:0 (physical GPU set by CUDA_VISIBLE_DEVICES)")
         else:
-            # 单进程模式：使用cuda:0作为主设备
+            # Single-process mode: use cuda:0 as primary device
             num_gpus = torch.cuda.device_count()
             device = torch.device("cuda:0")
             if num_gpus > 1:
@@ -860,14 +859,14 @@ def main(args_eval, resume_preempt=False):
         )
         logger.info(f"wandb initialized: {wandb.run.url}")
 
-    # checkpoint 路径
+    # Checkpoint path
     folder = os.path.join(pretrain_folder, "video_classification_frozen/")
     if eval_tag is not None:
         folder = os.path.join(folder, eval_tag)
     os.makedirs(folder, exist_ok=True)
     latest_path = os.path.join(folder, "latest.pt")
 
-    # 构建 encoder
+    # Build encoder
     encoder = init_module(
         module_name=module_name,
         frames_per_clip=frames_per_clip,
@@ -878,7 +877,7 @@ def main(args_eval, resume_preempt=False):
         device=device,
     )
     
-    # 检测可用GPU数量
+    # Detect available GPUs
     available_gpus = list(range(torch.cuda.device_count()))
     use_multi_gpu = len(available_gpus) > 1 and not dist.is_initialized()
 
@@ -886,12 +885,12 @@ def main(args_eval, resume_preempt=False):
         logger.info(f"🚀 Detected {len(available_gpus)} GPUs: {available_gpus}")
         logger.info(f"🔧 Using nn.DataParallel for multi-GPU training")
         
-        # 将encoder包装为DataParallel
+        # Wrap encoder with DataParallel
         encoder = nn.DataParallel(encoder, device_ids=available_gpus)
         encoder = encoder.to(device)
         logger.info(f"✓ Encoder wrapped with DataParallel on GPUs: {available_gpus}")
         
-        # 保存原始embed_dim（DataParallel后需要通过.module访问）
+        # Save original embed_dim (needs .module access after DataParallel wrapping)
         encoder_embed_dim = encoder.module.embed_dim
     else:
         encoder_embed_dim = encoder.embed_dim
@@ -901,7 +900,7 @@ def main(args_eval, resume_preempt=False):
             logger.info(f"💻 Running on single GPU: {device}")
 
 
-    # 构建多个分类头或回归头
+    # Build multiple classifier or regressor heads
     # If head_to_dataset_map is provided, use per-dataset num_classes
     if task_type in ["phase", "action"]:
         if head_to_dataset_map is not None:
@@ -945,11 +944,11 @@ def main(args_eval, resume_preempt=False):
         classifiers = [DistributedDataParallel(c, static_graph=True) for c in classifiers]
         logger.info("✓ Wrapped classifiers with DistributedDataParallel")
     elif use_multi_gpu:
-        # DataParallel模式（单进程多GPU）
+        # DataParallel mode (single process, multi-GPU)
         classifiers = [nn.DataParallel(c, device_ids=available_gpus) for c in classifiers]
         logger.info(f"✓ Wrapped {len(classifiers)} classifiers with DataParallel on GPUs: {available_gpus}")
     else:
-        # 单GPU模式
+        # Single GPU mode
         logger.info("✓ Running in single-GPU mode (no parallel wrapping)")
 
     train_loader, train_sampler = make_dataloader(
@@ -989,7 +988,7 @@ def main(args_eval, resume_preempt=False):
     )
     ipe = len(train_loader)
 
-    # 多头优化器
+    # Multi-head optimizer
     optimizer, scaler, scheduler, wd_scheduler = init_opt(
         classifiers=classifiers,
         opt_kwargs=opt_kwargs,
@@ -998,15 +997,15 @@ def main(args_eval, resume_preempt=False):
         use_bfloat16=use_bfloat16,
     )
 
-    # 断点恢复
+    # Checkpoint resume
     start_epoch = 0
     start_iter = None
-    base_global_step = 0  # 添加base_global_step
-    checkpoint_interval = 1000  # checkpoint保存间隔
+    base_global_step = 0
+    checkpoint_interval = 1000  # Checkpoint save interval
         
     if resume_iter is not None:
-        # 用户指定了要恢复的iter（例如17521）
-        # 计算上一个checkpoint的iter（例如17000 = 17521 // 1000 * 1000）
+        # User specified a resume_iter (e.g. 17521)
+        # Calculate the previous checkpoint iter (e.g. 17000 = 17521 // 1000 * 1000)
         checkpoint_iter = (resume_iter // checkpoint_interval) * checkpoint_interval
         start_iter = checkpoint_iter
         base_global_step = checkpoint_iter
@@ -1014,7 +1013,7 @@ def main(args_eval, resume_preempt=False):
         logger.info(f"🎯 User specified resume_iter={resume_iter}")
         logger.info(f"📦 Loading checkpoint from iter={checkpoint_iter} (latest.pt)")
         
-        # 加载latest.pt（假设它是checkpoint_iter时保存的）
+        # Load latest.pt (assumed to be saved at checkpoint_iter)
         if resume_checkpoint and os.path.exists(latest_path):
             logger.info(f"Loading weights from latest checkpoint: {latest_path}")
             encoder, classifiers, optimizer, scaler, _, _ = load_checkpoint(
@@ -1031,7 +1030,7 @@ def main(args_eval, resume_preempt=False):
             start_iter = None
             base_global_step = 0
         
-        # 恢复scheduler到对应的step
+        # Restore schedulers to the corresponding step
         if start_iter is not None:
             target_step = start_iter
             for _ in range(target_step):
@@ -1039,9 +1038,8 @@ def main(args_eval, resume_preempt=False):
                 [wds.step() for wds in wd_scheduler]
             logger.info(f"✅ Restored schedulers to step {target_step}, will skip first {start_iter} iters")
 
-
     elif resume_checkpoint and os.path.exists(latest_path):
-        # 原有的resume逻辑（从checkpoint中读取iter信息，如果没有则从epoch开始）
+        # Original resume logic (reads iter info from checkpoint; falls back to epoch-based)
         logger.info(f"Found latest checkpoint: {latest_path}")
         encoder, classifiers, optimizer, scaler, start_epoch, start_iter = load_checkpoint(
             device=device,
@@ -1053,7 +1051,7 @@ def main(args_eval, resume_preempt=False):
             val_only=val_only,
         )
         
-        # 尝试从checkpoint中读取iter和global_step
+        # Try to read iter and global_step from checkpoint
         checkpoint = torch.load(latest_path, map_location='cpu')
         if 'iter' in checkpoint and checkpoint['iter'] is not None:
             start_iter = checkpoint['iter']
@@ -1064,12 +1062,12 @@ def main(args_eval, resume_preempt=False):
             base_global_step = checkpoint['global_step']
             logger.info(f"Resuming from global_step={base_global_step} (inferred iter={start_iter})")
         else:
-            # 如果checkpoint中没有iter信息，从epoch开始（但只有1个epoch，所以从0开始）
+            # No iter info in checkpoint; fall back to epoch-based resume
             start_iter = None
             base_global_step = start_epoch * ipe if start_epoch > 0 else 0
             logger.info(f"Resuming from epoch {start_epoch} (no iter info in checkpoint)")
         
-        # 恢复scheduler到对应的step
+        # Restore schedulers to the corresponding step
         if start_iter is not None:
             target_step = start_iter
         else:
@@ -1091,42 +1089,42 @@ def main(args_eval, resume_preempt=False):
         }
         if itr is not None:
             save_dict["iter"] = itr
-            save_dict["global_step"] = epoch * ipe + itr  # 全局step数
+            save_dict["global_step"] = epoch * ipe + itr  # Global step count
         else:
             save_dict["iter"] = None
             save_dict["global_step"] = epoch * ipe
         
         if rank == 0:
             try:
-                # 确保目录存在（使用绝对路径）
+                # Ensure directory exists (using absolute path)
                 folder_abs = os.path.abspath(folder)
                 os.makedirs(folder_abs, exist_ok=True)
                 
-                # 检查目录权限
+                # Check directory permissions
                 if not os.access(folder_abs, os.W_OK):
                     raise PermissionError(f"No write permission for directory: {folder_abs}")
                 
                 if itr is not None:
-                    # 保存iter checkpoint
+                    # Save iter checkpoint
                     iter_path = os.path.join(folder_abs, f"checkpoint_epoch{epoch}_iter{itr}.pt")
-                    # 确保父目录存在
+                    # Ensure parent directory exists
                     iter_dir = os.path.dirname(iter_path)
                     if iter_dir:
                         os.makedirs(iter_dir, exist_ok=True)
                     
-                    # 使用临时文件然后重命名（原子操作）
+                    # Write to temp file then rename (atomic operation)
                     temp_path = iter_path + ".tmp"
                     torch.save(save_dict, temp_path)
                     os.rename(temp_path, iter_path)
                     logger.info(f"✓ Saved checkpoint at epoch {epoch}, iter {itr}")
                 else:
-                    # 保存latest checkpoint
+                    # Save latest checkpoint
                     latest_path_abs = os.path.abspath(latest_path)
                     latest_dir = os.path.dirname(latest_path_abs)
                     if latest_dir:
                         os.makedirs(latest_dir, exist_ok=True)
                     
-                    # 使用临时文件然后重命名（原子操作）
+                    # Write to temp file then rename (atomic operation)
                     temp_path = latest_path_abs + ".tmp"
                     torch.save(save_dict, temp_path)
                     os.rename(temp_path, latest_path_abs)
@@ -1139,7 +1137,7 @@ def main(args_eval, resume_preempt=False):
                 logger.error(f"OS error when saving checkpoint: {e}")
                 logger.error(f"  Folder: {folder}")
                 logger.error(f"  Latest path: {latest_path}")
-                # 检查磁盘空间
+                # Check disk space
                 import shutil
                 stat = shutil.disk_usage(folder)
                 logger.error(f"  Disk space: {stat.free / (1024**3):.2f} GB free")
@@ -1149,7 +1147,7 @@ def main(args_eval, resume_preempt=False):
                 traceback.print_exc()
 
     # ----------------
-    # 训练循环
+    # Training Loop
     # ----------------
     
     # Calculate class weights for weighted loss
@@ -1157,31 +1155,31 @@ def main(args_eval, resume_preempt=False):
     if use_weighted_loss and task_type in ["phase", "action"]:
         logger.info(f"⚖️  Weighted Loss Enabled: Calculating class weights (strategy={weight_strategy})...")
         if head_to_dataset_map is not None:
-             # Multi-dataset
-             dataset_weights = compute_per_dataset_class_weights(
-                 train_loader.dataset, 
-                 device=device,
-                 num_classes_list=num_classes_list if isinstance(num_classes_list, list) else None,
-                 strategy=weight_strategy
-             )
-             
-             if dataset_weights:
-                 train_class_weights_list = []
-                 for h_idx in range(len(classifiers)):
-                     if h_idx < len(head_to_dataset_map):
-                         ds_idx = head_to_dataset_map[h_idx]
-                         if ds_idx < len(dataset_weights):
-                             train_class_weights_list.append(dataset_weights[ds_idx])
-                         else:
-                             train_class_weights_list.append(None)
-                     else:
-                         train_class_weights_list.append(None)
+            # Multi-dataset
+            dataset_weights = compute_per_dataset_class_weights(
+                train_loader.dataset,
+                device=device,
+                num_classes_list=num_classes_list if isinstance(num_classes_list, list) else None,
+                strategy=weight_strategy
+            )
+
+            if dataset_weights:
+                train_class_weights_list = []
+                for h_idx in range(len(classifiers)):
+                    if h_idx < len(head_to_dataset_map):
+                        ds_idx = head_to_dataset_map[h_idx]
+                        if ds_idx < len(dataset_weights):
+                            train_class_weights_list.append(dataset_weights[ds_idx])
+                        else:
+                            train_class_weights_list.append(None)
+                    else:
+                        train_class_weights_list.append(None)
         else:
-             # Single dataset / global
-             nc = num_classes_list[0] if len(num_classes_list) > 0 else None
-             
-             w = compute_class_weights(train_loader.dataset, device=device, num_classes=nc, strategy=weight_strategy)
-             train_class_weights_list = [w] * len(classifiers)
+            # Single dataset / global
+            nc = num_classes_list[0] if len(num_classes_list) > 0 else None
+
+            w = compute_class_weights(train_loader.dataset, device=device, num_classes=nc, strategy=weight_strategy)
+            train_class_weights_list = [w] * len(classifiers)
 
     for epoch in range(start_epoch, num_epochs):
         train_sampler.set_epoch(epoch)
@@ -1268,7 +1266,7 @@ def main(args_eval, resume_preempt=False):
 
 
 # ----------------------
-# 单个 epoch 训练/验证
+# Single Epoch Train/Validate
 # ----------------------
 def run_one_epoch(
     device, training, encoder, classifiers, scaler, optimizer,
@@ -1306,9 +1304,9 @@ def run_one_epoch(
 
     if skip_iters is not None and skip_iters > 0:
         logger.info(f"⏩ Fast-forwarding: skipping first {skip_iters} iterations...")
-        # islice(data_loader, skip_iters, None) 表示：
-        # - 从第 skip_iters 个元素开始
-        # - None 表示到迭代器结束
+        # islice(data_loader, skip_iters, None) means:
+        # - Start from the skip_iters-th element
+        # - None means iterate until the end
         data_loader = itertools.islice(data_loader, skip_iters, None)
         start_itr = skip_iters
         logger.info(f"✅ Resuming from iteration {skip_iters}")
@@ -1335,10 +1333,10 @@ def run_one_epoch(
             with torch.no_grad():
                 features = encoder(clips, clip_indices)
 
-            # 每个分类器独立输出
+            # Each classifier produces independent outputs
             outputs = [[c(f) for f in features] for c in classifiers]
 
-            # 每个分类器独立 loss with optional masking for multi-dataset training
+            # Each classifier has independent loss with optional masking for multi-dataset training
             losses = []
             has_samples = []  # Track which heads have actual samples in this batch
             
@@ -1459,10 +1457,10 @@ def run_one_epoch(
                 # Log training metrics to wandb at log_interval (only on rank 0)
                 if rank == 0 and use_wandb:
                     if skip_iters is not None and itr >= skip_iters:
-                        # 从恢复的checkpoint继续
+                        # Continuing from resumed checkpoint
                         global_step = base_global_step + itr
                     else:
-                        # 正常情况
+                        # Normal case
                         global_step = base_global_step + itr if base_global_step > 0 else epoch * len(data_loader) + itr
                     
                     wandb_metrics = {}
@@ -1478,7 +1476,7 @@ def run_one_epoch(
                 )
         if training and checkpoint_interval > 0 and (itr + 1) % checkpoint_interval == 0:
             logger.info(f"Saving checkpoint at epoch {epoch}, iter {itr + 1}")
-            if save_checkpoint_fn is not None:  # ← 添加检查
+            if save_checkpoint_fn is not None:
                 save_checkpoint_fn(epoch, itr + 1)
 
     metrics = {f"head_{i}": {"Acc" if task_type in ["phase", "action"] else "MAE": acc_meters[i].avg, "Loss": loss_meters[i].avg} for i in range(len(classifiers))}
@@ -1731,24 +1729,24 @@ def run_one_epoch(
                                         f"F1={phase_metrics['F1']:.2f}%, "
                                         f"IoU={phase_metrics['IoU']:.2f}%"
                                     )
-                        else: # regression
-                             per_video, stats = evaluate_per_video_regression(
+                        else:  # regression
+                            per_video, stats = evaluate_per_video_regression(
                                 head_df,
                                 use_bootstrap=use_bootstrap,
                                 n_bootstrap=n_bootstrap,
                                 random_seed=bootstrap_seed,
                                 head_id=head_id
                             )
-                             dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
-                             
-                             if rank == 0 and use_wandb:
+                            dataset_results[f"dataset_{ds_idx}_head_{head_id}"] = stats
+
+                            if rank == 0 and use_wandb:
                                 wandb_metrics = {
                                     f"val/dataset_{ds_idx}/head_{head_id}/MAE": stats['MAE_Mean'],
                                     f"val/dataset_{ds_idx}/head_{head_id}/Spearman": stats['Spearman_Mean'],
                                 }
                                 wandb.log(wandb_metrics, step=global_step)
-                                
-                             logger.info(
+
+                            logger.info(
                                 f"  Head {head_id}: "
                                 f"MAE={stats['MAE_Mean']:.4f}±{stats['MAE_Std']:.4f}, "
                                 f"Spearman={stats['Spearman_Mean']:.4f}±{stats['Spearman_Std']:.4f}"
@@ -1850,20 +1848,20 @@ def run_one_epoch(
 
 
 # ----------------------
-# checkpoint 加载
+# Checkpoint Loading
 # ----------------------
 def load_checkpoint(device, r_path, encoder, classifiers, opt, scaler, val_only=False):
     checkpoint = robust_checkpoint_loader(r_path, map_location="cpu")
 
     encoder.load_state_dict(checkpoint["encoder"])
-     # 加载分类头，添加错误处理和日志
+    # Load classifier heads with error handling and logging
     for idx, (c, state) in enumerate(zip(classifiers, checkpoint["classifiers"])):
         try:
             if hasattr(c, 'module'):
-                # DistributedDataParallel包装的模型
+                # Model wrapped with DistributedDataParallel
                 missing_keys, unexpected_keys = c.module.load_state_dict(state, strict=False)
             else:
-                # 普通模型
+                # Plain model
                 missing_keys, unexpected_keys = c.load_state_dict(state, strict=False)
             
             if missing_keys:
@@ -1878,7 +1876,7 @@ def load_checkpoint(device, r_path, encoder, classifiers, opt, scaler, val_only=
         return encoder, classifiers, opt, scaler, 0
 
     epoch = checkpoint["epoch"]
-    iter_num = checkpoint.get("iter", None)  # 获取iter信息，如果不存在则为None
+    iter_num = checkpoint.get("iter", None)  # Get iter info; None if not present
     
     for o, state in zip(opt, checkpoint["opt"]):
         o.load_state_dict(state)
