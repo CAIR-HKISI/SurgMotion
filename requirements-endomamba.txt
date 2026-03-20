@@ -1,0 +1,34 @@
+# EndoMamba 独立环境：版本需与 scripts/srun_endomamba_complie.sh 保持一致
+# 安装方式：请优先运行该脚本（含 conda CUDA、因果卷积与 mamba 源码编译）。
+# 若仅想同步 pip 依赖（仍需手动编译 causal-conv1d / mamba），可参考下列包：
+#
+# 脚本里另有一枚 pip 包名 `google`；若编译或运行报错再按脚本原样补装。
+
+# 以下三行在脚本中为固定版本 + cu128 源，勿与主环境混用：
+# pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu128
+
+fvcore
+pandas
+threadpoolctl
+platformdirs
+click
+wandb
+iopath
+timm
+submitit
+opencv-python
+transformers
+peft
+einops
+beartype
+psutil
+h5py
+fire
+python-box
+scikit-image
+ftfy
+scikit-learn
+omegaconf
+accelerate
+scipy
+joblib

@@ -1,27 +1,3 @@
-torch>=2
-torchvision
-tensorboard
-wandb
-iopath
-pyyaml
-numpy
-opencv-python
-submitit
-braceexpand
-webdataset
-timm
-transformers
-peft
-decord
-pandas
-einops
-beartype
-psutil
-h5py
-fire
-python-box
-scikit-image
-ftfy
-jupyter
-scikit-learn
-omegaconf
+# 默认：V-JEPA2 核心 + 多基金会模型 probing（不含 EndoMamba 编译栈）
+# 分步说明见 docs/ENVIRONMENT.md
+-r requirements-foundation.txt

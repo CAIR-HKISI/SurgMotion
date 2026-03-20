@@ -44,7 +44,7 @@ echo "Building causal-conv1d..."
 echo "CUDA_HOME: $CUDA_HOME"
 echo "nvcc: $(which nvcc)"
 
-cd /home/user01/NSJepa/foundation_models/EndoMamba
+cd foundation_models/EndoMamba
 pip install ./videomamba/causal-conv1d --no-build-isolation --force-reinstall --no-deps
 cd ./videomamba/_mamba
 export MAMBA_FORCE_BUILD=TRUE
@@ -54,12 +54,6 @@ pip install . --no-build-isolation --verbose --no-deps
 
 echo ""
 echo "✓ causal-conv1d installed successfully"
-
-# ---------- 测试 EndoMamba adapter ----------
-echo ""
-echo "Testing EndoMamba adapter..."
-cd /home/user01/NSJepa/foundation_models
-python evals/foundation_phase_probing/modelcustom/adapters/endomamba_adapter.py
 
 echo ""
 echo "============================================"

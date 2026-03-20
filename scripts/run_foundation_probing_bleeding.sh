@@ -30,7 +30,7 @@ export WANDB_MODE="${WANDB_MODE:-online}"
 [ -n "$WANDB_API_KEY" ] && export WANDB_API_KEY
 
 # GPU 池：每个任务独占一张卡，多任务并行，卡用完则排队
-GPUS="${CUDA_VISIBLE_DEVICES:-2,3,4,5,6,7}"
+GPUS="${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}"
 IFS=',' read -ra GPU_LIST <<< "$GPUS"
 NUM_GPUS=${#GPU_LIST[@]}
 

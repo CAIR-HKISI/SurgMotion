@@ -1,52 +1,33 @@
+# SurgMotion
 
-## install
+基于 [V-JEPA2](https://github.com/facebookresearch/vjepa2) 的手术视频表征与下游 probing 实验代码库。
+
+## 环境安装（新开发者必读）
+
+分三步：**V-JEPA2 核心** → **多基金会模型 probing（不含 EndoMamba）** → **EndoMamba 独立编译环境**。详见 **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)**。
+
+快速安装主环境（含 Bleeding 批量脚本所需依赖，不含 EndoMamba）：
 
 ```bash
-conda create -n jepa_torch python=3.12
-conda activate jepa_torch
+pip install torch torchvision  # 按 CUDA 版本从 pytorch.org 选择命令
+pip install -r requirements.txt
 pip install -e .
 ```
 
-download checkpoint
-```bash
-mkdir ckpts
-cd ckpts
-wget https://dl.fbaipublicfiles.com/vjepa2/vitl.pt
-wget https://dl.fbaipublicfiles.com/vjepa2/vith.pt
-wget https://dl.fbaipublicfiles.com/vjepa2/vitg.pt
-wget https://dl.fbaipublicfiles.com/vjepa2/vitg-384.pt
-```
+依赖文件：
 
-prepare dataset
-``` bash 
-mkdir data
-## download pitvis
+| 文件 | 用途 |
+|------|------|
+| `requirements-vjepa2.txt` | 仅核心框架与视频管线 |
+| `requirements-foundation.txt` | 核心 + 多模型 probing |
+| `requirements.txt` | 默认等同 foundation 完整栈 |
+| `requirements-endomamba.txt` | EndoMamba 参考列表（**以 `scripts/srun_endomamba_complie.sh` 为准**） |
 
-## extract frames
-python data_process/pitvis_data_list.py
+## 常用脚本
 
-## make clips for training
-python data_process/pitvis_clip_list.py
-```
+- `scripts/run_foundation_probing_bleeding.sh` — 多 GPU 批量 foundation probing（Bleeding）
+- `scripts/run_probing.sh` — 单任务 `evals.main`（请确认 `configs/...` 路径与仓库一致）
 
-```markdown
-data/Surge_Frames/
-├── PitVis/                           # 直接下载的视频数据和标注
-|   |──video_01.mp4
-|   |──video_02.mp4
-|   |──annotation_01.csv
-├── pitvis/
-│   ├── train_metadata.csv
-│   └── val_metadata.csv
-└── pitvis_clips_64f/
-    ├── train_dense_64f.csv           # CSV中的路径: pitvis_clips_64f/clip_dense_64f_info/train/xxx.txt
-    ├── val_dense_64f.csv
-    └── clip_dense_64f_info/
-        ├── train/
-        │   └── case001_c000_xxx.txt   # txt中的路径: pitvis/case001/frame_xxx.jpg
-        └── val/
-            └── case002_c000_xxx.txt
-```
+## 许可证
 
-
-probing training
+见上游 V-JEPA2 与各 `foundation_models` 子模块仓库说明。

@@ -1,54 +1,94 @@
-*.pyc
-.vscode/
-.*.swp
+# ========= OS =========
+.DS_Store
+Thumbs.db
 
+# ========= Editors / IDE =========
+.vscode/
+.idea/
+.*.swp
+*~
+
+# ========= Python =========
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+*.so
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# ========= Jupyter =========
+*.ipynb_checkpoints/
+
+# ========= Testing / typing =========
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ========= ML runs & checkpoints =========
+wandb/
+traces/
+ckpts/
+checkpoint/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+# 若需把少量小权重提交进库，可对具体路径用 ! 反选
+
+# ========= Logs & job output =========
+logs*/
+SLURM_Logs/
+
+# ========= Data & local config (do not commit) =========
+data/
+configs/local
+
+# ========= Visualization / eval outputs =========
+vis_results*/
+motion_vis_results/
+
+# ========= Third-party vendored trees (optional) =========
+third_party/
+
+# ========= Backups =========
+backup/
+
+# ========= Project-specific: large scratch notebooks (optional) =========
+# draft.ipynb
+# draft_data_clean.ipynb
+
+# ========= Bleeding / pitvis pipeline outputs (if you use these dirs) =========
+bleeding/
+data_process/pitvis_clips_clean
+
+# ========= Legacy upstream paths (NSJepa / old tree — remove if unused) =========
 run_vjepa_aws.py
 run.py
 main_distributed_video.py
 main_video.py
-
-app/vjepa/configs/temp_aws
-app/main_dev.py
-app/main_distributed_dev.py
-evals/ava/alphaction/data
-
 run_evals.py
 run_evals_v2.py
 run_pretrain.py
-
-*.egg-info/
-*.ipynb_checkpoints/
-
-traces/
-third_party/*
-
+app/
+evals/ava/alphaction/data
 evals/simu_env_planning/local/
 evals/simu_env_planning/docker2/
 evals/simu_env_planning/docker/
+app/vjepa/configs/temp_aws
+app/main_dev.py
+app/main_distributed_dev.py
 app/vjepa_droid/local/
 app/vjepa_droid_v2/local/
 app/vjepa_droid_v3/local/
 app/vjepa_droid_v4/local/
-configs/local
-data
-ckpts
-logs
-logs2
-logs3
-data_process/pitvis_clips_clean
-logs4
-logs5
-logs6
-logs8
-logs7
-logs9
-
-SLURM_Logs/*
-logs10
-wandb
-docs/
-vis_results_jepa_motion/*
-motion_vis_results/*
-checkpoint
-backup
-bleeding

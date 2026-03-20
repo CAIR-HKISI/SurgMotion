@@ -1,0 +1,13 @@
+# V-JEPA2 核心：训练/评测入口、src 模型与视频数据管线（不含多模型适配器）
+# Python 建议 >= 3.10（与 setup.py 中 3.11+ 声明以你实际环境为准）
+
+torch>=2.0
+torchvision
+numpy
+pyyaml
+timm
+einops
+opencv-python
+decord
+psutil
+scikit-image
