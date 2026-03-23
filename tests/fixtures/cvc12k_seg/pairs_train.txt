@@ -1,2 +1,0 @@
-images/sample_0.png masks/sample_0.png
-images/sample_1.png masks/sample_1.png

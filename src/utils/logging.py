@@ -45,48 +45,21 @@ class CSVLogger(object):
     def __init__(self, fname, *argv, **kwargs):
         self.fname = fname
         self.types = []
+        mode = kwargs.get("mode", "+a")
         self.delim = kwargs.get("delim", ",")
-        mode = kwargs.get("mode", "a")
-
-        expected_cols = [v[1] for v in argv]
-        for v in argv:
-            self.types.append(v[0])
-
-        needs_header = True
-        if "a" in mode and os.path.exists(self.fname) and os.path.getsize(self.fname) > 0:
-            with open(self.fname, "r") as f:
-                first_line = f.readline().strip()
-            existing_cols = first_line.split(self.delim) if first_line else []
-            if existing_cols == expected_cols:
-                needs_header = False
-            else:
-                base, ext = os.path.splitext(self.fname)
-                ext = ext if ext else ".csv"
-                i = 1
-                while True:
-                    candidate = f"{base}.v{i}{ext}"
-                    if not os.path.exists(candidate):
-                        self.fname = candidate
-                        break
-                    i += 1
-                needs_header = True
-
-        if needs_header:
-            os.makedirs(os.path.dirname(self.fname) or ".", exist_ok=True)
-            with open(self.fname, "w") as f:
-                for i, col in enumerate(expected_cols, 1):
-                    end = self.delim if i < len(expected_cols) else "\n"
-                    print(col, end=end, file=f)
+        # -- print headers
+        with open(self.fname, mode) as f:
+            for i, v in enumerate(argv, 1):
+                self.types.append(v[0])
+                if i < len(argv):
+                    print(v[1], end=self.delim, file=f)
+                else:
+                    print(v[1], end="\n", file=f)
 
     def log(self, *argv):
-        if len(argv) != len(self.types):
-            raise ValueError(
-                f"CSVLogger.log argument count mismatch: got {len(argv)} values but logger expects {len(self.types)}. "
-                f"file='{self.fname}'"
-            )
-        with open(self.fname, "a") as f:
+        with open(self.fname, "+a") as f:
             for i, tv in enumerate(zip(self.types, argv), 1):
-                end = self.delim if i < len(self.types) else "\n"
+                end = self.delim if i < len(argv) else "\n"
                 print(tv[0] % tv[1], end=end, file=f)
 
 

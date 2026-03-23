@@ -1,1 +1,0 @@
-images/sample_mismatch.png masks/sample_mismatch.png
