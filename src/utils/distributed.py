@@ -52,51 +52,66 @@ logger = get_logger()
 
 
 def init_distributed(port=37129, rank_and_world_size=(None, None)):
-    import os
-    import torch
-    import torch.distributed as dist
-    from pathlib import Path
-
-    # SLURM tmpdir hack（可保留）
     if "SLURM_JOB_ID" in os.environ:
         tmpdir = Path(f"/scratch/slurm_tmpdir/{os.environ['SLURM_JOB_ID']}")
         if tmpdir.exists():
             os.environ["TMPDIR"] = str(tmpdir)
 
+        if port == 37129:
+            port = 20000 + (int(os.environ["SLURM_JOB_ID"]) % 40000)
+
     if dist.is_available() and dist.is_initialized():
         return dist.get_world_size(), dist.get_rank()
 
     rank, world_size = rank_and_world_size
-    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ.setdefault("MASTER_ADDR", "localhost")
 
     if (rank is None) or (world_size is None):
         try:
             world_size = int(os.environ["SLURM_NTASKS"])
             rank = int(os.environ["SLURM_PROCID"])
-            os.environ["MASTER_ADDR"] = os.environ["HOSTNAME"]
-        except Exception:
-            print("SLURM vars not set (distributed training not available)")
+
+            if os.environ.get("MASTER_ADDR") in {"localhost", "127.0.0.1"}:
+                if "SLURM_LAUNCH_NODE_IPADDR" in os.environ:
+                    os.environ["MASTER_ADDR"] = os.environ["SLURM_LAUNCH_NODE_IPADDR"]
+                elif "SLURM_JOB_NODELIST" in os.environ:
+                    import subprocess
+
+                    nodes = (
+                        subprocess.check_output(["scontrol", "show", "hostnames", os.environ["SLURM_JOB_NODELIST"]])
+                        .decode()
+                        .split()
+                    )
+                    if len(nodes) > 0:
+                        os.environ["MASTER_ADDR"] = nodes[0]
+                    else:
+                        os.environ["MASTER_ADDR"] = os.environ.get("HOSTNAME", "localhost")
+                else:
+                    os.environ["MASTER_ADDR"] = os.environ.get("HOSTNAME", "localhost")
+        except Exception as e:
+            logger.info(f"SLURM vars not set or error: {e}. Falling back to non-distributed.")
             world_size, rank = 1, 0
             return world_size, rank
 
-    # Skip distributed initialization if world_size is 1 (single process)
     if world_size == 1:
-        print(f"Single process mode (world_size=1), skipping distributed initialization")
+        logger.info("Single process mode (world_size=1), skipping distributed initialization")
         return world_size, rank
 
-    # ***关键：优先从环境变量读端口***
-    master_port = os.environ.get("MASTER_PORT", str(port))
-    os.environ["MASTER_PORT"] = str(master_port)
-
     try:
-        dist.init_process_group(
-            backend="nccl",
-            world_size=world_size,
-            rank=rank
+        if "MASTER_PORT" in os.environ:
+            try:
+                port = int(os.environ["MASTER_PORT"])
+            except Exception:
+                pass
+        os.environ["MASTER_PORT"] = str(port)
+        logger.info(
+            "Initializing distributed: "
+            f"MASTER_ADDR={os.environ['MASTER_ADDR']}, MASTER_PORT={port}, rank={rank}, world_size={world_size}"
         )
+        dist.init_process_group(backend="nccl", world_size=world_size, rank=rank)
     except Exception as e:
+        logger.error(f"Failed to initialize process group: {e}")
         world_size, rank = 1, 0
-        print(f"Rank: {rank}. Distributed training not available {e}")
 
     return world_size, rank
 
