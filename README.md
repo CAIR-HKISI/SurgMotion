@@ -203,4 +203,4 @@ elif model_type == 'your_model':
 
 ## Acknowledgement
 
-We thank [V-JEPA 2 (Meta)](https://github.com/facebookresearch/vjepa2) for the base framework, and [MONAI](https://github.com/Project-MONAI/research-contributions) for reference implementations.
+We thank [V-JEPA 2 (Meta)](https://github.com/facebookresearch/vjepa2) for the base framework.
