@@ -27,7 +27,7 @@ conda create -n endomamba python=3.10 -y
 conda activate endomamba
 conda install -c nvidia cuda-toolkit=12.1 -y
 
-# 设置 CUDA_HOME 为 conda 环境中的 CUDA
+# Set CUDA_HOME to CUDA in the conda environment
 export CUDA_HOME=$CONDA_PREFIX
 export PATH="$CUDA_HOME/bin:$PATH"
 export LIBRARY_PATH="$CUDA_HOME/lib64:$CUDA_HOME/lib:${LIBRARY_PATH}"
@@ -38,7 +38,7 @@ echo "CUDA_HOME: $CUDA_HOME"
 pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu128
 pip install fvcore pandas threadpoolctl platformdirs google click wandb iopath timm submitit opencv-python transformers peft einops beartype psutil h5py fire python-box scikit-image ftfy scikit-learn omegaconf accelerate scipy joblib --no-deps
 
-# ---------- 编译 causal-conv1d ----------
+# ---------- Compile causal-conv1d ----------
 echo ""
 echo "Building causal-conv1d..."
 echo "CUDA_HOME: $CUDA_HOME"

@@ -1,6 +1,7 @@
 #!/bin/bash
-# run_foundation_probing_AutoLaparo.sh - 批量运行 AutoLaparo probing 任务（多 YAML，按规划目录读取）
-# 用法：在下方 TASKS / FNAMES 中配置任务，然后执行本脚本。日志写入 logs/foundation/AutoLaparo/
+# run_foundation_probing.sh - Batch foundation model probing (multi-YAML, GPU pool scheduler)
+# Usage: Edit TASKS / FNAMES below, then run this script.
+# Full config path = configs/foundation_model_probing/${TASKS[i]}/${FNAMES[i]}
 
 # >>> conda initialize >>>
 CONDA_PATH="${CONDA_PATH:-$HOME/miniconda3}"
@@ -18,26 +19,33 @@ unset __conda_setup 2>/dev/null
 [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
 conda deactivate 2>/dev/null
 conda activate SurgMotion
-#conda activate endomamba 
+# conda activate endomamba   # Use this instead when running EndoMamba configs
 
-# 项目根目录（脚本所在目录的上一级）
+# Project root (parent of the scripts/ directory)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# 可选：WandB
+# Optional: WandB
 export WANDB_MODE="${WANDB_MODE:-online}"
 [ -n "$WANDB_API_KEY" ] && export WANDB_API_KEY
 
-# GPU 池：每个任务独占一张卡，多任务并行，卡用完则排队
+# GPU pool: each task occupies one GPU; tasks queue when all GPUs are busy
 GPUS="${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}"
 IFS=',' read -ra GPU_LIST <<< "$GPUS"
 NUM_GPUS=${#GPU_LIST[@]}
 
 # ==========================================
-# 任务列表：TASKS = 配置子目录，FNAMES = YAML 文件名
-# 完整路径 = configs/${TASKS[i]}/${FNAMES[i]}
+# Task list: TASKS = config sub-directory, FNAMES = YAML filename
+# Full path = configs/foundation_model_probing/${TASKS[i]}/${FNAMES[i]}
+#
+# Naming convention (after align_configs.py):
+#   Folder:  <model>/<Dataset>           e.g. dinov3/AutoLaparo
+#   File:    <variant>_64f_<dataset>.yaml e.g. dinov3_vitl_64f_autolaparo.yaml
+#            (dataset part is always lowercase)
 # ==========================================
+
+# --- Example: AutoLaparo across all models ---
 TASKS=(
     #"endomamba/AutoLaparo"
     "gastronet/AutoLaparo"
@@ -53,17 +61,17 @@ TASKS=(
 )
 
 FNAMES=(
-    #"endomamba_small_64f_AutoLaparo.yaml"
-    "gastronet_vits_64f_AutoLaparo.yaml"
-    "dinov3_vitl_64f_AutoLaparo.yaml"
-    "endofm_vitb_64f_AutoLaparo.yaml"
-    "endovit_vitl_64f_AutoLaparo.yaml"
-    "endossl_vitl_laparo_64f_AutoLaparo.yaml"
-    "gsvit_vit_64f_AutoLaparo.yaml"
-    "surgvlp_res50_64f_AutoLaparo.yaml"
-    "videomaev2_large_64f_AutoLaparo.yaml"
-    "surgenetxl_caformer_64f_AutoLaparo.yaml"
-    "selfsupsurg_res50_64f_AutoLaparo.yaml"
+    #"endomamba_small_64f_autolaparo.yaml"
+    "gastronet_vits_64f_autolaparo.yaml"
+    "dinov3_vitl_64f_autolaparo.yaml"
+    "endofm_vitb_64f_autolaparo.yaml"
+    "endovit_vitl_64f_autolaparo.yaml"
+    "endossl_vitl_laparo_64f_autolaparo.yaml"
+    "gsvit_vit_64f_autolaparo.yaml"
+    "surgvlp_res50_64f_autolaparo.yaml"
+    "videomaev2_large_64f_autolaparo.yaml"
+    "surgenetxl_caformer_64f_autolaparo.yaml"
+    "selfsupsurg_res50_64f_autolaparo.yaml"
 )
 
 LOG_DIR="logs/foundation/AutoLaparo"
@@ -78,7 +86,7 @@ TOTAL_TASKS=${#TASKS[@]}
 TIME=$(date +"%Y%m%d_%H%M%S")
 
 echo "========================================"
-echo "   Foundation Probing - AutoLaparo (Batch)"
+echo "   Foundation Probing (Batch)"
 echo "========================================"
 echo "Time: $(date)"
 echo "Project: $PROJECT_ROOT"
@@ -87,7 +95,7 @@ echo "GPU pool: [${GPU_LIST[*]}] (${NUM_GPUS} GPUs)"
 echo "Log dir: $LOG_DIR"
 echo ""
 
-# --------------- GPU 池调度 ---------------
+# --------------- GPU pool scheduler ---------------
 declare -A PID_TO_GPU     # pid -> gpu_id
 declare -A PID_TO_TASK    # pid -> task description
 AVAILABLE_GPUS=("${GPU_LIST[@]}")
@@ -138,7 +146,7 @@ for i in "${!TASKS[@]}"; do
     PID_TO_TASK[$!]="$CONFIG_PATH"
 done
 
-# 等待所有剩余任务完成
+# Wait for all remaining tasks
 for pid in "${!PID_TO_GPU[@]}"; do
     wait "$pid"
     EXIT_CODE=$?
