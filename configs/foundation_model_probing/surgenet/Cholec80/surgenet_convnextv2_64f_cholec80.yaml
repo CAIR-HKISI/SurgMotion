@@ -5,29 +5,27 @@ mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-resume_iter: 17521
 tag: surgenet_convnextv2_64f_cholec80
 tasks_per_node: 1
 
 # wandb configuration
 wandb:
-  project: foundation-model-probing  # Your wandb project name
-  entity: nsjepa  # Your wandb username or team (optional, uses default if null)
+  project: foundation-model-probing
+  entity: nsjepa
   name: surgenet_convnextv2_64f_cholec80
-  id: hxtwbh2c
   tags:
-    - cholec80
+    - Cholec80
     - phase-probing
-    - surgenet_convnextv2-64f
-  group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on Autocholec80 dataset with SurgeNet ConvNextv2"
+    - surgenet_convnextv2_64f
+  group: null
+  notes: "Multi-head probing on Cholec80 dataset"
 
 experiment:
   classifier:
     num_heads: 16
     num_probe_blocks: 4
   data:
-    dataset_type:  surgical_videodataset
+    dataset_type: surgical_videodataset
     dataset_train: data/Surge_Frames/Cholec80/clips_64f/train_dense_64f_detailed.csv
     dataset_val: data/Surge_Frames/Cholec80/clips_64f/test_dense_64f_detailed.csv
     frames_per_clip: 64

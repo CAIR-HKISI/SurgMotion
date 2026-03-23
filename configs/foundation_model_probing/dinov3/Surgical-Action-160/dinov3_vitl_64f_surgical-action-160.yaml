@@ -7,27 +7,26 @@ max_workers: 4
 resume_checkpoint: true
 tag: dinov3_vitl_64f_surgical-action-160
 tasks_per_node: 1
-metric_aggregation: "global" # Options: "global", "per_video", or null (defaults to per_video)
+metric_aggregation: "global"
 
 # wandb configuration
 wandb:
-  project: foundation-model-probing  # Your wandb project name
-  entity: nsjepa  # Your wandb username or team (optional, uses default if null)
+  project: foundation-model-probing
+  entity: nsjepa
   name: dinov3_vitl_64f_surgical-action-160
   tags:
-    - SurgicalAction160
+    - Surgical-Action-160
     - phase-probing
     - dinov3_vitl_64f
-  group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on SurgicalAction160 dataset"
+  group: null
+  notes: "Multi-head probing on Surgical-Action-160 dataset"
 
 experiment:
   classifier:
     num_heads: 16
     num_probe_blocks: 4
   data:
-    dataset_type:  surgical_videodataset
-    
+    dataset_type: surgical_videodataset
     dataset_train:
     - data/Surge_Frames/SurgicalActions160_v1/train_metadata_fold0_fps25.csv
 
@@ -163,7 +162,7 @@ experiment:
       start_lr: 0.0001
       warmup: 0.0
       weight_decay: 0.8
-    num_epochs: 40
+    num_epochs: 1
     use_bfloat16: true
     use_pos_embed: false
 
@@ -176,4 +175,4 @@ model_kwargs:
   wrapper_kwargs:
     tubelet_size: 2
     max_frames: 128
-    use_pos_embed: false
+    use_pos_embed: true

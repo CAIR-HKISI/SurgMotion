@@ -10,22 +10,22 @@ tasks_per_node: 1
 
 # wandb configuration
 wandb:
-  project: foundation-model-probing  # Your wandb project name
-  entity: nsjepa  # Your wandb username or team (optional, uses default if null)
+  project: foundation-model-probing
+  entity: nsjepa
   name: surgvlp_res50_64f_m2cai16
   tags:
     - M2CAI16
     - phase-probing
-    - surgvlp_res50-64f
-  group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on M2CAI16 dataset with SurgVLP ResNet50"
+    - surgvlp_res50_64f
+  group: null
+  notes: "Multi-head probing on M2CAI16 dataset"
 
 experiment:
   classifier:
     num_heads: 16
     num_probe_blocks: 4
   data:
-    dataset_type:  surgical_videodataset
+    dataset_type: surgical_videodataset
     dataset_train: data/Surge_Frames/M2CAI16/clips_64f/train_dense_64f_detailed.csv
     dataset_val: data/Surge_Frames/M2CAI16/clips_64f/test_dense_64f_detailed.csv
     frames_per_clip: 64

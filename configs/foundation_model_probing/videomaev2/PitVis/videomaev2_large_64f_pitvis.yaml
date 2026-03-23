@@ -10,22 +10,22 @@ tasks_per_node: 1
 
 # wandb configuration
 wandb:
-  project: foundation-model-probing  # Your wandb project name
-  entity: nsjepa  # Your wandb username or team (optional, uses default if null)
+  project: foundation-model-probing
+  entity: nsjepa
   name: videomaev2_large_64f_pitvis
   tags:
     - PitVis
     - phase-probing
-    - videomaev2_large-64f
-  group: null  # Group name for grouping related runs (optional)
-  notes: "Multi-head probing on PitVis dataset with VideoMAEv2 Large"
+    - videomaev2_large_64f
+  group: null
+  notes: "Multi-head probing on PitVis dataset"
 
 experiment:
   classifier:
     num_heads: 16
     num_probe_blocks: 4
   data:
-    dataset_type:  surgical_videodataset
+    dataset_type: surgical_videodataset
     dataset_train: data/Surge_Frames/PitVis/clips_64f/train_dense_64f_detailed.csv
     dataset_val: data/Surge_Frames/PitVis/clips_64f/test_dense_64f_detailed.csv
     frames_per_clip: 64
@@ -171,4 +171,3 @@ model_kwargs:
     tubelet_size: 2
     max_frames: 128
     use_pos_embed: true
-

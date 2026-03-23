@@ -1,23 +1,23 @@
 cpus_per_task: 4
 eval_name: foundation_phase_probing
-folder: logs/foundation/dinov3_vith16plus_autolaparo
+folder: logs/foundation/dinov3_vith_autolaparo
 mem_per_gpu: 220G
 nodes: 1
 max_workers: 4
 resume_checkpoint: true
-tag: dinov3_vith16plus_64f_autolaparo
+tag: dinov3_vith_64f_autolaparo
 tasks_per_node: 1
 
 # wandb configuration
 wandb:
-  project: foundation-model-probing  # Your wandb project name
-  entity: nsjepa  # Your wandb username or team (optional, uses default if null)
-  name: dinov3_vith16plus_64f_autolaparo
+  project: foundation-model-probing
+  entity: nsjepa
+  name: dinov3_vith_64f_autolaparo
   tags:
     - AutoLaparo
     - phase-probing
-    - dinov3_vith16plus_64f
-  group: null  # Group name for grouping related runs (optional)
+    - dinov3_vith_64f
+  group: null
   notes: "Multi-head probing on AutoLaparo dataset"
 
 experiment:
@@ -25,7 +25,7 @@ experiment:
     num_heads: 16
     num_probe_blocks: 4
   data:
-    dataset_type:  surgical_videodataset
+    dataset_type: surgical_videodataset
     dataset_train: data/Surge_Frames/AutoLaparo/clips_64f/train_dense_64f_detailed.csv
     dataset_val: data/Surge_Frames/AutoLaparo/clips_64f/test_dense_64f_detailed.csv
     frames_per_clip: 64
@@ -35,7 +35,7 @@ experiment:
     resolution: 224
 
   optimization:
-    batch_size: 1
+    batch_size: 4
     multihead_kwargs:
     - final_lr: 0.0
       final_weight_decay: 0.01

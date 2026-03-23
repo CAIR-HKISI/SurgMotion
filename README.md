@@ -1,63 +1,228 @@
-# SurgMotion
+<div align="center">
+<h1>SurgMotion: A Foundation Model Probing Framework for Surgical Video Understanding</h1>
 
-## 环境安装
+<a href="https://github.com/KimWu1994/SurgMotion"><img src='https://img.shields.io/badge/GitHub-Repository-blue' alt='GitHub'></a>
 
-完整分步说明见 **[docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)**：
+</div>
 
-| 阶段 | 说明 |
-|------|------|
-| **1. V-JEPA2 核心** | `pip install -r requirements-vjepa2.txt`（仅 `src/` 与视频管线） |
-| **2. Foundation probing（主环境）** | `pip install -r requirements.txt`（等同 `requirements-foundation.txt`） |
-| **3. EndoMamba** | **独立 Conda 环境**，见 `scripts/srun_endomamba_complie.sh`，勿与主环境混装 |
+Built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2), **SurgMotion** provides a unified framework to benchmark and probe multiple surgical video foundation models on phase recognition tasks across diverse surgical datasets.
 
-- **Python**：`setup.py` 要求 `>=3.10`；主 probing 环境推荐 **3.11**。EndoMamba 脚本使用 **3.10**。
-- **PyTorch**：须与机器 **CUDA** 版本匹配，请从 [pytorch.org](https://pytorch.org) 选择安装命令后再装依赖文件。
+![Framework](assets/flowchart.png)
 
-### 快速安装主环境（不含 EndoMamba）
+## Quick Start
+
+- **Setup**:
+  - [Environment Installation](#environment-installation)
+  - [Data Preparation](#data-preparation)
+- **Usage**:
+  - [Run Foundation Probing](#run-foundation-probing)
+  - [Evaluation Metrics](#evaluation-metrics)
+- **Extend**:
+  - [Add a New Dataset](#add-a-new-dataset)
+  - [Add a New Foundation Model](#add-a-new-foundation-model)
+
+## Project Structure
+
+```
+SurgMotion/
+├── src/                        # V-JEPA2 core: ViT, VideoMAE, datasets, masks
+├── evals/                      # Evaluation entry points & foundation phase probing
+│   ├── main.py                 # Single-task entry: python -m evals.main --fname <yaml>
+│   └── foundation_phase_probing/
+│       ├── eval.py             # Probing evaluation logic
+│       ├── models.py           # Probing head definitions
+│       └── modelcustom/        # Per-model adapters (DINOv2, EndoViT, SurgVLP, …)
+├── configs/
+│   └── foundation_model_probing/
+│       ├── dinov2/             # YAML configs per dataset
+│       ├── dinov3/
+│       ├── endofm/
+│       ├── …                   # 15 model families supported
+│       └── videomaev2/
+├── data_process/               # End-to-end dataset preprocessing scripts
+│   ├── autolaparo_prepare.py
+│   ├── cholect80_prepare.py
+│   ├── egosurgery_prepare.py
+│   ├── m2cai2016_prepare.py
+│   ├── ophnet_prepare.py
+│   ├── pitvis_prepare.py
+│   ├── pmlr50_prepare.py
+│   ├── polypdiag_prepare.py
+│   └── surgicalactions160_prepare.py
+├── scripts/                    # Batch probing & environment setup shells
+├── benchmark/                  # Metric computation (relaxed / unrelaxed / bootstrap)
+├── foundation_models/          # Third-party model implementations (git submodules)
+├── data -> NSJepa/data         # Symlink to shared data directory
+├── setup.py                    # pip install -e . (package: vjepa2)
+└── requirements*.txt           # Layered dependency files
+```
+
+## Environment Installation
+
+### Main Environment (Recommended)
 
 ```bash
 conda create -n SurgMotion python=3.12 -y
 conda activate SurgMotion
-pip install torch torchvision   # 按 CUDA 从官网选择 wheel 源
-pip install -r requirements.txt
+
+# Install PyTorch matching your CUDA version first:
+# https://pytorch.org/get-started/locally/
+
 pip install -e .
 ```
 
-### EndoMamba（单独执行）
+### EndoMamba (Separate Environment)
+
+EndoMamba requires its own Conda env with custom CUDA extensions. **Do not mix** with the main environment.
 
 ```bash
-bash scripts/srun_endomamba_complie.sh   # 创建 endomamba 环境并编译扩展
-conda activate endomamba                 # 仅跑 EndoMamba 相关配置时使用
+bash scripts/srun_endomamba_complie.sh   # Creates env + compiles extensions
+conda activate endomamba                 # Use only for EndoMamba configs
 ```
 
-参考列表：`requirements-endomamba.txt`（**以编译脚本内的 `pip install` 为准**）。
+### Dependency Files
 
-### 依赖文件一览
+| File | Scope |
+|------|-------|
+| `requirements-vjepa2.txt` | V-JEPA2 core only (video pipeline, `src/`) |
+| `requirements-foundation.txt` | Core + multi-model probing dependencies |
+| `requirements.txt` | Default: includes `requirements-foundation.txt` |
+| `requirements-endomamba.txt` | EndoMamba reference (use compile script instead) |
 
-| 文件 | 用途 |
-|------|------|
-| `requirements-vjepa2.txt` | 仅核心框架与视频管线 |
-| `requirements-foundation.txt` | 核心 + 多模型 probing |
-| `requirements.txt` | 默认：`-r requirements-foundation.txt` |
-| `requirements-endomamba.txt` | EndoMamba 参考依赖（编译见脚本） |
+## Data Preparation
 
----
+All preprocessing scripts under `data_process/` follow a unified end-to-end pipeline:
 
-## 常用脚本
+```bash
+python data_process/<dataset>_prepare.py [OPTIONS]
+```
 
-| 脚本 | 说明 |
-|------|------|
-| `scripts/run_foundation_probing.sh` | 多 GPU 批量 foundation probing（在脚本内配置 `TASKS` / `FNAMES`） |
-| `scripts/run_probing.sh` | 单任务 `python -m evals.main`（请确认 `--fname` 指向存在的 YAML） |
-| `scripts/srun_endomamba_complie.sh` | EndoMamba 独立环境 + CUDA 扩展编译 |
+Each script supports `--help` and produces:
+- `clip_infos/*.txt` — per-case frame path lists for clip-style loaders
+- `{train,val,test}_metadata.csv` — standardized CSV with columns:
 
-脚本中的 `conda activate SurgMotion` 请改为你的主环境名。WandB 可设 `export WANDB_MODE=offline`。
+| Column | Description |
+|--------|-------------|
+| `Index` | Row index within the split (0-based) |
+| `clip_path` | Path to the clip's frame list txt |
+| `label` | Integer phase / class id |
+| `label_name` | Human-readable phase name |
+| `case_id` | Numeric case / video identifier |
+| `clip_idx` | Clip index within the case (0 for single-clip) |
 
----
+### Supported Datasets
 
-## 配置与扩展
+| Dataset | Script | Domain | Phases |
+|---------|--------|--------|--------|
+| AutoLaparo | `autolaparo_prepare.py` | Laparoscopic hysterectomy | 7 |
+| Cholec80 | `cholect80_prepare.py` | Laparoscopic cholecystectomy | 7 |
+| EgoSurgery | `egosurgery_prepare.py` | Egocentric open surgery | 9 |
+| M2CAI2016 | `m2cai2016_prepare.py` | Laparoscopic cholecystectomy | 8 |
+| OphNet2024 | `ophnet_prepare.py` | Ophthalmic surgery | 96 |
+| PitVis | `pitvis_prepare.py` | Pituitary neurosurgery | 12 |
+| PmLR50 | `pmlr50_prepare.py` | Laparoscopic liver resection | 5 |
+| PolypDiag | `polypdiag_prepare.py` | GI endoscopy (binary) | 2 |
+| SurgicalActions160 | `surgicalactions160_prepare.py` | Surgical action recognition | N (auto) |
 
-- **评测入口**：`python -m evals.main --fname <config.yaml> --devices cuda:0`
-- **Foundation probing 配置与加模型**：见 **[evals/foundation_phase_probing/README.md](evals/foundation_phase_probing/README.md)**
-- **YAML 根目录**：`configs/foundation_model_probing/...`
-- **权重与数据**：在 YAML 中指向本地路径；`ckpts/`、`data/` 等大文件勿提交（见 `.gitignore`）
+### Example: Prepare Cholec80
+
+```bash
+python data_process/cholect80_prepare.py \
+    --frames_root data/Surge_Frames/Cholec80/frames \
+    --annot_dir data/Landscopy/cholec80/phase_annotations \
+    --output_dir data/Surge_Frames/Cholec80 \
+    --debug
+```
+
+After preprocessing, use `gen_clips.py` (if needed) to create sliding-window clips for dense training:
+
+```bash
+python data_process/gen_clips.py \
+    --input_csv data/Surge_Frames/Cholec80/train_metadata.csv \
+    --output_dir data/Surge_Frames/Cholec80/clips_64f \
+    --window_size 64 --stride 1
+```
+
+## Run Foundation Probing
+
+### Single Task
+
+```bash
+python -m evals.main \
+    --fname configs/foundation_model_probing/dinov3/AutoLaparo/dinov3_vitl_64f_AutoLaparo.yaml \
+    --devices cuda:0
+```
+
+### Batch (Multi-GPU Parallel)
+
+Edit the task list in `scripts/run_foundation_probing.sh`, then run:
+
+```bash
+bash scripts/run_foundation_probing.sh
+```
+
+The script auto-assigns one GPU per task from the available pool (default: all 8 GPUs). Logs are saved under `logs/foundation/<Dataset>/`.
+
+### Supported Foundation Models
+
+| Model | Identifier | Architecture |
+|-------|-----------|--------------|
+| DINOv2 | `dinov2` | ViT-L |
+| DINOv3 | `dinov3` | ViT-L |
+| EndoFM | `endofm` | ViT-B |
+| EndoMamba | `endomamba` | Mamba-S |
+| EndoSSL | `endossl` | ViT-L |
+| EndoViT | `endovit` | ViT-L |
+| GastroNet | `gastronet` | ViT-S |
+| GSViT | `gsvit` | ViT |
+| InternVideo | `internvideo` | — |
+| InternVideo-Next | `internvideo_next` | — |
+| NSJepa | `nsjepa` | — |
+| SelfSupSurg | `selfsupsurg` | ResNet-50 |
+| SurgeNet | `surgenet` | CAFormer-XL |
+| SurgVLP | `surgvlp` | ResNet-50 |
+| VideoMAEv2 | `videomaev2` | ViT-L |
+
+## Evaluation Metrics
+
+Benchmark scripts under `benchmark/` compute phase recognition metrics:
+
+```bash
+python benchmark/cholec80_metric_relaxed.py        # Relaxed boundary evaluation
+python benchmark/cholec80_metric_unrelaxed.py       # Strict boundary evaluation
+python benchmark/boostra_phase_multihead.py         # Bootstrap confidence intervals
+```
+
+## Add a New Dataset
+
+1. Create `data_process/<dataset>_prepare.py` following the existing template (see `polypdiag_prepare.py` for reference).
+2. Output standardized CSVs with the 6-column schema (`Index`, `clip_path`, `label`, `label_name`, `case_id`, `clip_idx`).
+3. Create YAML configs under `configs/foundation_model_probing/<model>/<Dataset>/`.
+
+## Add a New Foundation Model
+
+1. Write an adapter under `evals/foundation_phase_probing/modelcustom/adapters/`:
+
+```python
+# Input:  any shape, e.g. [B, C, F, H, W]
+# Output: [B, F*N, D]  (spatial-temporal tokens)
+```
+
+2. Register the model in `evals/foundation_phase_probing/modelcustom/foundation_model_wrapper.py`:
+
+```python
+elif model_type == 'your_model':
+    from .adapters.your_model_adapter import YourModelAdapter
+    adapter = YourModelAdapter.from_config(
+        resolution=resolution,
+        checkpoint=checkpoint,
+        model_name=model_name
+    )
+```
+
+3. Create YAML configs under `configs/foundation_model_probing/your_model/<Dataset>/`.
+4. Add entries to `scripts/run_foundation_probing.sh` and run.
+
+## Acknowledgement
+
+We thank [V-JEPA 2 (Meta)](https://github.com/facebookresearch/vjepa2) for the base framework, and [MONAI](https://github.com/Project-MONAI/research-contributions) for reference implementations.

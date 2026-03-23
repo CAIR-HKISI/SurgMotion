@@ -18,6 +18,10 @@ fvcore
 omegaconf
 iopath
 beartype
+easydict
+regex
+tqdm
+mmengine==0.7.0
 
 # 日志与实验（eval 中可选；WANDB_MODE=offline 可减少网络依赖）
 wandb
@@ -31,3 +35,4 @@ fire
 python-box
 ftfy
 braceexpand
+packaging

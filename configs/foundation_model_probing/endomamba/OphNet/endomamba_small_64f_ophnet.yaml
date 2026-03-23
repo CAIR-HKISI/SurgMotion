@@ -1,0 +1,173 @@
+cpus_per_task: 4
+eval_name: foundation_phase_probing
+folder: logs/foundation/endomamba_small_ophnet
+mem_per_gpu: 220G
+nodes: 1
+max_workers: 4
+resume_checkpoint: true
+tag: endomamba_small_64f_ophnet
+tasks_per_node: 1
+
+# wandb configuration
+wandb:
+  project: foundation-model-probing
+  entity: nsjepa
+  name: endomamba_small_64f_ophnet
+  tags:
+    - OphNet
+    - phase-probing
+    - endomamba_small_64f
+  group: null
+  notes: "Multi-head probing on OphNet dataset"
+
+experiment:
+  classifier:
+    num_heads: 16
+    num_probe_blocks: 4
+  data:
+    dataset_type: surgical_videodataset
+    dataset_train: data/Surge_Frames/OphNet2024_phase/clips_64f/train_dense_64f_detailed.csv
+    dataset_val: data/Surge_Frames/OphNet2024_phase/clips_64f/test_dense_64f_detailed.csv
+    frames_per_clip: 64
+    num_classes: 52
+    num_segments: 1
+    num_views_per_segment: 1
+    resolution: 224
+
+  optimization:
+    batch_size: 4
+    multihead_kwargs:
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.01
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.01
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.1
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.1
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.4
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.4
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.4
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.4
+    - final_lr: 0.0
+      final_weight_decay: 0.4
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.4
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.005
+      start_lr: 0.005
+      warmup: 0.0
+      weight_decay: 0.8
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.003
+      start_lr: 0.003
+      warmup: 0.0
+      weight_decay: 0.8
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.001
+      start_lr: 0.001
+      warmup: 0.0
+      weight_decay: 0.8
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.0003
+      start_lr: 0.0003
+      warmup: 0.0
+      weight_decay: 0.8
+    - final_lr: 0.0
+      final_weight_decay: 0.8
+      lr: 0.0001
+      start_lr: 0.0001
+      warmup: 0.0
+      weight_decay: 0.8
+    num_epochs: 1
+    use_bfloat16: true
+    use_pos_embed: false
+
+model_kwargs:
+  checkpoint: ckpts_foundation/endomamba_checkpoint-best.pth
+  module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
+  model_type: endomamba
+  encoder:
+    model_name: endomamba_small
+  wrapper_kwargs:
+    tubelet_size: 2
+    max_frames: 128
+    use_pos_embed: true
