@@ -1,7 +1,7 @@
 <div align="center">
 <h1>SurgMotion: A Video-Native Foundation Model for Universal Understanding of Surgical Videos</h1>
 
-<a href="https://github.com/KimWu1994/SurgMotion"><img src='https://img.shields.io/badge/GitHub-Repository-blue' alt='GitHub'></a>
+<a href="https://github.com/CAIR-HKISI/SurgMotion"></a>
 
 </div>
 
