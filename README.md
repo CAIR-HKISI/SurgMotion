@@ -9,7 +9,7 @@
 
 ![Framework](assets/framework.png)
 
-Built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2), **SurgMotion** is a video-native foundation model that shifts the learning paradigm from pixel-level reconstruction to latent motion prediction, with technical innovations tailored to surgical videos.
+**SurgMotion** is a video-native foundation model that shifts the learning paradigm from pixel-level reconstruction to latent motion prediction, with technical innovations tailored to surgical videos, built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2).
 
 
 
@@ -210,6 +210,7 @@ elif model_type == 'your_model':
 This project is built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2) by Meta. We sincerely thank the authors and contributors of the following foundation models, whose open-source efforts made this benchmark possible:
 
 - [DINOv2](https://github.com/facebookresearch/dinov2) (Meta)
+- [DINOv3](https://github.com/facebookresearch/dinov3) (Meta)
 - [Endo-FM](https://github.com/med-air/Endo-FM) (med-air)
 - [EndoMamba](https://github.com/TianCuteQY/EndoMamba) (TianCuteQY)
 - [EndoSSL](https://github.com/CAMMA-public/EndoSSL) (CAMMA, University of Strasbourg)
@@ -224,7 +225,7 @@ This project is built on top of [V-JEPA 2](https://github.com/facebookresearch/v
 - [VideoMAEv2](https://github.com/OpenGVLab/VideoMAEv2) (OpenGVLab, Shanghai AI Lab)
 
 ## Reference
-If you find our work helpful, please cite our [paper](https://arxiv.org/abs/2602.05638).
+If you find our work helpful to yours, please cite our [paper](https://arxiv.org/abs/2602.05638).
 
 Wu, J., Holm, F., Chen, C., Wang, A., Hu, Y., Ye, X., Zang, Z., Xu, M., Zhou, L., Liao, H., Chan, D.T., Feng, M., Poon, W., Ren, H., Yi, D., Navab, N., Meng, G., Luo, J., Liu, H., & Lei, Z. (2026). UniSurg: A Video-Native Foundation Model for Universal Understanding of Surgical Videos. ArXiv, abs/2602.05638.
 
