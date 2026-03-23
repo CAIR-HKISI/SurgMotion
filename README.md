@@ -7,9 +7,10 @@
 <a href="https://surgmotion.cares-copilot.com/"><img src='https://img.shields.io/badge/Project-Homepage-0A66C2' alt='Project Page'></a>
 
 </div>
-🌐 Official Project Page: [surgmotion.cares-copilot.com](https://surgmotion.cares-copilot.com/)
 
 ![Framework](assets/framework.png)
+
+🌐 Official Project Page: [SurgMotion](https://surgmotion.cares-copilot.com/)
 
 **SurgMotion** is a video-native foundation model that shifts the learning paradigm from pixel-level reconstruction to latent motion prediction, with technical innovations tailored to surgical videos, built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2).
 
