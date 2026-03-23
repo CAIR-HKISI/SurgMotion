@@ -8,7 +8,6 @@
 Built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2), **SurgMotion** is a video-native foundation model that shifts the learning paradigm from pixellevel reconstruction to latent motion prediction, with technical innovations tailored to surgical videos.
 
 ![Framework](assets/framework.png)
-![Framework](assets/UniSurg-teaser+.pdf)
 
 ## Quick Start
 
