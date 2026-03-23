@@ -133,15 +133,6 @@ python data_process/cholect80_prepare.py \
     --debug
 ```
 
-After preprocessing, use `gen_clips.py` (if needed) to create sliding-window clips for dense training:
-
-```bash
-python data_process/gen_clips.py \
-    --input_csv data/Surge_Frames/Cholec80/train_metadata.csv \
-    --output_dir data/Surge_Frames/Cholec80/clips_64f \
-    --window_size 64 --stride 1
-```
-
 ## Run Foundation Probing
 
 ### Single Task
