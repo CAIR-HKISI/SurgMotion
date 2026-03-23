@@ -1,0 +1,63 @@
+cpus_per_task: 1
+eval_name: depth_estimation_frozen
+dataset_type: c3vd_depth_dataset
+folder: .sisyphus/eval_runs/c3vd_depth_smoke
+nodes: 1
+resume_checkpoint: false
+tag: vjepa2-c3vd-depth-smoke
+tasks_per_node: 1
+num_workers: 0
+val_only: true
+
+experiment:
+  data:
+    dataset_root: tests/fixtures/c3vd_depth
+    val_annotation: tests/fixtures/c3vd_depth/metadata_valid.csv
+    img_size: 16
+    normalization:
+      - [0.485, 0.456, 0.406]
+      - [0.229, 0.224, 0.225]
+    random_horizontal_flip: false
+    min_depth: 0.001
+    max_depth: null
+
+  depth_head:
+    decoder_channels: [32, 16]
+    num_feature_levels: 1
+    patch_size: 16
+    target_size: [16, 16]
+    activation: softplus
+
+  metrics:
+    mode: absolute
+
+  loss:
+    l1_weight: 1.0
+    silog_weight: 0.0
+    grad_weight: 0.0
+    ssi_weight: 0.0
+
+  logging:
+    log_interval: 1
+
+  optimization:
+    batch_size: 2
+    num_epochs: 1
+    use_bfloat16: false
+    lr: 0.0001
+    final_lr: 0.0001
+    weight_decay: 0.0
+    final_weight_decay: 0.0
+    warmup: 0.0
+
+model_kwargs:
+  checkpoint: null
+  module_name: evals.depth_estimation_frozen.modelcustom.vit_encoder_depth
+  pretrain_kwargs:
+    encoder:
+      model_name: vit_tiny
+      patch_size: 16
+      num_frames: 2
+      checkpoint_key: target_encoder
+  wrapper_kwargs:
+    img_as_video_nframes: 2

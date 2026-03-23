@@ -151,6 +151,44 @@ def init_data(
             anticipation_horizon=anticipation_horizon,
         )
 
+    elif data.lower() == "cvc12k_segmentation_dataset":
+        from src.datasets.cvc12k_segmentation_dataset import make_cvc12k_segmentation_dataset
+
+        dataset, data_loader, dist_sampler = make_cvc12k_segmentation_dataset(
+            data_paths=image_folder,
+            batch_size=batch_size,
+            transform=transform,
+            rank=rank,
+            world_size=world_size,
+            collator=collator,
+            drop_last=drop_last,
+            num_workers=num_workers,
+            pin_mem=pin_mem,
+            persistent_workers=persistent_workers,
+            training=training,
+            deterministic=deterministic,
+            root_path=root_path,
+        )
+
+    elif data.lower() == "c3vd_depth_dataset":
+        from src.datasets.c3vd_depth_dataset import make_c3vd_depth_dataset
+
+        dataset, data_loader, dist_sampler = make_c3vd_depth_dataset(
+            data_paths=root_path,
+            batch_size=batch_size,
+            dataset_root=image_folder,
+            transform=transform,
+            rank=rank,
+            world_size=world_size,
+            collator=collator,
+            drop_last=drop_last,
+            num_workers=num_workers,
+            pin_mem=pin_mem,
+            persistent_workers=persistent_workers,
+            deterministic=deterministic,
+            training=training,
+        )
+
     return (data_loader, dist_sampler)
 
 if __name__ == "__main__":
