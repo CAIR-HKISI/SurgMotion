@@ -1,6 +1,5 @@
 <div align="center">
 <h1>SurgMotion: A Video-Native Foundation Model for Universal Understanding of Surgical Videos</h1>
-<a> 🌐 Official Project Page: [surgmotion.cares-copilot.com](https://surgmotion.cares-copilot.com/) </a>
 
 <a href="https://arxiv.org/abs/2602.05638"><img src='https://img.shields.io/badge/arXiv-2602.05638-b31b1b' alt='arXiv'></a>
 <a href="https://github.com/CAIR-HKISI/SurgMotion"><img src='https://img.shields.io/badge/GitHub-Repository-blue' alt='GitHub'></a>
@@ -8,6 +7,7 @@
 <a href="https://surgmotion.cares-copilot.com/"><img src='https://img.shields.io/badge/Project-Homepage-0A66C2' alt='Project Page'></a>
 
 </div>
+🌐 Official Project Page: [surgmotion.cares-copilot.com](https://surgmotion.cares-copilot.com/)
 
 ![Framework](assets/framework.png)
 
