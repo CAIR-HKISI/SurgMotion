@@ -53,7 +53,7 @@ SurgMotion/
 ├── foundation_models/          # Third-party model implementations (git submodules)
 ├── data/                       # Data directory
 ├── setup.py                    # pip install -e .
-└── requirements*.txt           # Layered dependency files
+└── requirements.txt            # All dependencies (excluding EndoMamba)
 ```
 
 ## Environment Installation
@@ -83,10 +83,10 @@ conda activate endomamba                 # Use only for EndoMamba configs
 
 | File | Scope |
 |------|-------|
-| `requirements-vjepa2.txt` | V-JEPA2 core only (video pipeline, `src/`) |
-| `requirements-foundation.txt` | Core + multi-model probing dependencies |
-| `requirements.txt` | Default: includes `requirements-foundation.txt` |
-| `requirements-endomamba.txt` | EndoMamba reference (use compile script instead) |
+| `requirements.txt` | All dependencies (V-JEPA2 core + foundation probing) |
+| `setup.py` | `pip install -e .` reads `requirements.txt` automatically |
+
+> EndoMamba has its own isolated environment managed by `scripts/srun_endomamba_complie.sh`.
 
 ## Data Preparation
 

@@ -1,3 +1,50 @@
-# 默认：V-JEPA2 核心 + 多基金会模型 probing（不含 EndoMamba 编译栈）
-# 分步说明见 docs/ENVIRONMENT.md
--r requirements-foundation.txt
+# SurgMotion - All-in-one dependencies (excluding EndoMamba, which needs a separate env)
+# Install PyTorch matching your CUDA version FIRST: https://pytorch.org/get-started/locally/
+
+# ---------- V-JEPA2 core ----------
+torch>=2.0
+torchvision
+numpy
+pyyaml
+timm
+einops
+opencv-python
+decord
+psutil
+scikit-image
+
+# ---------- Data & metrics ----------
+pandas
+scipy
+scikit-learn
+h5py
+
+# ---------- HuggingFace / Transformers ----------
+transformers>=4.36
+accelerate>=0.26
+peft
+huggingface_hub
+
+# ---------- Config & utilities ----------
+fvcore
+omegaconf
+iopath
+beartype
+easydict
+regex
+tqdm
+mmengine==0.7.0
+
+# ---------- Logging & experiment tracking ----------
+wandb
+tensorboard
+
+# ---------- Distributed / SLURM ----------
+submitit
+
+# ---------- Misc ----------
+fire
+python-box
+ftfy
+braceexpand
+packaging
