@@ -52,6 +52,7 @@ SLURM_Logs/
 
 # ========= Data & local config (do not commit) =========
 data/
+data
 configs/local
 
 # ========= Visualization / eval outputs =========
