@@ -161,19 +161,17 @@ The script auto-assigns one GPU per task from the available pool (default: all 8
 
 | Model | Identifier | Architecture | Source |
 |-------|-----------|--------------|--------|
-| DINOv2 / DINOv3 | `dinov3` | ViT-L, ViT-H | [Meta](https://github.com/facebookresearch/dinov2) |
-| Endo-FM | `endofm` | ViT-B | [med-air](https://github.com/med-air/Endo-FM) |
-| EndoMamba | `endomamba` | Mamba-S | [TianCuteQY](https://github.com/TianCuteQY/EndoMamba) |
-| EndoSSL | `endossl` | ViT-L | [CAMMA](https://github.com/CAMMA-public/EndoSSL) |
-| EndoViT | `endovit` | ViT-L | [DominikBatic](https://github.com/DominikBatic/EndoViT) |
-| GastroNet | `gastronet` | ViT-S | [Dotchen](https://github.com/Dotchen/GastroNet) |
-| GSViT | `gsvit` | ViT | [SamuelSchmidgall](https://github.com/SamuelSchmidgall/GSViT) |
-| InternVideo | `internvideo` | ViT | [OpenGVLab](https://github.com/OpenGVLab/InternVideo) |
-| SelfSupSurg | `selfsupsurg` | ResNet-50 | [CAMMA](https://github.com/CAMMA-public/SelfSupSurg) |
-| SurgeNet | `surgenet` | CAFormer-XL, ConvNeXtV2 | [TimJaspers0801](https://github.com/TimJaspers0801/SurgeNet) |
-| SurgVISTA | `surgvista` | ViT | [IPMI-ICNS-UKE](https://github.com/IPMI-ICNS-UKE/SurgVISTA) |
-| SurgVLP | `surgvlp` | ResNet-50 | [CAMMA](https://github.com/CAMMA-public/SurgVLP) |
-| VideoMAEv2 | `videomaev2` | ViT-L, ViT-H, ViT-g | [OpenGVLab](https://github.com/OpenGVLab/VideoMAEv2) |
+| DINOv2 / DINOv3 | `dinov3` | ViT-L, ViT-H | [Github](https://github.com/facebookresearch/dinov2) |
+| Endo-FM | `endofm` | ViT-B | [Github](https://github.com/med-air/Endo-FM) |
+| EndoMamba | `endomamba` | Mamba-S | [Github](https://github.com/TianCuteQY/EndoMamba) |
+| EndoSSL | `endossl` | ViT-L | [Github](https://github.com/royhirsch/endossl) |
+| EndoViT | `endovit` | ViT-L | [Github](https://github.com/DominikBatic/EndoViT) |
+| GastroNet | `gastronet` | ViT-S | [IEEE Xplore](https://ieeexplore.ieee.org/document/10243003) |
+| GSViT | `gsvit` | ViT | [Github](https://github.com/SamuelSchmidgall/GSViT) |
+| SelfSupSurg | `selfsupsurg` | ResNet-50 | [Github](https://github.com/CAMMA-public/SelfSupSurg) |
+| SurgeNet | `surgenet` | CAFormer-XL, ConvNeXtV2 | [Github](https://github.com/TimJaspers0801/SurgeNet) |
+| SurgVLP | `surgvlp` | ResNet-50 | [Github](https://github.com/CAMMA-public/SurgVLP) |
+| VideoMAEv2 | `videomaev2` | ViT-L, ViT-H, ViT-g | [Github](https://github.com/OpenGVLab/VideoMAEv2) |
 
 ## Add a New Dataset
 
@@ -209,20 +207,19 @@ elif model_type == 'your_model':
 
 This project is built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2) by Meta. We sincerely thank the authors and contributors of the following foundation models, whose open-source efforts made this benchmark possible:
 
-- [DINOv2](https://github.com/facebookresearch/dinov2) (Meta)
-- [DINOv3](https://github.com/facebookresearch/dinov3) (Meta)
-- [Endo-FM](https://github.com/med-air/Endo-FM) (med-air)
-- [EndoMamba](https://github.com/TianCuteQY/EndoMamba) (TianCuteQY)
-- [EndoSSL](https://github.com/CAMMA-public/EndoSSL) (CAMMA, University of Strasbourg)
-- [EndoViT](https://github.com/DominikBatic/EndoViT) (DominikBatic)
-- [GastroNet](https://github.com/Dotchen/GastroNet) (Dotchen)
-- [GSViT](https://github.com/SamuelSchmidgall/GSViT) (SamuelSchmidgall)
-- [InternVideo](https://github.com/OpenGVLab/InternVideo) (OpenGVLab, Shanghai AI Lab)
-- [SelfSupSurg](https://github.com/CAMMA-public/SelfSupSurg) (CAMMA, University of Strasbourg)
-- [SurgeNet](https://github.com/TimJaspers0801/SurgeNet) (TimJaspers0801)
-- [SurgVISTA](https://github.com/IPMI-ICNS-UKE/SurgVISTA) (IPMI-ICNS-UKE)
-- [SurgVLP](https://github.com/CAMMA-public/SurgVLP) (CAMMA, University of Strasbourg)
-- [VideoMAEv2](https://github.com/OpenGVLab/VideoMAEv2) (OpenGVLab, Shanghai AI Lab)
+- [DINOv2](https://github.com/facebookresearch/dinov2)
+- [DINOv3](https://github.com/facebookresearch/dinov3)
+- [Endo-FM](https://github.com/med-air/Endo-FM)
+- [EndoMamba](https://github.com/TianCuteQY/EndoMamba)
+- [EndoSSL](https://github.com/royhirsch/endossl)
+- [EndoViT](https://github.com/DominikBatic/EndoViT)
+- [GastroNet](https://ieeexplore.ieee.org/document/10243003)
+- [GSViT](https://github.com/SamuelSchmidgall/GSViT)
+- [SelfSupSurg](https://github.com/CAMMA-public/SelfSupSurg)
+- [SurgeNet](https://github.com/TimJaspers0801/SurgeNet)
+- [SurgVISTA](https://github.com/isyangshu/SurgVISTA)
+- [SurgVLP](https://github.com/CAMMA-public/SurgVLP)
+- [VideoMAEv2](https://github.com/OpenGVLab/VideoMAEv2)
 
 ## Reference
 If you find our work helpful to yours, please cite our [paper](https://arxiv.org/abs/2602.05638).
