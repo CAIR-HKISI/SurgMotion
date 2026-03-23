@@ -50,10 +50,9 @@ SurgMotion/
 │   ├── polypdiag_prepare.py
 │   └── surgicalactions160_prepare.py
 ├── scripts/                    # Batch probing & environment setup shells
-├── benchmark/                  # Metric computation (relaxed / unrelaxed / bootstrap)
 ├── foundation_models/          # Third-party model implementations (git submodules)
-├── data -> NSJepa/data         # Symlink to shared data directory
-├── setup.py                    # pip install -e . (package: vjepa2)
+├── data/                       # Data directory
+├── setup.py                    # pip install -e .
 └── requirements*.txt           # Layered dependency files
 ```
 
@@ -167,7 +166,6 @@ The script auto-assigns one GPU per task from the available pool (default: all 8
 
 | Model | Identifier | Architecture |
 |-------|-----------|--------------|
-| DINOv2 | `dinov2` | ViT-L |
 | DINOv3 | `dinov3` | ViT-L |
 | EndoFM | `endofm` | ViT-B |
 | EndoMamba | `endomamba` | Mamba-S |
@@ -175,23 +173,10 @@ The script auto-assigns one GPU per task from the available pool (default: all 8
 | EndoViT | `endovit` | ViT-L |
 | GastroNet | `gastronet` | ViT-S |
 | GSViT | `gsvit` | ViT |
-| InternVideo | `internvideo` | — |
-| InternVideo-Next | `internvideo_next` | — |
-| NSJepa | `nsjepa` | — |
 | SelfSupSurg | `selfsupsurg` | ResNet-50 |
 | SurgeNet | `surgenet` | CAFormer-XL |
 | SurgVLP | `surgvlp` | ResNet-50 |
 | VideoMAEv2 | `videomaev2` | ViT-L |
-
-## Evaluation Metrics
-
-Benchmark scripts under `benchmark/` compute phase recognition metrics:
-
-```bash
-python benchmark/cholec80_metric_relaxed.py        # Relaxed boundary evaluation
-python benchmark/cholec80_metric_unrelaxed.py       # Strict boundary evaluation
-python benchmark/boostra_phase_multihead.py         # Bootstrap confidence intervals
-```
 
 ## Add a New Dataset
 
