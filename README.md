@@ -1,13 +1,15 @@
 <div align="center">
 <h1>SurgMotion: A Video-Native Foundation Model for Universal Understanding of Surgical Videos</h1>
 
-<a href="https://github.com/CAIR-HKISI/SurgMotion"></a>
+<a href="https://arxiv.org/abs/2602.05638"><img src='https://img.shields.io/badge/arXiv-2602.05638-b31b1b' alt='arXiv'></a>
+<a href="https://github.com/CAIR-HKISI/SurgMotion"><img src='https://img.shields.io/badge/GitHub-Repository-blue' alt='GitHub'></a>
+<a href="https://huggingface.co/CAIR-HKISI/SurgMotion"><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-yellow' alt='HuggingFace'></a>
 
 </div>
 
 ![Framework](assets/framework.png)
 
-Built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2), **SurgMotion** is a video-native foundation model that shifts the learning paradigm from pixellevel reconstruction to latent motion prediction, with technical innovations tailored to surgical videos.
+Built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2), **SurgMotion** is a video-native foundation model that shifts the learning paradigm from pixel-level reconstruction to latent motion prediction, with technical innovations tailored to surgical videos.
 
 
 
@@ -157,19 +159,21 @@ The script auto-assigns one GPU per task from the available pool (default: all 8
 
 ### Supported Foundation Models
 
-| Model | Identifier | Architecture |
-|-------|-----------|--------------|
-| DINOv3 | `dinov3` | ViT-L |
-| EndoFM | `endofm` | ViT-B |
-| EndoMamba | `endomamba` | Mamba-S |
-| EndoSSL | `endossl` | ViT-L |
-| EndoViT | `endovit` | ViT-L |
-| GastroNet | `gastronet` | ViT-S |
-| GSViT | `gsvit` | ViT |
-| SelfSupSurg | `selfsupsurg` | ResNet-50 |
-| SurgeNet | `surgenet` | CAFormer-XL |
-| SurgVLP | `surgvlp` | ResNet-50 |
-| VideoMAEv2 | `videomaev2` | ViT-L |
+| Model | Identifier | Architecture | Source |
+|-------|-----------|--------------|--------|
+| DINOv2 / DINOv3 | `dinov3` | ViT-L, ViT-H | [Meta](https://github.com/facebookresearch/dinov2) |
+| Endo-FM | `endofm` | ViT-B | [med-air](https://github.com/med-air/Endo-FM) |
+| EndoMamba | `endomamba` | Mamba-S | [TianCuteQY](https://github.com/TianCuteQY/EndoMamba) |
+| EndoSSL | `endossl` | ViT-L | [CAMMA](https://github.com/CAMMA-public/EndoSSL) |
+| EndoViT | `endovit` | ViT-L | [DominikBatic](https://github.com/DominikBatic/EndoViT) |
+| GastroNet | `gastronet` | ViT-S | [Dotchen](https://github.com/Dotchen/GastroNet) |
+| GSViT | `gsvit` | ViT | [SamuelSchmidgall](https://github.com/SamuelSchmidgall/GSViT) |
+| InternVideo | `internvideo` | ViT | [OpenGVLab](https://github.com/OpenGVLab/InternVideo) |
+| SelfSupSurg | `selfsupsurg` | ResNet-50 | [CAMMA](https://github.com/CAMMA-public/SelfSupSurg) |
+| SurgeNet | `surgenet` | CAFormer-XL, ConvNeXtV2 | [TimJaspers0801](https://github.com/TimJaspers0801/SurgeNet) |
+| SurgVISTA | `surgvista` | ViT | [IPMI-ICNS-UKE](https://github.com/IPMI-ICNS-UKE/SurgVISTA) |
+| SurgVLP | `surgvlp` | ResNet-50 | [CAMMA](https://github.com/CAMMA-public/SurgVLP) |
+| VideoMAEv2 | `videomaev2` | ViT-L, ViT-H, ViT-g | [OpenGVLab](https://github.com/OpenGVLab/VideoMAEv2) |
 
 ## Add a New Dataset
 
@@ -203,5 +207,35 @@ elif model_type == 'your_model':
 
 ## Acknowledgement
 
-We thank [V-JEPA 2 (Meta)](https://github.com/facebookresearch/vjepa2) for the base framework.
-We thank [Dino V3 (Meta)](https://github.com/facebookresearch/dinov3) for the baseline....
+This project is built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2) by Meta. We sincerely thank the authors and contributors of the following foundation models, whose open-source efforts made this benchmark possible:
+
+- [DINOv2](https://github.com/facebookresearch/dinov2) (Meta)
+- [Endo-FM](https://github.com/med-air/Endo-FM) (med-air)
+- [EndoMamba](https://github.com/TianCuteQY/EndoMamba) (TianCuteQY)
+- [EndoSSL](https://github.com/CAMMA-public/EndoSSL) (CAMMA, University of Strasbourg)
+- [EndoViT](https://github.com/DominikBatic/EndoViT) (DominikBatic)
+- [GastroNet](https://github.com/Dotchen/GastroNet) (Dotchen)
+- [GSViT](https://github.com/SamuelSchmidgall/GSViT) (SamuelSchmidgall)
+- [InternVideo](https://github.com/OpenGVLab/InternVideo) (OpenGVLab, Shanghai AI Lab)
+- [SelfSupSurg](https://github.com/CAMMA-public/SelfSupSurg) (CAMMA, University of Strasbourg)
+- [SurgeNet](https://github.com/TimJaspers0801/SurgeNet) (TimJaspers0801)
+- [SurgVISTA](https://github.com/IPMI-ICNS-UKE/SurgVISTA) (IPMI-ICNS-UKE)
+- [SurgVLP](https://github.com/CAMMA-public/SurgVLP) (CAMMA, University of Strasbourg)
+- [VideoMAEv2](https://github.com/OpenGVLab/VideoMAEv2) (OpenGVLab, Shanghai AI Lab)
+
+## Reference
+If you find our work helpful, please cite our [paper](https://arxiv.org/abs/2602.05638).
+
+Wu, J., Holm, F., Chen, C., Wang, A., Hu, Y., Ye, X., Zang, Z., Xu, M., Zhou, L., Liao, H., Chan, D.T., Feng, M., Poon, W., Ren, H., Yi, D., Navab, N., Meng, G., Luo, J., Liu, H., & Lei, Z. (2026). UniSurg: A Video-Native Foundation Model for Universal Understanding of Surgical Videos. ArXiv, abs/2602.05638.
+
+```bash
+@misc{wu2026unisurgvideonativefoundationmodel,
+      title={UniSurg: A Video-Native Foundation Model for Universal Understanding of Surgical Videos}, 
+      author={Jinlin Wu and Felix Holm and Chuxi Chen and An Wang and Yaxin Hu and Xiaofan Ye and Zelin Zang and Miao Xu and Lihua Zhou and Huai Liao and Danny T. M. Chan and Ming Feng and Wai S. Poon and Hongliang Ren and Dong Yi and Nassir Navab and Gaofeng Meng and Jiebo Luo and Hongbin Liu and Zhen Lei},
+      year={2026},
+      eprint={2602.05638},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2602.05638}, 
+}
+```
