@@ -7,3 +7,9 @@
 [submodule "foundation_models/GSViT"]
 	path = foundation_models/GSViT
 	url = https://github.com/SamuelSchmidgall/GSViT.git
+[submodule "foundation_models/EndoMamba"]
+	path = foundation_models/EndoMamba
+	url = https://github.com/TianCuteQY/EndoMamba.git
+[submodule "foundation_models/SurgeNet"]
+	path = foundation_models/SurgeNet
+	url = https://github.com/TimJaspers0801/SurgeNet.git
