@@ -204,4 +204,4 @@ elif model_type == 'your_model':
 ## Acknowledgement
 
 We thank [V-JEPA 2 (Meta)](https://github.com/facebookresearch/vjepa2) for the base framework.
-We thank [Dino V3 (Meta)](https://github.com/facebookresearch/dinov3) for the baseline.
+We thank [Dino V3 (Meta)](https://github.com/facebookresearch/dinov3) for the baseline....
