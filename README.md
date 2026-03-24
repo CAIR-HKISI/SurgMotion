@@ -56,10 +56,10 @@ SurgMotion/
 │   └── foundation_phase_probing/
 │       ├── eval.py             # Probing evaluation logic
 │       ├── models.py           # Probing head definitions
-│       └── modelcustom/        # Per-model adapters (DINOv2, EndoViT, SurgVLP, …)
+│       └── modelcustom/        # Per-model adapters (SurgMotion, DINOv3, SurgVLP, …)
 ├── configs/
 │   └── foundation_model_probing/
-│       ├── dinov2/             # YAML configs per dataset
+│       ├── surgmotion/         # YAML configs per dataset
 │       ├── dinov3/
 │       ├── endofm/
 │       ├── …                   # 15 model families supported
