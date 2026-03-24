@@ -33,7 +33,7 @@ Key innovations:
 
 ### Performance Highlights
 
-SurgMotion achieves **SOTA on 5 out of 6** representative surgical tasks (workflow, action, segmentation, triplet, skill), while remaining competitive on depth estimation. For detailed results, see our [paper](https://arxiv.org/abs/2602.05638) and [project page](https://surgmotion.cares-copilot.com/).
+SurgMotion achieves **SOTA on all** representative surgical tasks (workflow, action, segmentation, triplet, skill, depth estimation). For detailed results, see our [paper](https://arxiv.org/abs/2602.05638) and [project page](https://surgmotion.cares-copilot.com/).
 
 ## Quick Start
 
