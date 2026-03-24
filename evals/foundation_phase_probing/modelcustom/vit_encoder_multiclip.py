@@ -59,8 +59,6 @@ def init_module(
     # --
     pretrained_dict = {k.replace("module.", ""): v for k, v in pretrained_dict.items()}
     pretrained_dict = {k.replace("backbone.", ""): v for k, v in pretrained_dict.items()}
-    pretrained_dict = {k.replace("encoder.", ""): v for k, v in pretrained_dict.items()}
-    
     for k, v in model.state_dict().items():
         if k not in pretrained_dict:
             logger.info(f'key "{k}" could not be found in loaded state dict')
@@ -82,7 +80,7 @@ def init_module(
 
 class ClipAggregation(nn.Module):
     """
-    Process each clip independently and concatenate all tokens
+    Process each clip indepdnently and concatenate all tokens
     """
 
     def __init__(
@@ -149,111 +147,3 @@ class ClipAggregation(nn.Module):
             return all_outputs
 
         return multiviews_postprocess(outputs)
-
-
-def log_param_changes(model, logger, before_params, tag_before="before_load", tag_after="after_load", threshold=1e-5):
-    """
-    Compare and log parameter changes before and after loading weights.
-
-    - before_params: model state_dict before loading
-    - threshold: numerical difference threshold; only log if exceeded
-    """
-    logger.info(f"==== Parameter change comparison ({tag_before} vs {tag_after}) ====")
-    changed_count = 0
-    total_params = 0
-
-    after_params = model.state_dict()
-
-    for key in after_params:
-        total_params += 1
-        if key not in before_params:
-            logger.info(f'[New parameter] {key}')
-            changed_count += 1
-            continue
-        diff = (after_params[key] - before_params[key]).abs().max().item()
-        if diff > threshold:
-            changed_count += 1
-            logger.info(f'Parameter {key} changed significantly, max(abs diff)={diff:.6e}')
-    
-    logger.info(f"Total parameters: {total_params}, changed or new parameters: {changed_count}")
-
-def init_videomae_module(
-    resolution: int,
-    frames_per_clip: int,
-    checkpoint: str,
-    # --
-    model_kwargs: dict,
-    wrapper_kwargs: dict,
-):
-    logger.info(f"Loading pretrained model from {checkpoint}")
-    checkpoint = torch.load(checkpoint, map_location="cpu", weights_only=False)
-    # logger.info(checkpoint['model'].keys())
-
-    enc_kwargs = model_kwargs["encoder"]
-    enc_ckp_key = enc_kwargs.get("checkpoint_key")
-    enc_model_name = enc_kwargs.get("model_name")
-
-    model = vit.__dict__[enc_model_name](img_size=resolution, num_frames=frames_per_clip, **enc_kwargs)
-    # Snapshot parameters before loading
-    before_state_dict = {k: v.clone() for k, v in model.state_dict().items()}
-
-    pretrained_dict = checkpoint[enc_ckp_key]
-    # --
-    pretrained_dict = {k.replace("module.", ""): v for k, v in pretrained_dict.items()}
-    pretrained_dict = {k.replace("backbone.", ""): v for k, v in pretrained_dict.items()}
-    pretrained_dict = {k.replace("encoder.", ""): v for k, v in pretrained_dict.items()}
-    for k, v in model.state_dict().items():
-        if k not in pretrained_dict:
-            logger.info(f'key "{k}" could not be found in loaded state dict')
-        elif pretrained_dict[k].shape != v.shape:
-            logger.info(f'key "{k}" is of different shape in model and loaded state dict')
-            pretrained_dict[k] = v
-    msg = model.load_state_dict(pretrained_dict, strict=False)
-    logger.info(f"loaded pretrained model with msg: {msg}")
-
-    # Compare differences and log
-    log_param_changes(model, logger, before_state_dict, tag_before="before_load", tag_after="after_load", threshold=1e-5)
-    print(model)
-
-    model = ClipAggregation(
-        model,
-        tubelet_size=model.tubelet_size,
-        **wrapper_kwargs,
-    )
-    del checkpoint
-    return model
-
-
-# Added in evals/video_classification_frozen/modelcustom.py
-from transformers import AutoModel, AutoVideoProcessor
-
-def hf_model_loader(model_name_or_path):
-    """Load HuggingFace model and processor."""
-    model = AutoModel.from_pretrained(model_name_or_path, trust_remote_code=True)
-    model.eval()  # Freeze weights
-    return model
-
-def hf_videomae_feature_extractor(model, x):
-    """
-    Feature extraction for VideoMAE (HuggingFace format).
-    x: input tensor [B, C, T, H, W] (must match model input format)
-    Returns: patch features [B, num_patches, embed_dim]
-    """
-    with torch.inference_mode():
-        # VideoMAE expects [B, T, C, H, W]; permute dimensions
-        x = x.permute(0, 2, 1, 3, 4)  # [B, T, C, H, W]
-        outputs = model(x, output_hidden_states=True)
-        # Take last hidden state, exclude cls token (index 0)
-        patch_features = outputs.hidden_states[-1][:, :, 1:]  # [B, T, num_patches, embed_dim]
-        # Temporal aggregation (e.g., mean) can be added here if needed
-        return patch_features.mean(dim=1)  # [B, num_patches, embed_dim]
-
-def hf_timesformer_feature_extractor(model, x):
-    """Feature extraction for TimeSformer."""
-    with torch.inference_mode():
-        x = x.permute(0, 2, 1, 3, 4)  # [B, T, C, H, W]
-        outputs = model(x, output_hidden_states=True)
-        # TimeSformer typically has no cls token; use all patch features directly
-        patch_features = outputs.hidden_states[-1]  # [B, T, num_patches, embed_dim]
-        return patch_features.mean(dim=1)  # [B, num_patches, embed_dim]
-

@@ -162,7 +162,7 @@ experiment:
     use_pos_embed: false
 
 model_kwargs:
-  checkpoint: null
+  checkpoint: ckpts_foundation/endo-fm_ckpt.pth
   module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
   model_type: endofm
   encoder:

@@ -166,7 +166,7 @@ model_kwargs:
   module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
   model_type: endomamba
   encoder:
-    model_name: endomamba_small
+    model_name: endomamba
   wrapper_kwargs:
     tubelet_size: 2
     max_frames: 128

@@ -164,7 +164,7 @@ experiment:
 model_kwargs:
   checkpoint: null
   module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
-  model_type: videomae
+  model_type: videomaev2
   encoder:
     model_name: videomaev2_giant
   wrapper_kwargs:

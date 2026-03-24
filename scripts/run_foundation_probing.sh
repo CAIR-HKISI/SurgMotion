@@ -48,6 +48,7 @@ NUM_GPUS=${#GPU_LIST[@]}
 # --- Example: AutoLaparo across all models ---
 TASKS=(
     #"endomamba/AutoLaparo"
+    "surgmotion/AutoLaparo"
     "gastronet/AutoLaparo"
     "dinov3/AutoLaparo"
     "endofm/AutoLaparo"
@@ -62,6 +63,7 @@ TASKS=(
 
 FNAMES=(
     #"endomamba_small_64f_autolaparo.yaml"
+    "surgmotion_vitl_64f_autolaparo.yaml"
     "gastronet_vits_64f_autolaparo.yaml"
     "dinov3_vitl_64f_autolaparo.yaml"
     "endofm_vitb_64f_autolaparo.yaml"

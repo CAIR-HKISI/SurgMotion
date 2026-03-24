@@ -166,7 +166,7 @@ model_kwargs:
   module_name: evals.foundation_phase_probing.modelcustom.foundation_model_wrapper
   model_type: surgenet
   encoder:
-    model_name: surgenetxl
+    model_name: surgenetxl_caformer
   wrapper_kwargs:
     tubelet_size: 2
     max_frames: 128
