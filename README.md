@@ -23,7 +23,7 @@ Key innovations:
 
 | Variant | Backbone | Parameters | Pre-training Data |
 |---------|----------|------------|-------------------|
-|  [SurgMotion-G](https://huggingface.co/CAIR-HKISI/SurgMotion/blob/main/SurgMotion-vitg-xformer.pt)  | ViT-Giant-xformer | 1.01B | SurgMotion-15M |
+|  [SurgMotion-G](https://huggingface.co/CAIR-HKISI/SurgMotion/blob/main/SurgMotion-vitg-xformer.pt)  | ViT-Giant-xformer | 1B | SurgMotion-15M |
 
 ### Architecture
 
