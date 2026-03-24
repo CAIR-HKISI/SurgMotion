@@ -8,6 +8,7 @@
 
 </div>
 
+![Main](assets/main.png)
 ![Framework](assets/framework.png)
 
 🌐 Official Project Page: [SurgMotion](https://surgmotion.cares-copilot.com/)
