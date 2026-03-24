@@ -9,12 +9,11 @@
 </div>
 
 ![Main](assets/main.png)
-![Framework](assets/framework.png)
 
 **SurgMotion** is a video-native foundation model that shifts the learning paradigm from pixel-level reconstruction to latent motion prediction, with technical innovations tailored to surgical videos, built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2).
 
 ## Model Overview
-
+![Framework](assets/framework.png)
 Key innovations:
 - **Latent motion prediction** — shifts from pixel-level reconstruction to abstract motion forecasting in latent space
 - **Flow-Guided Latent Prediction** — a novel objective that prevents feature collapse in homogeneous surgical tissue regions
