@@ -74,6 +74,7 @@ SurgMotion/
 │   ├── pmlr50_prepare.py
 │   ├── polypdiag_prepare.py
 │   └── surgicalactions160_prepare.py
+├── ckpts/                      # Store all the foundation models
 ├── scripts/                    # Batch probing & environment setup shells
 ├── foundation_models/          # Third-party model implementations (git submodules)
 ├── data/                       # Data directory
