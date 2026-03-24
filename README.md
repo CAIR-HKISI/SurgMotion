@@ -1,21 +1,42 @@
 <div align="center">
 <h1>SurgMotion: A Video-Native Foundation Model for Universal Understanding of Surgical Videos</h1>
 
+<a href="https://surgmotion.cares-copilot.com/"><img src='https://img.shields.io/badge/Project-Homepage-0A66C2' alt='Project Page'></a>
 <a href="https://arxiv.org/abs/2602.05638"><img src='https://img.shields.io/badge/arXiv-2602.05638-b31b1b' alt='arXiv'></a>
 <a href="https://github.com/CAIR-HKISI/SurgMotion"><img src='https://img.shields.io/badge/GitHub-Repository-blue' alt='GitHub'></a>
 <a href="https://huggingface.co/CAIR-HKISI/SurgMotion"><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model-yellow' alt='HuggingFace'></a>
-<a href="https://surgmotion.cares-copilot.com/"><img src='https://img.shields.io/badge/Project-Homepage-0A66C2' alt='Project Page'></a>
 
 </div>
 
 ![Main](assets/main.png)
 ![Framework](assets/framework.png)
 
-🌐 Official Project Page: [SurgMotion](https://surgmotion.cares-copilot.com/)
-
 **SurgMotion** is a video-native foundation model that shifts the learning paradigm from pixel-level reconstruction to latent motion prediction, with technical innovations tailored to surgical videos, built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2).
 
+## Model Overview
 
+Key innovations:
+- **Latent motion prediction** — shifts from pixel-level reconstruction to abstract motion forecasting in latent space
+- **Flow-Guided Latent Prediction** — a novel objective that prevents feature collapse in homogeneous surgical tissue regions
+- **Pre-trained on SurgMotion-15M** — the largest multi-modal surgical video dataset to date (15M frames, 3,658 hours, 13+ anatomical regions)
+
+### Model Variants
+
+| Variant | Backbone | Parameters | Pre-training Data |
+|---------|----------|------------|-------------------|
+| SurgMotion-L | ViT-Large | 300M | SurgMotion-15M |
+| SurgMotion-H | ViT-Huge | 600M | SurgMotion-15M |
+| SurgMotion-G | ViT-Giant | 1.01B | SurgMotion-15M |
+
+### Architecture
+
+1. **Video Encoder (ViT)** — processes 64-frame surgical video clips into spatiotemporal token sequences
+2. **Latent Predictor** — predicts masked region representations in latent space guided by optical flow
+3. **Probing Head** — lightweight temporal classifier for downstream phase recognition
+
+### Performance Highlights
+
+SurgMotion achieves **SOTA on 5 out of 6** representative surgical tasks (workflow, action, segmentation, triplet, skill), while remaining competitive on depth estimation. For detailed results, see our [paper](https://arxiv.org/abs/2602.05638) and [project page](https://surgmotion.cares-copilot.com/).
 
 ## Quick Start
 
@@ -24,7 +45,6 @@
   - [Data Preparation](#data-preparation)
 - **Usage**:
   - [Run Foundation Probing](#run-foundation-probing)
-  - [Evaluation Metrics](#evaluation-metrics)
 - **Extend**:
   - [Add a New Dataset](#add-a-new-dataset)
   - [Add a New Foundation Model](#add-a-new-foundation-model)
@@ -147,7 +167,7 @@ python data_process/cholect80_prepare.py \
 
 ```bash
 python -m evals.main \
-    --fname configs/foundation_model_probing/dinov3/AutoLaparo/dinov3_vitl_64f_AutoLaparo.yaml \
+    --fname configs/foundation_model_probing/dinov3/AutoLaparo/dinov3_vitl_64f_autolaparo.yaml \
     --devices cuda:0
 ```
 
@@ -165,17 +185,17 @@ The script auto-assigns one GPU per task from the available pool (default: all 8
 
 | Model | Identifier | Architecture | Source |
 |-------|-----------|--------------|--------|
-| DINOv2 / DINOv3 | `dinov3` | ViT-L, ViT-H | [Github](https://github.com/facebookresearch/dinov2) |
-| Endo-FM | `endofm` | ViT-B | [Github](https://github.com/med-air/Endo-FM) |
-| EndoMamba | `endomamba` | Mamba-S | [Github](https://github.com/TianCuteQY/EndoMamba) |
-| EndoSSL | `endossl` | ViT-L | [Github](https://github.com/royhirsch/endossl) |
-| EndoViT | `endovit` | ViT-L | [Github](https://github.com/DominikBatic/EndoViT) |
+| DINOv2 / DINOv3 | `dinov3` | ViT-L, ViT-H | [GitHub](https://github.com/facebookresearch/dinov2) |
+| Endo-FM | `endofm` | ViT-B | [GitHub](https://github.com/med-air/Endo-FM) |
+| EndoMamba | `endomamba` | Mamba-S | [GitHub](https://github.com/TianCuteQY/EndoMamba) |
+| EndoSSL | `endossl` | ViT-L | [GitHub](https://github.com/royhirsch/endossl) |
+| EndoViT | `endovit` | ViT-L | [GitHub](https://github.com/DominikBatic/EndoViT) |
 | GastroNet | `gastronet` | ViT-S | [IEEE Xplore](https://ieeexplore.ieee.org/document/10243003) |
-| GSViT | `gsvit` | ViT | [Github](https://github.com/SamuelSchmidgall/GSViT) |
-| SelfSupSurg | `selfsupsurg` | ResNet-50 | [Github](https://github.com/CAMMA-public/SelfSupSurg) |
-| SurgeNet | `surgenet` | CAFormer-XL, ConvNeXtV2 | [Github](https://github.com/TimJaspers0801/SurgeNet) |
-| SurgVLP | `surgvlp` | ResNet-50 | [Github](https://github.com/CAMMA-public/SurgVLP) |
-| VideoMAEv2 | `videomaev2` | ViT-L, ViT-H, ViT-g | [Github](https://github.com/OpenGVLab/VideoMAEv2) |
+| GSViT | `gsvit` | ViT | [GitHub](https://github.com/SamuelSchmidgall/GSViT) |
+| SelfSupSurg | `selfsupsurg` | ResNet-50 | [GitHub](https://github.com/CAMMA-public/SelfSupSurg) |
+| SurgeNet | `surgenet` | CAFormer-XL, ConvNeXtV2 | [GitHub](https://github.com/TimJaspers0801/SurgeNet) |
+| SurgVLP | `surgvlp` | ResNet-50 | [GitHub](https://github.com/CAMMA-public/SurgVLP) |
+| VideoMAEv2 | `videomaev2` | ViT-L, ViT-H, ViT-g | [GitHub](https://github.com/OpenGVLab/VideoMAEv2) |
 
 ## Add a New Dataset
 
@@ -209,28 +229,15 @@ elif model_type == 'your_model':
 
 ## Acknowledgement
 
-This project is built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2) by Meta. We sincerely thank the authors and contributors of the following foundation models, whose open-source efforts made this benchmark possible:
+This project is built on top of [V-JEPA 2](https://github.com/facebookresearch/vjepa2) by Meta. We sincerely thank the authors of the following works whose open-source models were used in our benchmark:
 
-- [DINOv2](https://github.com/facebookresearch/dinov2)
-- [DINOv3](https://github.com/facebookresearch/dinov3)
-- [Endo-FM](https://github.com/med-air/Endo-FM)
-- [EndoMamba](https://github.com/TianCuteQY/EndoMamba)
-- [EndoSSL](https://github.com/royhirsch/endossl)
-- [EndoViT](https://github.com/DominikBatic/EndoViT)
-- [GastroNet](https://ieeexplore.ieee.org/document/10243003)
-- [GSViT](https://github.com/SamuelSchmidgall/GSViT)
-- [SelfSupSurg](https://github.com/CAMMA-public/SelfSupSurg)
-- [SurgeNet](https://github.com/TimJaspers0801/SurgeNet)
-- [SurgVISTA](https://github.com/isyangshu/SurgVISTA)
-- [SurgVLP](https://github.com/CAMMA-public/SurgVLP)
-- [VideoMAEv2](https://github.com/OpenGVLab/VideoMAEv2)
+[DINOv2](https://github.com/facebookresearch/dinov2) | [Endo-FM](https://github.com/med-air/Endo-FM) | [EndoMamba](https://github.com/TianCuteQY/EndoMamba) | [EndoSSL](https://github.com/royhirsch/endossl) | [EndoViT](https://github.com/DominikBatic/EndoViT) | [GastroNet](https://ieeexplore.ieee.org/document/10243003) | [GSViT](https://github.com/SamuelSchmidgall/GSViT) | [SelfSupSurg](https://github.com/CAMMA-public/SelfSupSurg) | [SurgeNet](https://github.com/TimJaspers0801/SurgeNet) | [SurgVISTA](https://github.com/isyangshu/SurgVISTA) | [SurgVLP](https://github.com/CAMMA-public/SurgVLP) | [VideoMAEv2](https://github.com/OpenGVLab/VideoMAEv2)
 
 ## Reference
-If you find our work helpful to yours, please cite our [paper](https://arxiv.org/abs/2602.05638).
 
-Wu, J., Holm, F., Chen, C., Wang, A., Hu, Y., Ye, X., Zang, Z., Xu, M., Zhou, L., Liao, H., Chan, D.T., Feng, M., Poon, W., Ren, H., Yi, D., Navab, N., Meng, G., Luo, J., Liu, H., & Lei, Z. (2026). UniSurg: A Video-Native Foundation Model for Universal Understanding of Surgical Videos. ArXiv, abs/2602.05638.
+If you find our work helpful, please cite our [paper](https://arxiv.org/abs/2602.05638).
 
-```bash
+```bibtex
 @misc{wu2026unisurgvideonativefoundationmodel,
       title={UniSurg: A Video-Native Foundation Model for Universal Understanding of Surgical Videos}, 
       author={Jinlin Wu and Felix Holm and Chuxi Chen and An Wang and Yaxin Hu and Xiaofan Ye and Zelin Zang and Miao Xu and Lihua Zhou and Huai Liao and Danny T. M. Chan and Ming Feng and Wai S. Poon and Hongliang Ren and Dong Yi and Nassir Navab and Gaofeng Meng and Jiebo Luo and Hongbin Liu and Zhen Lei},
@@ -241,3 +248,13 @@ Wu, J., Holm, F., Chen, C., Wang, A., Hu, Y., Ye, X., Zang, Z., Xu, M., Zhou, L.
       url={https://arxiv.org/abs/2602.05638}, 
 }
 ```
+
+---
+
+<div align="center">
+
+**Centre for Artificial Intelligence and Robotics, Hong Kong Institute of Science and Innovation, CAS**
+
+[Project Page](https://surgmotion.cares-copilot.com/) | [Paper](https://arxiv.org/abs/2602.05638) | [Hugging Face](https://huggingface.co/CAIR-HKISI/SurgMotion)
+
+</div>
