@@ -164,6 +164,12 @@ python data_process/cholect80_prepare.py \
 ### Single Task
 
 ```bash
+# SurgMotion
+python -m evals.main \
+    --fname configs/foundation_model_probing/surgmotion/AutoLaparo/surgmotion_vitl_64f_autolaparo.yaml \
+    --devices cuda:0
+
+# Dinov3
 python -m evals.main \
     --fname configs/foundation_model_probing/dinov3/AutoLaparo/dinov3_vitl_64f_autolaparo.yaml \
     --devices cuda:0
