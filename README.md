@@ -161,6 +161,23 @@ python data_process/cholect80_prepare.py \
 
 ## Run Foundation Probing
 
+### Model Preparation
+
+1. Download Model Weights from their corresponding repos.
+2. Put the Model under the ckpts folder:
+```bash
+# For SurgMotion
+SurgMotion/ckpts 
+
+# For Other Foundation Models
+SurgMotion/ckpts/ckpts_foundation 
+```
+3. Make sure the model path align with the corresponding adapters.py:
+```bash
+# For Other Foundation Models
+SurgMotion/evals/foundation_phase_probing/modelcustom/adapters
+```
+
 ### Single Task
 
 ```bash

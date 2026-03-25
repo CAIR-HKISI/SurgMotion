@@ -263,7 +263,7 @@ if __name__ == "__main__":
     # Test input/output format
     adapter = EndoMambaAdapter.from_config(
         resolution=224,
-        checkpoint="/home/chen_chuxi/NSJepa/ckpts_foundation/endomamba_checkpoint-best.pth",
+        checkpoint="ckpts/ckpts_foundation/endomamba_checkpoint-best.pth",
         model_name='endomamba_small'
     )
     adapter = adapter.to(device)  # Move model to GPU
