@@ -165,7 +165,7 @@ python data_process/cholect80_prepare.py \
 
 | Model | Identifier | Architecture | Source |
 |-------|-----------|--------------|--------|
-| DINOv2 / DINOv3 | `dinov3` | ViT-L, ViT-H | [GitHub](https://github.com/facebookresearch/dinov2) |
+| DINOv3 | `dinov3` | ViT-L, ViT-H | [GitHub](https://github.com/facebookresearch/dinov3) |
 | Endo-FM | `endofm` | ViT-B | [GitHub](https://github.com/med-air/Endo-FM) |
 | EndoMamba | `endomamba` | Mamba-S | [GitHub](https://github.com/TianCuteQY/EndoMamba) |
 | EndoSSL | `endossl` | ViT-L | [GitHub](https://github.com/royhirsch/endossl) |
