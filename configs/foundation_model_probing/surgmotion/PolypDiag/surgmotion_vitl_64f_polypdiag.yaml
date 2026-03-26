@@ -165,12 +165,16 @@ experiment:
     use_pos_embed: false
 
 model_kwargs:
-  checkpoint: ckpts/SurgMotion-vitl-40epoch.pt
+  checkpoint: ckpts/SurgMotion-vitl.pt
   module_name: evals.foundation_phase_probing.modelcustom.vit_encoder_multiclip
-  model_type: vjepa
   encoder:
-    model_name: vjepa
+      checkpoint_key: encoder
+      img_temporal_dim_size: null
+      model_name: vit_large
+      patch_size: 16
+      tubelet_size: 2
+      uniform_power: true
+      use_rope: true
   wrapper_kwargs:
-    tubelet_size: 2
     max_frames: 128
-    use_pos_embed: true
+    use_pos_embed: false
