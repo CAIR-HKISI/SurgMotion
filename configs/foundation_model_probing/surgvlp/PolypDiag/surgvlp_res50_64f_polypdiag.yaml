@@ -7,6 +7,12 @@ max_workers: 4
 resume_checkpoint: true
 tag: surgvlp_res50_64f_polypdiag
 tasks_per_node: 1
+
+# Bootstrap configuration (default: enabled)
+use_bootstrap: true
+n_bootstrap: 1000
+bootstrap_seed: 42
+
 metric_aggregation: "global"
 
 # wandb configuration

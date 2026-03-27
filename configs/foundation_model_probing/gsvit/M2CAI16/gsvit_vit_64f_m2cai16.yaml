@@ -8,6 +8,12 @@ resume_checkpoint: true
 tag: gsvit_vit_64f_m2cai16
 tasks_per_node: 1
 
+# Bootstrap configuration (default: enabled)
+use_bootstrap: true
+n_bootstrap: 1000
+bootstrap_seed: 42
+
+
 # wandb configuration
 wandb:
   project: foundation-model-probing

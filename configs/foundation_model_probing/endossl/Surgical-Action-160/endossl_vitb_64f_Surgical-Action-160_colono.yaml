@@ -7,6 +7,12 @@ max_workers: 4
 resume_checkpoint: true
 tag: endossl_vitl_colono_64f_SurgicalAction160
 tasks_per_node: 1
+
+# Bootstrap configuration (default: enabled)
+use_bootstrap: true
+n_bootstrap: 1000
+bootstrap_seed: 42
+
 metric_aggregation: "global" # Options: "global", "per_video", or null (defaults to per_video)
 
 # wandb configuration
