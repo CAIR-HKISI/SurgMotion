@@ -260,8 +260,8 @@ This project is built on top of [V-JEPA 2](https://github.com/facebookresearch/v
 If you find our work helpful, please cite our [paper](https://arxiv.org/abs/2602.05638).
 
 ```bibtex
-@misc{wu2026unisurgvideonativefoundationmodel,
-      title={UniSurg: A Video-Native Foundation Model for Universal Understanding of Surgical Videos}, 
+@misc{wu2026surgmotionvideonativefoundationmodel,
+      title={SurgMotion: A Video-Native Foundation Model for Universal Understanding of Surgical Videos}, 
       author={Jinlin Wu and Felix Holm and Chuxi Chen and An Wang and Yaxin Hu and Xiaofan Ye and Zelin Zang and Miao Xu and Lihua Zhou and Huai Liao and Danny T. M. Chan and Ming Feng and Wai S. Poon and Hongliang Ren and Dong Yi and Nassir Navab and Gaofeng Meng and Jiebo Luo and Hongbin Liu and Zhen Lei},
       year={2026},
       eprint={2602.05638},
