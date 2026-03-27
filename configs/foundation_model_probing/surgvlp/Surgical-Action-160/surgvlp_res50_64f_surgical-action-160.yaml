@@ -169,6 +169,7 @@ experiment:
     num_epochs: 1
     use_bfloat16: true
     use_pos_embed: false
+    use_weighted_loss: true
 
 model_kwargs:
   checkpoint: ckpts_foundation/surgvlp.pth
