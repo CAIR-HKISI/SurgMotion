@@ -148,7 +148,7 @@ Frame-level metadata schema:
 | `Phase_GT` | Integer phase/class id for this frame |
 | `Phase_Name` | Human-readable phase/class name |
 
-### Dense Sampling Strategy (Clarified)
+### Dense Sampling Strategy
 
 We use an online workflow recognition setting:
 - A clip is a sliding temporal window.
@@ -176,18 +176,6 @@ Example:
 - frames `41-63`: Phase 1
 - clip `[0, ..., 63]` label is **Phase 1**.
 
-### Triplet Recognition Format
-
-Triplet recognition uses the same temporal construction:
-- same sliding-window logic
-- same overlap behavior
-- same start-of-video padding policy
-- target is still the last frame in each clip
-
-Difference:
-- triplet labels are **multi-label** targets.
-- our best internal triplet setting used `window_size=16`.
-
 ### Notes on Performance Gaps
 
 If reproduced results are lower than expected, dense sampling mismatch is one possible source, but not the only one. We also recommend checking:
@@ -214,7 +202,7 @@ Most datasets already provide extracted frames in `data/Surge_Frames/...`. The p
 
 All annotation and frame paths above are relative to the `data/` directory (e.g., `data/Landscopy/cholec80/phase_annotations`).
 
-**Pipeline behavior:**
+### Pipeline behavior
 
 The scripts are built around **frame-based** clip CSVs. Depending on whether you already have **extracted frames** or only **raw videos**, use the path that matches your data.
 
@@ -246,9 +234,7 @@ python data_process/<dataset>_prepare.py --step frames --videos_dir /path/to/mp4
 python data_process/<dataset>_prepare.py --step all
 ```
 
-Some scripts (e.g. M2CAI2016) **require** non-empty `*.mp4` under `--videos_dir` for `--step frames` or they exit with an error; others only **skip** extraction if the video path is missing.
-
-#### 3) How `--step all` treats frame extraction (by script)
+#### 3) How `--step all` treats frame extraction
 
 | Script | `--step all` runs video→frames? | Notes |
 |--------|----------------------------------|--------|
@@ -256,11 +242,6 @@ Some scripts (e.g. M2CAI2016) **require** non-empty `*.mp4` under `--videos_dir`
 | `autolaparo_prepare.py` | **No** | Use `--step frames` explicitly, then `--step all` or `metadata` + `clips`. |
 | `m2cai2016_prepare.py`, `pitvis_prepare.py`, `ophnet_prepare.py`, `pmlr50_prepare.py`, `egosurgery_prepare.py` | **No** | Same as AutoLaparo: extraction is **only** `--step frames`. |
 | `surgicalactions160_prepare.py`, `polypdiag_prepare.py` | **Yes** | `all` runs the full video pipeline (including optional `rename` where applicable), then metadata and clips. |
-
-**Other step names (dataset-specific):**
-
-- `surgicalactions160_prepare.py` and `polypdiag_prepare.py` support `--step rename | frames | metadata | clips` in addition to `all`. Use `--step rename` to normalize video filenames before extraction; `--step all` runs `rename` (when applicable) then `frames` → `metadata` → `clips`.
-- For SurgicalActions160, extracted frames default to `frames_root/fps{fps}/` (see script defaults and `--help`).
 
 #### Quick reference: flags vs. input type
 
