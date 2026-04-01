@@ -1,45 +1,56 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-OphNet2024 phase recognition preprocessing (end-to-end pipeline style).
+OphNet2024 Preprocessing Pipeline
+----------------------------------
+Aligned with NSJepa_jinlin/data_process/ophnet_csv.py.
 
-Expected layout
----------------
-- Phase interval CSV (challenge split): columns ``video_id``, ``start``, ``end``,
-  ``phase_id``, ``split`` (train / val / test).
-- Extracted frames per interval (clip):
-  ``<frames_root>/{video_id}_{clip_index}/*.jpg``
-  where ``clip_index`` is a per-``video_id`` cumulative index after sorting rows by ``start``.
+Expected layout:
+  - Phase CSV: data/Ophthalmology/OphNet2024_trimmed_phase/OphNet2024_loca_challenge_phase.csv
+    Columns: video_id, start, end, phase_id, split (train / val / test).
+  - Frames (pre-extracted): data/Surge_Frames/OphNet2024_phase/frames/{video_id}_{clip_index}/*.jpg
+    Clip index = per-video_id cumulative index after sorting rows by start.
 
-Pipeline
---------
-1. ``videos_to_frames()`` — stub; frames are normally pre-extracted to match the CSV clips.
-2. ``generate_clip_txt()`` — for each clip folder, write ``<output_dir>/clip_infos/{video_id}_{clip_index}.txt``
-   listing frame paths (sorted by filename).
-3. ``build_metadata()`` — read the label CSV, assign ``clip_index``, emit **one metadata row per frame**
-   with ``label`` = ``phase_id``, ``label_name`` from the phase map, ``case_id`` from ``video_id`` (``case_`` prefix
-   stripped), ``clip_idx`` = ``clip_index``.
+NOTE: This pipeline assumes frames already exist. The OphNet dataset distributes
+clips, not raw videos. Use --step frames only if you have the original videos.
 
-Outputs (under ``--output_dir``)
---------------------------------
-- ``clip_infos/{video_id}_{clip_index}.txt``
-- ``train_metadata.csv``, ``val_metadata.csv``, ``test_metadata.csv``
-- ``metadata.csv`` (all splits combined)
-- ``missing_frames_report.csv`` (missing clip directories or empty folders)
+Pipeline Steps:
+  --step all (default): metadata + clips (does NOT extract frames)
+  --step frames:        Extract frames from videos (requires --videos_dir with mp4s)
+  --step metadata:      Build frame-level metadata CSV
+  --step clips:         Generate dense sliding-window clips
 
-CSV columns: ``Index``, ``clip_path``, ``label``, ``label_name``, ``case_id``, ``clip_idx``
+Output structure:
+  <output_dir>/
+    clip_infos/                    # One txt per clip
+    train_metadata.csv             # Frame-level metadata
+    val_metadata.csv
+    test_metadata.csv
+    missing_frames_report.csv
+    clips_64f/                     # Dense clips
+      train_dense_64f_detailed.csv
+      ...
+
+Usage:
+    python ophnet_prepare.py --step all
+    python ophnet_prepare.py --step metadata
+    python ophnet_prepare.py --step frames --videos_dir /path/to/videos
+    python ophnet_prepare.py --step clips --window_size 64
 """
 
 from __future__ import annotations
 
 import argparse
+import subprocess
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import pandas as pd
 from tqdm import tqdm
 
-# 96 phases (0–95)
+from gen_clips import generate_dense_clips
+
+# 96 phases (0-95)
 PHASE2NAME: Dict[int, str] = {
     0: "Viscoelastic Injection",
     1: "Nuclear Management (for cataract surgery)",
@@ -147,67 +158,95 @@ def videos_to_frames(
     debug: bool = False,
 ) -> None:
     """
-    Stub: extract frames from raw OphNet videos into clip folders under ``output_path``.
-
-    Implement when raw videos and official clip boundaries are wired to ffmpeg; for the
-    released frame dump, point ``--frames_root`` at the existing ``.../frames`` tree instead.
+    Extract frames from all *.mp4 under input_path into output_path.
+    Output: output_path/<video_stem>/<video_stem>_%08d.jpg
     """
-    print(
-        "videos_to_frames: stub — no extraction run. "
-        "Use pre-extracted frames under --frames_root or implement extraction here."
-    )
-    if debug:
-        print(f"  input_path={input_path}, output_path={output_path}, fps={fps}")
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+    video_files = sorted(input_path.glob("*.mp4"))
+
+    if not video_files:
+        print(f"[WARN] No mp4 videos found under {input_path}.")
+        return
+
+    print(f"\n[INFO] Found {len(video_files)} videos, extracting frames at {fps} fps...")
+    failed: List[str] = []
+
+    for vid_path in tqdm(video_files, desc="Extracting frames"):
+        vid_id = vid_path.stem
+        out_folder = output_path / vid_id
+        out_folder.mkdir(parents=True, exist_ok=True)
+        pattern = out_folder / f"{vid_id}_%08d.jpg"
+
+        cmd = [
+            "ffmpeg", "-y", "-i", str(vid_path.resolve()),
+            "-vf", f"fps={fps},scale=512:-1:flags=bicubic",
+            "-vsync", "2", "-qscale:v", "2",
+            str(pattern),
+        ]
+
+        if debug:
+            print(f"[DEBUG] FFmpeg: {' '.join(cmd)}")
+
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] Failed: {vid_path}")
+            if debug and e.stderr:
+                print(e.stderr.decode("utf-8", errors="ignore")[:500])
+            failed.append(str(vid_path))
+
+    print(f"[INFO] Frame extraction finished.")
+    if failed:
+        log = output_path / "failed_videos.txt"
+        log.write_text("\n".join(failed), encoding="utf-8")
+        print(f"[WARN] {len(failed)} videos failed; see {log}")
 
 
 def _list_jpeg_frames(video_frames_dir: Path) -> List[Path]:
-    """Sorted ``.jpg`` / ``.jpeg`` files under a clip directory."""
+    """Sorted .jpg/.jpeg files under a clip directory."""
     return sorted(
-        (
-            p
-            for p in video_frames_dir.iterdir()
-            if p.is_file() and p.suffix.lower() in (".jpg", ".jpeg")
-        ),
+        (p for p in video_frames_dir.iterdir()
+         if p.is_file() and p.suffix.lower() in (".jpg", ".jpeg")),
         key=lambda p: p.name,
     )
 
 
-def generate_clip_txt(video_frames_dir: Path, txt_path: Path) -> int:
+def generate_clip_txt(video_frames_dir: Path, txt_path: Path) -> List[str]:
     """
-    Write one line per JPEG frame under ``video_frames_dir`` (sorted by filename).
-    Paths use forward slashes (relative to the project root / cwd, same as other prepare scripts).
-    Returns the number of lines written.
+    Write one line per JPEG frame under video_frames_dir.
+    Returns list of frame paths.
     """
     if not video_frames_dir.is_dir():
-        return 0
+        return []
 
     frame_files = _list_jpeg_frames(video_frames_dir)
     txt_path.parent.mkdir(parents=True, exist_ok=True)
+    frame_paths = [str(fp).replace("\\", "/") for fp in frame_files]
     with txt_path.open("w", encoding="utf-8") as f:
-        for frame_path in frame_files:
-            f.write(str(frame_path).replace("\\", "/") + "\n")
-    return len(frame_files)
+        for fp in frame_paths:
+            f.write(fp + "\n")
+    return frame_paths
 
 
 def _parse_case_id(video_id: str) -> int:
-    """Strip optional ``case_`` prefix and parse integer case id."""
+    """Strip optional case_ prefix and parse integer case id."""
     vid = str(video_id).strip()
     if vid.startswith("case_"):
         vid = vid[5:]
     return int(vid)
 
 
-def build_metadata(
+def build_frame_level_metadata(
     frames_root: Path,
     label_csv: Path,
     output_dir: Path,
     debug: bool = False,
-) -> Tuple[List[dict], List[dict], List[dict], List[dict], List[dict]]:
+) -> Dict[str, pd.DataFrame]:
     """
-    Read the label CSV, compute ``clip_index`` per ``video_id``, write clip txts, and build
-    per-frame metadata rows (same ``clip_path`` txt for all frames in one clip).
-
-    Returns ``(train_rows, val_rows, test_rows, all_rows_ordered, missing_report)``.
+    Build frame-level metadata with columns: Case_ID, Frame_Path, Phase_GT, Phase_Name.
+    Returns dict of DataFrames keyed by split name.
     """
     if not label_csv.is_file():
         raise FileNotFoundError(f"Label CSV not found: {label_csv}")
@@ -216,7 +255,7 @@ def build_metadata(
     required = {"video_id", "start", "phase_id", "split"}
     missing_cols = required - set(df.columns)
     if missing_cols:
-        raise ValueError(f"Label CSV missing columns {missing_cols}; got {list(df.columns)}")
+        raise ValueError(f"Label CSV missing columns {missing_cols}")
 
     df = df.sort_values(["video_id", "start"]).reset_index(drop=True)
     df["clip_index"] = df.groupby("video_id", sort=False).cumcount()
@@ -224,15 +263,10 @@ def build_metadata(
     clip_infos_dir = output_dir / "clip_infos"
     clip_infos_dir.mkdir(parents=True, exist_ok=True)
 
-    train_rows: List[dict] = []
-    val_rows: List[dict] = []
-    test_rows: List[dict] = []
-    all_rows: List[dict] = []
+    by_split: Dict[str, List[dict]] = {"train": [], "val": [], "test": []}
     missing_report: List[dict] = []
 
-    global_index = 0
-
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="OphNet2024 clips"):
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Building frame-level metadata"):
         video_id = str(row["video_id"]).strip()
         clip_index = int(row["clip_index"])
         split_raw = str(row["split"]).strip().lower()
@@ -240,33 +274,23 @@ def build_metadata(
         label_name = PHASE2NAME.get(phase_id, "Unknown Phase")
 
         if split_raw not in ("train", "val", "test"):
-            missing_report.append(
-                {
-                    "video_id": video_id,
-                    "clip_idx": clip_index,
-                    "split": split_raw,
-                    "reason": "unknown_split",
-                    "detail": "",
-                }
-            )
-            if debug:
-                print(f"Skipping row: unknown split {split_raw!r} for {video_id} clip {clip_index}")
+            missing_report.append({
+                "video_id": video_id,
+                "clip_idx": clip_index,
+                "split": split_raw,
+                "reason": "unknown_split",
+            })
             continue
 
         try:
             case_id = _parse_case_id(video_id)
         except ValueError:
-            missing_report.append(
-                {
-                    "video_id": video_id,
-                    "clip_idx": clip_index,
-                    "split": split_raw,
-                    "reason": "bad_video_id",
-                    "detail": "cannot parse integer case_id",
-                }
-            )
-            if debug:
-                print(f"Skipping row: cannot parse case_id from video_id={video_id!r}")
+            missing_report.append({
+                "video_id": video_id,
+                "clip_idx": clip_index,
+                "split": split_raw,
+                "reason": "bad_video_id",
+            })
             continue
 
         clip_key = f"{video_id}_{clip_index}"
@@ -274,93 +298,132 @@ def build_metadata(
         txt_path = clip_infos_dir / f"{clip_key}.txt"
 
         if not clip_dir.is_dir():
-            missing_report.append(
-                {
-                    "video_id": video_id,
-                    "clip_idx": clip_index,
-                    "split": split_raw,
-                    "reason": "missing_clip_directory",
-                    "detail": str(clip_dir).replace("\\", "/"),
-                }
-            )
-            if debug:
-                print(f"Missing clip directory: {clip_dir}")
-            continue
-
-        n_frames = generate_clip_txt(clip_dir, txt_path)
-        if n_frames == 0:
-            missing_report.append(
-                {
-                    "video_id": video_id,
-                    "clip_idx": clip_index,
-                    "split": split_raw,
-                    "reason": "empty_clip_directory",
-                    "detail": str(clip_dir).replace("\\", "/"),
-                }
-            )
-            if debug:
-                print(f"No frames in {clip_dir}")
-            continue
-
-        clip_path_str = str(txt_path).replace("\\", "/")
-
-        frame_files = _list_jpeg_frames(clip_dir)
-
-        for _ in frame_files:
-            item = {
-                "Index": global_index,
-                "clip_path": clip_path_str,
-                "label": phase_id,
-                "label_name": label_name,
-                "case_id": case_id,
+            missing_report.append({
+                "video_id": video_id,
                 "clip_idx": clip_index,
-            }
-            global_index += 1
-            all_rows.append(item)
+                "split": split_raw,
+                "reason": "missing_clip_directory",
+            })
+            if debug:
+                print(f"[DEBUG] Missing clip directory: {clip_dir}")
+            continue
 
-            if split_raw == "train":
-                train_rows.append(item.copy())
-            elif split_raw == "val":
-                val_rows.append(item.copy())
-            else:
-                test_rows.append(item.copy())
+        frame_paths = generate_clip_txt(clip_dir, txt_path)
+        if not frame_paths:
+            missing_report.append({
+                "video_id": video_id,
+                "clip_idx": clip_index,
+                "split": split_raw,
+                "reason": "empty_clip_directory",
+            })
+            continue
 
-    return train_rows, val_rows, test_rows, all_rows, missing_report
+        for fp in frame_paths:
+            by_split[split_raw].append({
+                "Case_ID": case_id,
+                "Frame_Path": fp,
+                "Phase_GT": phase_id,
+                "Phase_Name": label_name,
+            })
+
+    if missing_report:
+        miss_path = output_dir / "missing_frames_report.csv"
+        pd.DataFrame(missing_report).to_csv(miss_path, index=False)
+        print(f"[WARN] Missing/skipped clips: {len(missing_report)} entries (see {miss_path})")
+
+    result = {}
+    for split_name, rows in by_split.items():
+        if rows:
+            df = pd.DataFrame(rows)
+            df = df.sort_values(["Case_ID", "Frame_Path"]).reset_index(drop=True)
+            result[split_name] = df
+        else:
+            result[split_name] = pd.DataFrame(
+                columns=["Case_ID", "Frame_Path", "Phase_GT", "Phase_Name"]
+            )
+
+    return result
 
 
-def _save_csv(path: Path, rows: List[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    df = pd.DataFrame(rows)
-    df.to_csv(path, index=False)
-    print(f"Saved {len(rows)} rows to {path}")
+def save_metadata_csvs(output_dir: Path, metadata_by_split: Dict[str, pd.DataFrame]) -> None:
+    """Save frame-level metadata CSVs."""
+    for split_name, df in metadata_by_split.items():
+        path = output_dir / f"{split_name}_metadata.csv"
+        if len(df) == 0:
+            print(f"[WARN] No rows for split '{split_name}', skip writing {path.name}.")
+            continue
+        df.to_csv(path, index=False)
+        print(f"[INFO] Saved {len(df)} frame rows to {path}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="OphNet2024: clip txts + per-frame phase metadata (train/val/test)."
+        description="OphNet2024: End-to-end preprocessing pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    python ophnet_prepare.py --step all
+    python ophnet_prepare.py --step metadata
+    python ophnet_prepare.py --step clips --window_size 64
+        """,
+    )
+    parser.add_argument(
+        "--step",
+        choices=["all", "frames", "metadata", "clips"],
+        default="all",
+        help="Pipeline step to run (default: all)",
+    )
+    parser.add_argument(
+        "--videos_dir",
+        type=str,
+        default="",
+        help="Directory containing raw mp4 videos (only for --step frames; not part of standard workflow)",
     )
     parser.add_argument(
         "--frames_root",
         type=str,
         default="data/Surge_Frames/OphNet2024_phase/frames",
-        help="Root containing clip folders {video_id}_{clip_index}/ with .jpg frames.",
+        help="Root containing clip folders {video_id}_{clip_index}/ with .jpg frames",
     )
     parser.add_argument(
         "--label_csv",
         type=str,
         default="data/Ophthalmology/OphNet2024_trimmed_phase/OphNet2024_loca_challenge_phase.csv",
-        help="CSV with video_id, start, end, phase_id, split.",
+        help="CSV with video_id, start, end, phase_id, split",
     )
     parser.add_argument(
         "--output_dir",
         type=str,
         default="data/Surge_Frames/OphNet2024_phase",
-        help="Output directory for clip_infos/, metadata CSVs, missing_frames_report.csv.",
+        help="Output directory for metadata and clips",
+    )
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=30,
+        help="FPS for frame extraction (default: 30)",
+    )
+    parser.add_argument(
+        "--window_size",
+        type=int,
+        default=64,
+        help="Window size for dense clip generation (default: 64)",
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=1,
+        help="Stride for dense clip generation (default: 1)",
+    )
+    parser.add_argument(
+        "--no_padding",
+        action="store_true",
+        help="Disable padding for incomplete windows",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Print diagnostics for skipped rows and stub extraction.",
+        help="Enable verbose debug output",
     )
     args = parser.parse_args()
 
@@ -369,33 +432,44 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Uncomment and set paths when extracting from raw videos:
-    # videos_to_frames(Path("path/to/raw/videos"), frames_root, debug=args.debug)
+    print("=" * 60)
+    print("OphNet2024 Preprocessing Pipeline")
+    print("=" * 60)
 
-    train_rows, val_rows, test_rows, all_rows, missing_report = build_metadata(
-        frames_root=frames_root,
-        label_csv=label_csv,
-        output_dir=output_dir,
-        debug=args.debug,
-    )
+    # Frame extraction is NOT part of --step all; run only with --step frames
+    if args.step == "frames":
+        print("\n[STEP] Extracting frames from videos...")
+        videos_dir = Path(args.videos_dir)
+        if videos_dir.exists() and any(videos_dir.glob("*.mp4")):
+            videos_to_frames(videos_dir, frames_root, fps=args.fps, debug=args.debug)
+        else:
+            print(f"[ERROR] No mp4 videos found in: {videos_dir}")
+            print("[INFO] Provide --videos_dir pointing to a directory with mp4 files.")
+            return
 
-    _save_csv(output_dir / "train_metadata.csv", train_rows)
-    _save_csv(output_dir / "val_metadata.csv", val_rows)
-    _save_csv(output_dir / "test_metadata.csv", test_rows)
-    _save_csv(output_dir / "metadata.csv", all_rows)
+    if args.step in ("all", "metadata"):
+        print("\n[STEP 2] Building frame-level metadata...")
+        metadata_by_split = build_frame_level_metadata(
+            frames_root=frames_root,
+            label_csv=label_csv,
+            output_dir=output_dir,
+            debug=args.debug,
+        )
+        save_metadata_csvs(output_dir, metadata_by_split)
 
-    miss_path = output_dir / "missing_frames_report.csv"
-    miss_path.parent.mkdir(parents=True, exist_ok=True)
-    if missing_report:
-        pd.DataFrame(missing_report).to_csv(miss_path, index=False)
-        print(f"Wrote missing / skipped clip report ({len(missing_report)} rows): {miss_path}")
-    else:
-        pd.DataFrame(
-            columns=["video_id", "clip_idx", "split", "reason", "detail"],
-        ).to_csv(miss_path, index=False)
-        print(f"No issues logged; wrote empty report: {miss_path}")
+    if args.step in ("all", "clips"):
+        print(f"\n[STEP 3] Generating dense clips (window_size={args.window_size})...")
+        generate_dense_clips(
+            base_data_path=str(output_dir),
+            window_size=args.window_size,
+            stride=args.stride,
+            fps=args.fps,
+            enable_padding=not args.no_padding,
+        )
 
-    print("OphNet2024 preprocessing done.")
+    print("\n" + "=" * 60)
+    print("OphNet2024 preprocessing complete!")
+    print("=" * 60)
 
 
 if __name__ == "__main__":

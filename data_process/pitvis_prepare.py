@@ -1,42 +1,52 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PitVis (neurosurgery phase recognition) preprocessing — end-to-end pipeline style.
+PitVis Preprocessing Pipeline
+------------------------------
+Aligned with NSJepa_jinlin/data_process/pitvis_csv.py.
 
 Expected layout:
-  - Annotations per video: ``<annot_dir>/annotations_XX.csv`` (XX = 2-digit video id).
-    Columns: int_video, int_time, int_step, int_instrument1, int_instrument2
-  - Frames at 1 fps: ``<frames_root>/video_XX/video_XX_XXXXXXXX.jpg``
-    Frame index (1-based): ``int_time + 1``
+  - Annotations: data/NeuroSurgery/pitvits/26531686/annotations_XX.csv
+  - Frames (pre-extracted, 1 fps): data/Surge_Frames/PitVis/frames/video_XX/video_XX_XXXXXXXX.jpg
+    Frame index (1-based): int_time + 1
 
-This script:
-1. Optionally extracts frames via ``videos_to_frames()`` (stub / parity with other datasets;
-   frames are usually pre-extracted).
-2. For each video in the defined splits, writes ``<output_dir>/clip_infos/video_XX.txt``
-   listing all frame paths (one per line, sorted by filename).
-3. Reads annotation CSVs, drops phases ``-1, 11, 13``, remaps remaining steps to
-   contiguous labels ``0..11``, and emits **one metadata row per annotated frame** that
-   survives filtering and exists on disk.
-4. Saves ``train_metadata.csv``, ``val_metadata.csv``, ``test_metadata.csv`` under
-   ``output_dir``.
+NOTE: This pipeline assumes frames already exist. Use --step frames only if you
+have raw mp4 files, which are not distributed with the standard PitVis dataset.
 
-Output columns:
-  Index, clip_path, label, label_name, case_id, clip_idx
+Pipeline Steps:
+  --step all (default): metadata + clips (does NOT extract frames)
+  --step frames:        Extract frames from videos (requires --videos_dir with mp4s)
+  --step metadata:      Build frame-level metadata CSV
+  --step clips:         Generate dense sliding-window clips
 
-  - clip_path: path to that video’s ``clip_infos/video_XX.txt`` (same for all frames of the video).
-  - label / label_name: remapped phase id and original phase name string.
-  - case_id: video id string (e.g. ``01``).
-  - clip_idx: always ``0``.
+Output structure:
+  <output_dir>/
+    clip_infos/                    # One txt per video
+    train_metadata.csv             # Frame-level metadata
+    val_metadata.csv
+    test_metadata.csv
+    clips_64f/                     # Dense clips
+      train_dense_64f_detailed.csv
+      ...
+
+Usage:
+    python pitvis_prepare.py --step all
+    python pitvis_prepare.py --step metadata
+    python pitvis_prepare.py --step frames --videos_dir /path/to/videos
+    python pitvis_prepare.py --step clips --window_size 64
 """
 
 from __future__ import annotations
 
 import argparse
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Set
 
 import pandas as pd
 from tqdm import tqdm
+
+from gen_clips import generate_dense_clips
 
 # Original int_step -> human-readable phase name
 PHASE_MAPPING: Dict[int, str] = {
@@ -65,41 +75,17 @@ VALID_PHASES: List[int] = sorted(p for p in PHASE_MAPPING if p not in FILTERED_P
 PHASE_REMAP: Dict[int, int] = {p: i for i, p in enumerate(VALID_PHASES)}
 
 TRAIN_VIDEOS: List[str] = [
-    "01",
-    "03",
-    "04",
-    "05",
-    "07",
-    "08",
-    "09",
-    "10",
-    "11",
-    "14",
-    "15",
-    "16",
-    "17",
-    "18",
-    "19",
-    "20",
-    "21",
-    "22",
-    "23",
-    "25",
+    "01", "03", "04", "05", "07", "08", "09", "10", "11", "14",
+    "15", "16", "17", "18", "19", "20", "21", "22", "23", "25",
 ]
 VAL_VIDEOS: List[str] = ["02", "06", "12", "13", "24"]
 TEST_VIDEOS: List[str] = ["02", "06", "12", "13", "24"]
 
-EXPECTED_ANNOT_COLS = [
-    "int_video",
-    "int_time",
-    "int_step",
-    "int_instrument1",
-    "int_instrument2",
-]
+EXPECTED_ANNOT_COLS = ["int_video", "int_time", "int_step", "int_instrument1", "int_instrument2"]
 
 
 def splits_for_video(video_id: str) -> List[str]:
-    """Return which splits (train / val / test) contain this video id."""
+    """Return which splits contain this video id."""
     out: List[str] = []
     if video_id in TRAIN_VIDEOS:
         out.append("train")
@@ -110,11 +96,6 @@ def splits_for_video(video_id: str) -> List[str]:
     return out
 
 
-def frame_path_for_row(frames_root: Path, video_id: str, frame_index: int) -> Path:
-    """1-based frame index -> expected jpg path under PitVis layout."""
-    return frames_root / f"video_{video_id}" / f"video_{video_id}_{frame_index:08d}.jpg"
-
-
 def videos_to_frames(
     input_path: Path,
     output_path: Path,
@@ -122,43 +103,78 @@ def videos_to_frames(
     debug: bool = False,
 ) -> None:
     """
-    Stub for pipeline parity: PitVis frames are normally already extracted at 1 fps.
-
-    Implement ffmpeg-based extraction here if you obtain raw videos and want the same
-    interface as other ``*_prepare.py`` scripts.
+    Extract frames from all *.mp4 under input_path into output_path.
+    Output: output_path/video_<stem>/video_<stem>_%08d.jpg
     """
-    if debug:
-        print(
-            "videos_to_frames: stub (no extraction). "
-            f"input_path={input_path}, output_path={output_path}, fps={fps}"
-        )
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+    video_files = sorted(input_path.glob("*.mp4"))
+
+    if not video_files:
+        print(f"[WARN] No mp4 videos found under {input_path}.")
+        return
+
+    print(f"\n[INFO] Found {len(video_files)} videos, extracting frames at {fps} fps...")
+    failed: List[str] = []
+
+    for vid_path in tqdm(video_files, desc="Extracting frames"):
+        vid_id = vid_path.stem
+        out_folder = output_path / f"video_{vid_id}"
+        out_folder.mkdir(parents=True, exist_ok=True)
+        pattern = out_folder / f"video_{vid_id}_%08d.jpg"
+
+        cmd = [
+            "ffmpeg", "-y", "-i", str(vid_path.resolve()),
+            "-vf", f"fps={fps},scale=512:-1:flags=bicubic",
+            "-vsync", "2", "-qscale:v", "2", "-start_number", "1",
+            str(pattern),
+        ]
+
+        if debug:
+            print(f"[DEBUG] FFmpeg: {' '.join(cmd)}")
+
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] Failed: {vid_path}")
+            if debug and e.stderr:
+                print(e.stderr.decode("utf-8", errors="ignore")[:500])
+            failed.append(str(vid_path))
+
+    print(f"[INFO] Frame extraction finished.")
+    if failed:
+        log = output_path / "failed_videos.txt"
+        log.write_text("\n".join(failed), encoding="utf-8")
+        print(f"[WARN] {len(failed)} videos failed; see {log}")
 
 
-def generate_clip_txt(video_frames_dir: Path, txt_path: Path) -> int:
+def generate_clip_txt(video_frames_dir: Path, txt_path: Path) -> List[str]:
     """
-    Write one line per frame path (sorted by filename) for a single video folder.
-    Returns the number of lines written.
+    Write one line per frame path for a single video folder.
+    Returns list of frame paths.
     """
     frame_files = sorted(
-        (p for p in video_frames_dir.iterdir() if p.is_file()),
+        (p for p in video_frames_dir.iterdir() if p.is_file() and p.suffix.lower() in (".jpg", ".jpeg")),
         key=lambda p: p.name,
     )
     txt_path.parent.mkdir(parents=True, exist_ok=True)
+    frame_paths = [str(fp).replace("\\", "/") for fp in frame_files]
     with txt_path.open("w", encoding="utf-8") as f:
-        for frame_path in frame_files:
-            f.write(str(frame_path).replace("\\", "/") + "\n")
-    return len(frame_files)
+        for fp in frame_paths:
+            f.write(fp + "\n")
+    return frame_paths
 
 
-def build_metadata(
+def build_frame_level_metadata(
     frames_root: Path,
     annot_dir: Path,
     output_dir: Path,
     debug: bool = False,
-) -> Dict[str, List[dict]]:
+) -> Dict[str, pd.DataFrame]:
     """
-    Read annotation CSVs, filter phases, write clip txts, and build per-frame metadata
-    rows grouped by split name.
+    Build frame-level metadata with columns: Case_ID, Frame_Path, Phase_GT, Phase_Name.
+    Returns dict of DataFrames keyed by split name.
     """
     clip_infos_dir = output_dir / "clip_infos"
     clip_infos_dir.mkdir(parents=True, exist_ok=True)
@@ -167,39 +183,48 @@ def build_metadata(
 
     all_videos = sorted(set(TRAIN_VIDEOS) | set(VAL_VIDEOS) | set(TEST_VIDEOS))
 
-    for video_id in tqdm(all_videos, desc="PitVis videos"):
+    for video_id in tqdm(all_videos, desc="Building frame-level metadata"):
         splits = splits_for_video(video_id)
         if not splits:
             continue
 
         frames_dir = frames_root / f"video_{video_id}"
         if not frames_dir.is_dir():
-            print(f"⚠️ Missing frames directory: {frames_dir}, skip video {video_id}.")
+            print(f"[WARN] Missing frames directory: {frames_dir}, skip video {video_id}.")
             continue
 
         txt_path = clip_infos_dir / f"video_{video_id}.txt"
-        n_written = generate_clip_txt(frames_dir, txt_path)
-        if n_written == 0:
-            print(f"⚠️ No frames under {frames_dir}, skip video {video_id}.")
+        frame_paths = generate_clip_txt(frames_dir, txt_path)
+        if not frame_paths:
+            print(f"[WARN] No frames under {frames_dir}, skip video {video_id}.")
             continue
+
+        frame_path_by_idx = {}
+        for fp in frame_paths:
+            fname = Path(fp).stem
+            parts = fname.split("_")
+            if len(parts) >= 3:
+                try:
+                    idx = int(parts[-1])
+                    frame_path_by_idx[idx] = fp
+                except ValueError:
+                    pass
 
         annot_path = annot_dir / f"annotations_{video_id}.csv"
         if not annot_path.is_file():
-            print(f"⚠️ Missing annotation file: {annot_path}, skip video {video_id}.")
+            print(f"[WARN] Missing annotation file: {annot_path}, skip video {video_id}.")
             continue
 
         try:
             df = pd.read_csv(annot_path)
         except Exception as e:
-            print(f"⚠️ Failed to read {annot_path}: {e}")
+            print(f"[WARN] Failed to read {annot_path}: {e}")
             continue
 
         missing = [c for c in EXPECTED_ANNOT_COLS if c not in df.columns]
         if missing:
-            print(f"⚠️ {annot_path.name} missing columns {missing}, skip.")
+            print(f"[WARN] {annot_path.name} missing columns {missing}, skip.")
             continue
-
-        clip_rel = str(txt_path).replace("\\", "/")
 
         for _, row in df.iterrows():
             int_step = int(row["int_step"])
@@ -207,74 +232,121 @@ def build_metadata(
                 continue
             if int_step not in PHASE_REMAP:
                 if debug:
-                    print(f"⚠️ Video {video_id}: unknown int_step={int_step}, skip row.")
+                    print(f"[DEBUG] Video {video_id}: unknown int_step={int_step}, skip row.")
                 continue
 
             int_time = int(row["int_time"])
             frame_index = int_time + 1
-            fp = frame_path_for_row(frames_root, video_id, frame_index)
-            if not fp.is_file():
+            frame_path = frame_path_by_idx.get(frame_index)
+            if frame_path is None:
                 if debug:
-                    print(f"⚠️ Video {video_id}: frame missing {fp}")
+                    print(f"[DEBUG] Video {video_id}: frame {frame_index} missing")
                 continue
 
             label = PHASE_REMAP[int_step]
             label_name = PHASE_MAPPING.get(int_step, f"unknown_{int_step}")
 
-            item = {
-                "Index": 0,
-                "clip_path": clip_rel,
-                "label": label,
-                "label_name": label_name,
-                "case_id": video_id,
-                "clip_idx": 0,
-            }
-
             for s in splits:
-                by_split[s].append(dict(item))
+                by_split[s].append({
+                    "Case_ID": int(video_id),
+                    "Frame_Path": frame_path,
+                    "Phase_GT": label,
+                    "Phase_Name": label_name,
+                })
 
-    for _split_name, rows in by_split.items():
-        for i, row in enumerate(rows):
-            row["Index"] = i
+    result = {}
+    for split_name, rows in by_split.items():
+        if rows:
+            df = pd.DataFrame(rows)
+            df = df.sort_values(["Case_ID", "Frame_Path"]).reset_index(drop=True)
+            result[split_name] = df
+        else:
+            result[split_name] = pd.DataFrame(
+                columns=["Case_ID", "Frame_Path", "Phase_GT", "Phase_Name"]
+            )
 
-    return by_split
+    return result
 
 
-def save_split_csv(output_dir: Path, split_name: str, rows: List[dict]) -> None:
-    path = output_dir / f"{split_name}_metadata.csv"
-    if not rows:
-        print(f"⚠️ No rows for split '{split_name}', skip writing {path.name}.")
-        return
-    pd.DataFrame(rows).to_csv(path, index=False)
-    print(f"Saved {len(rows)} rows -> {path}")
+def save_metadata_csvs(output_dir: Path, metadata_by_split: Dict[str, pd.DataFrame]) -> None:
+    """Save frame-level metadata CSVs."""
+    for split_name, df in metadata_by_split.items():
+        path = output_dir / f"{split_name}_metadata.csv"
+        if len(df) == 0:
+            print(f"[WARN] No rows for split '{split_name}', skip writing {path.name}.")
+            continue
+        df.to_csv(path, index=False)
+        print(f"[INFO] Saved {len(df)} frame rows to {path}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="PitVis: clip txts + per-frame train/val/test metadata CSVs."
+        description="PitVis: End-to-end preprocessing pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    python pitvis_prepare.py --step all
+    python pitvis_prepare.py --step metadata
+    python pitvis_prepare.py --step clips --window_size 64
+        """,
+    )
+    parser.add_argument(
+        "--step",
+        choices=["all", "frames", "metadata", "clips"],
+        default="all",
+        help="Pipeline step to run (default: all)",
+    )
+    parser.add_argument(
+        "--videos_dir",
+        type=str,
+        default="",
+        help="Directory containing raw mp4 videos (only for --step frames; not part of standard workflow)",
     )
     parser.add_argument(
         "--frames_root",
         type=str,
         default="data/Surge_Frames/PitVis/frames",
-        help="Root containing video_XX/ folders with jpg frames.",
+        help="Root containing video_XX/ folders with jpg frames",
     )
     parser.add_argument(
         "--annot_dir",
         type=str,
         default="data/NeuroSurgery/pitvits/26531686",
-        help="Directory with annotations_XX.csv per video.",
+        help="Directory with annotations_XX.csv per video",
     )
     parser.add_argument(
         "--output_dir",
         type=str,
         default="data/Surge_Frames/PitVis",
-        help="Output directory for clip_infos/ and *_metadata.csv.",
+        help="Output directory for metadata and clips",
+    )
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=1,
+        help="FPS for frame extraction (default: 1)",
+    )
+    parser.add_argument(
+        "--window_size",
+        type=int,
+        default=64,
+        help="Window size for dense clip generation (default: 64)",
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=1,
+        help="Stride for dense clip generation (default: 1)",
+    )
+    parser.add_argument(
+        "--no_padding",
+        action="store_true",
+        help="Disable padding for incomplete windows",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Verbose messages (missing frames, unknown phases, stub logging).",
+        help="Enable verbose debug output",
     )
     args = parser.parse_args()
 
@@ -283,20 +355,44 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Uncomment when raw videos are available:
-    # videos_to_frames(Path("path/to/videos"), frames_root, fps=1, debug=args.debug)
+    print("=" * 60)
+    print("PitVis Preprocessing Pipeline")
+    print("=" * 60)
 
-    by_split = build_metadata(
-        frames_root=frames_root,
-        annot_dir=annot_dir,
-        output_dir=output_dir,
-        debug=args.debug,
-    )
+    # Frame extraction is NOT part of --step all; run only with --step frames
+    if args.step == "frames":
+        print("\n[STEP] Extracting frames from videos...")
+        videos_dir = Path(args.videos_dir)
+        if videos_dir.exists() and any(videos_dir.glob("*.mp4")):
+            videos_to_frames(videos_dir, frames_root, fps=args.fps, debug=args.debug)
+        else:
+            print(f"[ERROR] No mp4 videos found in: {videos_dir}")
+            print("[INFO] Provide --videos_dir pointing to a directory with mp4 files.")
+            return
 
-    for split_name in ("train", "val", "test"):
-        save_split_csv(output_dir, split_name, by_split[split_name])
+    if args.step in ("all", "metadata"):
+        print("\n[STEP 2] Building frame-level metadata...")
+        metadata_by_split = build_frame_level_metadata(
+            frames_root=frames_root,
+            annot_dir=annot_dir,
+            output_dir=output_dir,
+            debug=args.debug,
+        )
+        save_metadata_csvs(output_dir, metadata_by_split)
 
-    print("PitVis preprocessing done.")
+    if args.step in ("all", "clips"):
+        print(f"\n[STEP 3] Generating dense clips (window_size={args.window_size})...")
+        generate_dense_clips(
+            base_data_path=str(output_dir),
+            window_size=args.window_size,
+            stride=args.stride,
+            fps=args.fps,
+            enable_padding=not args.no_padding,
+        )
+
+    print("\n" + "=" * 60)
+    print("PitVis preprocessing complete!")
+    print("=" * 60)
 
 
 if __name__ == "__main__":

@@ -1,19 +1,44 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SurgicalActions160 preprocessing script
--------------------------------------
-Feature 1: Rename and copy all videos in data/Landscopy/SurgicalActions160 to
-           data/Landscopy/SurgicalActions160_renumbered
-Feature 2: Extract frames from renamed videos and save them to
-           data/Surge_Frames/SurgicalActions160_v1/frames/fps{fps}
-Feature 3: Generate a txt for each video frame directory (write all frame paths),
-           txt is stored in
-           data/Surge_Frames/SurgicalActions160_v1/clip_infos_fps{fps}
-           At the same time, generate:
-           - data/Surge_Frames/SurgicalActions160_v1/metadata_fps{fps}.csv
-           - 4-fold split: train_metadata_fold{i}_fps{fps}.csv / test_metadata_fold{i}_fps{fps}.csv
+SurgicalActions160 Preprocessing Pipeline
+-------------------------------------------
+Aligned with NSJepa_jinlin/data_process/surgicalactions160_prepare.py.
+
+Data organization:
+  - Original videos: data/Landscopy/SurgicalActions160/<action>/*.mp4
+  - Renumbered videos (optional): data/Landscopy/SurgicalActions160_renumbered/
+  - Frames: data/Surge_Frames/SurgicalActions160_v1/frames/fps{fps}/...
+
+NOTE: Unlike most other datasets, SurgicalActions160 DOES require frame extraction
+from videos. The --step all will run the full pipeline including extraction.
+
+Pipeline Steps:
+  --step all (default): rename + frames + metadata + clips
+  --step rename:        Copy and rename videos to consecutive numbers
+  --step frames:        Extract frames from videos
+  --step metadata:      Build frame-level metadata CSV
+  --step clips:         Generate dense sliding-window clips
+
+Output structure:
+  <output_dir>/   (default: data/Surge_Frames/SurgicalActions160_v1)
+    clip_infos_{fps}/              # One txt per video
+    train_metadata.csv             # Frame-level metadata
+    val_metadata.csv               # Same as fold 0 test
+    test_metadata.csv              # Same as fold 0 test
+    train_metadata_fold{i}_{fps}.csv
+    test_metadata_fold{i}_{fps}.csv
+    clips_64f/                     # Dense clips
+      train_dense_64f_detailed.csv
+      ...
+
+Usage:
+    python surgicalactions160_prepare.py --step all
+    python surgicalactions160_prepare.py --step metadata
+    python surgicalactions160_prepare.py --step clips --window_size 64
 """
+
+from __future__ import annotations
 
 import argparse
 import random
@@ -21,18 +46,21 @@ import shutil
 import subprocess
 from collections import defaultdict
 from pathlib import Path
+from typing import Dict, List
 
 import pandas as pd
 from tqdm import tqdm
 
+from gen_clips import generate_dense_clips
+
 BASE_DIR = Path("data/Surge_Frames/SurgicalActions160_v1")
 
 
-# 🧩 Step 1: Copy and rename videos (consistent with the logic of extract_gynsurg.py)
 def clean_videos(
-    src_root: str = "data/Landscopy/SurgicalActions160",
-    dst_root: str = "data/Landscopy/SurgicalActions160_renumbered",
-):
+    src_root: str,
+    dst_root: str,
+) -> Path:
+    """Copy and rename videos by number, preserving subdirectory structure."""
     src_root_path = Path(src_root)
     dst_root_path = Path(dst_root)
     dst_root_path.mkdir(parents=True, exist_ok=True)
@@ -40,9 +68,8 @@ def clean_videos(
     video_files = list(src_root_path.rglob("*.mp4"))
     video_files.sort()
 
-    print(f"🎥 Detected {len(video_files)} video files, starting to copy and rename by number...")
+    print(f"[INFO] Found {len(video_files)} videos, copying and renaming...")
 
-    # Process by subdirectories, keeping the relative structure unchanged
     for folder in sorted({v.parent for v in video_files}):
         rel = folder.relative_to(src_root_path)
         out_subdir = dst_root_path / rel
@@ -53,21 +80,23 @@ def clean_videos(
             new_name = f"{idx:05d}.mp4"
             new_path = out_subdir / new_name
             shutil.copy2(vid, new_path)
-        print(f"✅ {rel}: {len(vids)} videos copied and renamed.")
+        print(f"[INFO] {rel}: {len(vids)} videos copied")
 
-    print("🎉 All video files copied and named by number.")
+    print("[INFO] Video renaming completed")
     return dst_root_path
 
 
-# 🧩 Step 2: Extract frames (based on the implementation of extract_gynsurg.py)
 def videos_to_frames(
-    input_path: str,
-    output_path: str,
+    input_path: Path,
+    output_path: Path,
     fps: int = 30,
     pattern: str = "*.mp4",
     debug: bool = False,
-    save_failed: bool = True,
-):
+) -> None:
+    """
+    Extract frames from all *.mp4 under input_path into output_path.
+    Preserves subdirectory structure.
+    """
     input_path = Path(input_path)
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -76,102 +105,71 @@ def videos_to_frames(
     video_files.sort()
 
     if not video_files:
-        print(f"⚠️ No video files matching {pattern} found in {input_path}.")
+        print(f"[WARN] No videos found matching {pattern} in {input_path}.")
         return
 
-    print(f"\n🎞️ Detected {len(video_files)} videos, starting to extract frames...\n")
-
-    failed_videos = []
+    print(f"\n[INFO] Found {len(video_files)} videos, extracting frames at {fps} fps...")
+    failed_videos: List[str] = []
 
     for vid_path in tqdm(video_files, desc="Extracting frames"):
         rel_path = vid_path.relative_to(input_path).parent
         out_folder = output_path / rel_path / vid_path.stem
         out_folder.mkdir(parents=True, exist_ok=True)
-        output_pattern = out_folder / f"{vid_path.stem}_%05d.jpg"
+        output_pattern = out_folder / f"{vid_path.stem}_%08d.jpg"
 
         ffmpeg_cmd = [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(vid_path.resolve()),
-            "-safe",
-            "0",
-            "-vf",
-            f"fps={fps},scale=512:-1:flags=bicubic",
-            "-vsync",
-            "2",
-            "-qscale:v",
-            "2",
+            "ffmpeg", "-y", "-i", str(vid_path.resolve()),
+            "-vf", f"fps={fps},scale=512:-1:flags=bicubic",
+            "-vsync", "2", "-qscale:v", "2",
             str(output_pattern),
         ]
 
         if debug:
-            print("🔍 FFmpeg command:", " ".join(ffmpeg_cmd))
+            print(f"[DEBUG] FFmpeg: {' '.join(ffmpeg_cmd)}")
 
         try:
-            result = subprocess.run(
-                ffmpeg_cmd,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            if debug:
-                print(result.stderr.decode("utf-8", errors="ignore")[:200])
+            subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError as e:
-            log = e.stderr.decode("utf-8", errors="ignore")
-            print(f"\n❌ Frame extraction failed: {vid_path}")
-            if "Invalid data found" in log:
-                print("⚠️ Video is damaged or cannot be parsed")
-            elif "moov atom not found" in log:
-                print("⚠️ Video file is incomplete (missing index)")
-            elif "Error while opening filter" in log:
-                print("⚠️ Filter error, please check the video width and height")
-            else:
-                if debug:
-                    print("Detailed error:\n", log[:400])
+            print(f"[ERROR] Frame extraction failed: {vid_path}")
+            if debug and e.stderr:
+                print(e.stderr.decode("utf-8", errors="ignore")[:500])
             failed_videos.append(str(vid_path))
-            continue
 
-    print("\n🎉 Frame extraction task completed.")
-
-    if save_failed and failed_videos:
+    print("[INFO] Frame extraction finished")
+    if failed_videos:
         fail_log = output_path / "failed_videos.txt"
-        with fail_log.open("w", encoding="utf-8", errors="ignore") as f:
-            f.write("\n".join(failed_videos))
-        print(f"⚠️ {len(failed_videos)} videos failed to extract frames, details: {fail_log}")
+        fail_log.write_text("\n".join(failed_videos), encoding="utf-8")
+        print(f"[WARN] {len(failed_videos)} videos failed; see {fail_log}")
 
 
-# 🧩 Step 3: Generate txt + metadata + 4-fold for each video
-def generate_txt_file(video_dir: Path, txt_path: Path) -> int:
+def generate_clip_txt(video_dir: Path, txt_path: Path) -> List[str]:
     """
-    Generate a txt for a single video directory, write the paths of all frames in the video (starting from the project root, usually starting with data/...).
-    Return the number of frames in the video.
+    Generate txt listing all frame paths for a video.
+    Returns list of frame paths.
     """
     frame_files = sorted(
-        [p for p in video_dir.iterdir() if p.is_file()],
+        [p for p in video_dir.iterdir() if p.is_file() and p.suffix.lower() in (".jpg", ".jpeg")],
         key=lambda p: p.name,
     )
-
+    txt_path.parent.mkdir(parents=True, exist_ok=True)
+    frame_paths = [str(fp).replace("\\", "/") for fp in frame_files]
     with txt_path.open("w", encoding="utf-8") as f:
-        for frame_path in frame_files:
-            # Write relative paths starting with data/... (no further trimming), for use in the project root directory
-            rel_path = frame_path
-            f.write(str(rel_path).replace("\\", "/") + "\n")
-
-    return len(frame_files)
+        for fp in frame_paths:
+            f.write(fp + "\n")
+    return frame_paths
 
 
-def build_metadata(frames_root: Path, clip_infos_dir: Path):
+def build_frame_level_metadata(
+    frames_root: Path,
+    clip_infos_dir: Path,
+    debug: bool = False,
+) -> pd.DataFrame:
     """
-    Traverse the action subdirectories and video directories in the frames_root directory:
-    - Generate a txt for each video
-    - Summarize the metadata list
-    Label mapping rule:
-      - Sort by action subdirectory name, assign values 0,1,2,...
+    Build frame-level metadata with columns: Case_ID, Frame_Path, Phase_GT, Phase_Name.
+    Label is assigned by action subdirectory (sorted alphabetically).
     """
-    metadata = []
-    index = 0
-    case_id_counter = 0  # Global increasing case_id, guaranteed to be pure digits and unique
+    all_rows: List[dict] = []
+    case_id_counter = 0
 
     action_dirs = sorted(
         [d for d in frames_root.iterdir() if d.is_dir()],
@@ -185,76 +183,127 @@ def build_metadata(frames_root: Path, clip_infos_dir: Path):
             key=lambda p: p.name,
         )
 
-        for video_dir in video_dirs:
-            # clip_infos directory keeps the hierarchy of "action/video", to avoid overlapping of videos with the same name under different actions
+        for video_dir in tqdm(video_dirs, desc=f"Processing {label_name}"):
             rel_video = video_dir.relative_to(frames_root)
             txt_parent = clip_infos_dir / rel_video.parent
             txt_parent.mkdir(parents=True, exist_ok=True)
             txt_path = txt_parent / f"{video_dir.name}.txt"
-            num_frames = generate_txt_file(video_dir, txt_path)
-            if num_frames == 0:
+
+            frame_paths = generate_clip_txt(video_dir, txt_path)
+            if not frame_paths:
+                if debug:
+                    print(f"[DEBUG] No frames in {video_dir}")
                 continue
 
-            clip_rel_path = txt_path
+            for fp in frame_paths:
+                all_rows.append({
+                    "Case_ID": case_id_counter,
+                    "Frame_Path": fp,
+                    "Phase_GT": label_id,
+                    "Phase_Name": label_name,
+                })
 
-            # To be compatible with SurgicalVideoDataset / eval logic, add pure numeric case_id and clip_idx fields
-            # - case_id: Global increasing integer ID (0,1,2,...), one unique case_id per video
-            # - clip_idx: The clip number within the current video; currently each video has only one txt, corresponding to one clip, set to 0
-            case_id = case_id_counter
-            clip_idx = 0
-
-            metadata.append(
-                {
-                    "Index": index,
-                    "clip_path": str(clip_rel_path).replace("\\", "/"),
-                    "label": label_id,
-                    "label_name": label_name,
-                    "case_id": case_id,
-                    "clip_idx": clip_idx,
-                }
-            )
-            index += 1
             case_id_counter += 1
 
-    return metadata
+    if all_rows:
+        df = pd.DataFrame(all_rows)
+        df = df.sort_values(["Case_ID", "Frame_Path"]).reset_index(drop=True)
+        return df
+    else:
+        return pd.DataFrame(columns=["Case_ID", "Frame_Path", "Phase_GT", "Phase_Name"])
 
 
-def save_csv(path: Path, metadata_subset):
-    df = pd.DataFrame(metadata_subset)
-    df.to_csv(path, index=False)
-    return path
-
-
-def make_4_folds(metadata, seed: int = 42):
+def make_4_folds(df: pd.DataFrame, seed: int = 42) -> List[List[int]]:
     """
-    Based on "video level" (metadata rows), perform 4-fold splitting, roughly evenly distribute by label.
-    Return folds: List[List[int]], each internal list is the index of the samples in the metadata for that fold.
+    Perform 4-fold splitting based on Case_ID, distributing evenly by label.
+    Returns list of lists, each containing Case_IDs for that fold.
     """
     rng = random.Random(seed)
-    label_to_indices = defaultdict(list)
 
-    for idx, item in enumerate(metadata):
-        label_to_indices[item["label"]].append(idx)
+    case_to_label = df.groupby("Case_ID")["Phase_GT"].first().to_dict()
+    label_to_cases: Dict[int, List[int]] = defaultdict(list)
 
-    folds = [[] for _ in range(4)]
+    for case_id, label in case_to_label.items():
+        label_to_cases[label].append(case_id)
 
-    for _, indices in label_to_indices.items():
-        rng.shuffle(indices)
-        for i, m_idx in enumerate(indices):
-            folds[i % 4].append(m_idx)
+    folds: List[List[int]] = [[] for _ in range(4)]
+
+    for _, cases in label_to_cases.items():
+        rng.shuffle(cases)
+        for i, case_id in enumerate(cases):
+            folds[i % 4].append(case_id)
 
     return folds
 
 
+def save_metadata_csvs(
+    output_dir: Path,
+    df: pd.DataFrame,
+    fps_tag: str,
+    seed: int = 42,
+) -> None:
+    """Save frame-level metadata CSVs and 4-fold splits."""
+    if len(df) == 0:
+        print("[WARN] No metadata rows to save")
+        return
+
+    all_csv = output_dir / f"metadata_{fps_tag}.csv"
+    df.to_csv(all_csv, index=False)
+    print(f"[INFO] Saved total metadata ({len(df)} rows) to {all_csv}")
+
+    folds = make_4_folds(df, seed=seed)
+
+    for i in range(4):
+        test_cases = set(folds[i])
+        train_cases = set(c for j, fold in enumerate(folds) if j != i for c in fold)
+
+        train_df = df[df["Case_ID"].isin(train_cases)].copy()
+        test_df = df[df["Case_ID"].isin(test_cases)].copy()
+
+        train_csv = output_dir / f"train_metadata_fold{i}_{fps_tag}.csv"
+        test_csv = output_dir / f"test_metadata_fold{i}_{fps_tag}.csv"
+
+        train_df.to_csv(train_csv, index=False)
+        test_df.to_csv(test_csv, index=False)
+
+        print(f"[INFO] Fold {i}: train={len(train_df)} frames, test={len(test_df)} frames")
+
+    train_df_fold0 = df[df["Case_ID"].isin(set(c for j, fold in enumerate(folds) if j != 0 for c in fold))]
+    test_df_fold0 = df[df["Case_ID"].isin(set(folds[0]))]
+
+    train_csv = output_dir / "train_metadata.csv"
+    val_csv = output_dir / "val_metadata.csv"
+    test_csv = output_dir / "test_metadata.csv"
+
+    train_df_fold0.to_csv(train_csv, index=False)
+    test_df_fold0.to_csv(val_csv, index=False)
+    test_df_fold0.to_csv(test_csv, index=False)
+
+    print(f"[INFO] Saved standard splits: train={len(train_df_fold0)}, val/test={len(test_df_fold0)} frames")
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="SurgicalActions160 preprocessing: renaming + frame extraction + txt + metadata + 4-fold"
+        description="SurgicalActions160: End-to-end preprocessing pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    python surgicalactions160_prepare.py --step all
+    python surgicalactions160_prepare.py --step metadata
+    python surgicalactions160_prepare.py --step clips --window_size 64
+        """,
+    )
+    parser.add_argument(
+        "--step",
+        choices=["all", "rename", "frames", "metadata", "clips"],
+        default="all",
+        help="Pipeline step to run (default: all)",
     )
     parser.add_argument(
         "--src_root",
         type=str,
         default="data/Landscopy/SurgicalActions160",
-        help="Original SurgicalActions160 video root directory",
+        help="Original video root directory",
     )
     parser.add_argument(
         "--dst_root",
@@ -266,13 +315,36 @@ def main():
         "--frames_root",
         type=str,
         default=str(BASE_DIR / "frames"),
-        help="Frame extraction save directory (default will automatically append fps subdirectory)",
+        help="Frame extraction save directory",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=str(BASE_DIR),
+        help="Output directory for metadata and clips",
     )
     parser.add_argument(
         "--fps",
         type=int,
-        default=30,
-        help="Frame extraction FPS",
+        default=1,
+        help="FPS for frame extraction (default: 1)",
+    )
+    parser.add_argument(
+        "--window_size",
+        type=int,
+        default=64,
+        help="Window size for dense clip generation (default: 64)",
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=1,
+        help="Stride for dense clip generation (default: 1)",
+    )
+    parser.add_argument(
+        "--no_padding",
+        action="store_true",
+        help="Disable padding for incomplete windows",
     )
     parser.add_argument(
         "--seed",
@@ -283,65 +355,68 @@ def main():
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Whether to print ffmpeg debug information",
+        help="Enable verbose debug output",
     )
-
     args = parser.parse_args()
+
     fps_tag = f"fps{args.fps}"
+    frames_root = Path(args.frames_root)
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Rename and copy videos
-    dst_clean = clean_videos(args.src_root, args.dst_root)
+    print("=" * 60)
+    print("SurgicalActions160 Preprocessing Pipeline")
+    print("=" * 60)
 
-    # 2. Extract frames
-    default_frames_root = Path(parser.get_default("frames_root"))
-    frames_dir = Path(args.frames_root)
-    if frames_dir == default_frames_root:
-        frames_dir = frames_dir / fps_tag
+    if args.step in ("all", "rename"):
+        print("\n[STEP 0] Renaming videos...")
+        src_root = Path(args.src_root)
+        if src_root.exists():
+            clean_videos(args.src_root, args.dst_root)
+        else:
+            print(f"[SKIP] Source directory not found: {src_root}")
 
-    videos_to_frames(
-        input_path=str(dst_clean),
-        output_path=str(frames_dir),
-        fps=args.fps,
-        debug=args.debug,
-    )
+    if args.step in ("all", "frames"):
+        print("\n[STEP 1] Extracting frames from videos...")
+        dst_root = Path(args.dst_root)
+        src_root = Path(args.src_root)
+        if dst_root.exists():
+            videos_to_frames(dst_root, frames_root / fps_tag, fps=args.fps, debug=args.debug)
+        elif src_root.exists():
+            videos_to_frames(src_root, frames_root / fps_tag, fps=args.fps, debug=args.debug)
+        else:
+            print(f"[SKIP] No videos directory found")
+            print("[INFO] Assuming frames are already extracted.")
 
-    # 3. Generate txt & metadata & 4-fold
-    base_dir = BASE_DIR
-    base_dir.mkdir(parents=True, exist_ok=True)
-    clip_infos_dir = base_dir / f"clip_infos_{fps_tag}"
-    clip_infos_dir.mkdir(parents=True, exist_ok=True)
+    if args.step in ("all", "metadata"):
+        print("\n[STEP 2] Building frame-level metadata...")
+        frames_dir = frames_root / fps_tag
+        if not frames_dir.exists():
+            frames_dir = frames_root
+        clip_infos_dir = output_dir / f"clip_infos_{fps_tag}"
+        clip_infos_dir.mkdir(parents=True, exist_ok=True)
 
-    metadata = build_metadata(frames_dir, clip_infos_dir)
-    print(
-        f"Found {len(metadata)} video clips, will write to metadata_{fps_tag}.csv and 4-fold split."
-    )
-
-    metadata_csv_path = base_dir / f"metadata_{fps_tag}.csv"
-    save_csv(metadata_csv_path, metadata)
-    print(f"Saved total metadata to: {metadata_csv_path}")
-
-    folds = make_4_folds(metadata, seed=args.seed)
-
-    for i in range(4):
-        test_indices = set(folds[i])
-        train_indices = [j for k, fold in enumerate(folds) if k != i for j in fold]
-
-        train_meta = [metadata[j] for j in train_indices]
-        test_meta = [metadata[j] for j in test_indices]
-
-        train_csv = base_dir / f"train_metadata_fold{i}_{fps_tag}.csv"
-        test_csv = base_dir / f"test_metadata_fold{i}_{fps_tag}.csv"
-
-        save_csv(train_csv, train_meta)
-        save_csv(test_csv, test_meta)
-
-        print(
-            f"Fold {i}: train={len(train_meta)} clips, test={len(test_meta)} clips -> "
-            f"{train_csv.name}, {test_csv.name}"
+        df = build_frame_level_metadata(
+            frames_root=frames_dir,
+            clip_infos_dir=clip_infos_dir,
+            debug=args.debug,
         )
+        save_metadata_csvs(output_dir, df, fps_tag, seed=args.seed)
+
+    if args.step in ("all", "clips"):
+        print(f"\n[STEP 3] Generating dense clips (window_size={args.window_size})...")
+        generate_dense_clips(
+            base_data_path=str(output_dir),
+            window_size=args.window_size,
+            stride=args.stride,
+            fps=args.fps,
+            enable_padding=not args.no_padding,
+        )
+
+    print("\n" + "=" * 60)
+    print("SurgicalActions160 preprocessing complete!")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
     main()
-
-

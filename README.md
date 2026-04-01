@@ -117,38 +117,158 @@ conda activate endomamba                 # Use only for EndoMamba configs
 
 ## Data Preparation
 
-All preprocessing scripts under `data_process/` follow a unified end-to-end pipeline:
+All preprocessing scripts under `data_process/` now follow a unified end-to-end pipeline and support one-command execution:
 
 ```bash
-python data_process/<dataset>_prepare.py [OPTIONS]
+python data_process/<dataset>_prepare.py --step all
 ```
 
-Each script supports `--help` and produces:
-- `clip_infos/*.txt` — per-case frame path lists for clip-style loaders
-- `{train,val,test}_metadata.csv` — standardized CSV with columns:
+Common step options:
+
+```bash
+--step all|frames|metadata|clips
+--window_size 64
+--stride 1
+--fps 1
+--no_padding
+```
+
+Typical outputs:
+- `clip_infos/*.txt` — per-case frame path lists
+- `{train,val,test}_metadata.csv` — frame-level metadata for dense clip generation
+- `clips_<window_size>f/{train,val,test}_dense_<window_size>f_detailed.csv`
+- `clips_<window_size>f/clip_dense_<window_size>f_info/{train,val,test}/*.txt`
+
+Frame-level metadata schema:
 
 | Column | Description |
 |--------|-------------|
-| `Index` | Row index within the split (0-based) |
-| `clip_path` | Path to the clip's frame list txt |
-| `label` | Integer phase / class id |
-| `label_name` | Human-readable phase name |
-| `case_id` | Numeric case / video identifier |
-| `clip_idx` | Clip index within the case (0 for single-clip) |
+| `Case_ID` | Numeric case / video identifier |
+| `Frame_Path` | Absolute/relative frame image path |
+| `Phase_GT` | Integer phase/class id for this frame |
+| `Phase_Name` | Human-readable phase/class name |
+
+### Dense Sampling Strategy (Clarified)
+
+We use an online workflow recognition setting:
+- A clip is a sliding temporal window.
+- The **last frame** in the window is the target frame to predict.
+- Previous frames in the window are temporal context.
+- Neighboring windows overlap.
+
+For `window_size=64`, `stride=1`:
+- clip 1: frames `[0, ..., 63]`
+- clip 2: frames `[1, ..., 64]`
+- clip 3: frames `[2, ..., 65]`
+
+Padding at video start:
+- If the early timeline does not have enough preceding frames, we pad the window by repeating the current window's last frame.
+- This behavior is enabled by default; use `--no_padding` to disable.
+
+### Clip Labeling Rule
+
+For phase recognition:
+- Frames are sampled at `1 fps`.
+- Clip label = label of the clip's **last frame**.
+
+Example:
+- frames `0-40`: Phase 0
+- frames `41-63`: Phase 1
+- clip `[0, ..., 63]` label is **Phase 1**.
+
+### Triplet Recognition Format
+
+Triplet recognition uses the same temporal construction:
+- same sliding-window logic
+- same overlap behavior
+- same start-of-video padding policy
+- target is still the last frame in each clip
+
+Difference:
+- triplet labels are **multi-label** targets.
+- our best internal triplet setting used `window_size=16`.
+
+### Notes on Performance Gaps
+
+If reproduced results are lower than expected, dense sampling mismatch is one possible source, but not the only one. We also recommend checking:
+- longer training schedules (e.g., 2 / 4 / 8 epochs)
+- class balancing / class weighting strategy
+
+Class weighting can strongly affect surgical long-tail performance. See implementation in [`evals/foundation_phase_probing/eval.py`](https://github.com/CAIR-HKISI/SurgMotion/blob/main/evals/foundation_phase_probing/eval.py#L41C1-L41C83).
 
 ### Supported Datasets
 
-| Dataset | Script | Domain | Phases |
-|---------|--------|--------|--------|
-| AutoLaparo | `autolaparo_prepare.py` | Laparoscopic hysterectomy | 7 |
-| Cholec80 | `cholect80_prepare.py` | Laparoscopic cholecystectomy | 7 |
-| EgoSurgery | `egosurgery_prepare.py` | Egocentric open surgery | 9 |
-| M2CAI2016 | `m2cai2016_prepare.py` | Laparoscopic cholecystectomy | 8 |
-| OphNet2024 | `ophnet_prepare.py` | Ophthalmic surgery | 96 |
-| PitVis | `pitvis_prepare.py` | Pituitary neurosurgery | 12 |
-| PmLR50 | `pmlr50_prepare.py` | Laparoscopic liver resection | 5 |
-| PolypDiag | `polypdiag_prepare.py` | GI endoscopy (binary) | 2 |
-| SurgicalActions160 | `surgicalactions160_prepare.py` | Surgical action recognition | N (auto) |
+Most datasets already provide extracted frames in `data/Surge_Frames/...`. The pipelines read annotations and frames; frame extraction from videos (`--step frames`) is **optional** and only needed if you have raw mp4 files.
+
+| Dataset | Script | Annotation Path | Frames Path | Extract? |
+|---------|--------|-----------------|-------------|----------|
+| Cholec80 | `cholect80_prepare.py` | `cholec80/phase_annotations` | `Surge_Frames/Cholec80/frames/{videoXX}/` | Optional |
+| AutoLaparo | `autolaparo_prepare.py` | `autolaparo/task1/labels` | `Surge_Frames/AutoLaparo/frames/{NN}/` | Optional |
+| M2CAI2016 | `m2cai2016_prepare.py` | `m2cai16/{train,test}_dataset` | `Surge_Frames/M2CAI16/frames/{video}/` | No |
+| EgoSurgery | `egosurgery_prepare.py` | `EgoSurgery/annotations/phase` | `Surge_Frames/EgoSurgery/frames/{video_id}/` | No |
+| PitVis | `pitvis_prepare.py` | `pitvits/26531686` | `Surge_Frames/PitVis/frames/video_{XX}/` | No |
+| OphNet2024 | `ophnet_prepare.py` | `OphNet2024_trimmed_phase/*.csv` | `Surge_Frames/OphNet2024_phase/frames/` | No |
+| PmLR50 | `pmlr50_prepare.py` | `PmLR50/PmLR50/labels/*.pickle` | `Surge_Frames/PmLR50/frames/{XX}/` | No |
+| SurgicalActions160 | `surgicalactions160_prepare.py` | (from video filenames) | `Surge_Frames/SurgicalActions160_v1/frames/` | **Yes** |
+| PolypDiag | `polypdiag_prepare.py` | (from video filenames) | `Surge_Frames/PolypDiag/frames/` | **Yes** |
+
+All annotation and frame paths above are relative to the `data/` directory (e.g., `data/Landscopy/cholec80/phase_annotations`).
+
+**Pipeline behavior:**
+
+The scripts are built around **frame-based** clip CSVs. Depending on whether you already have **extracted frames** or only **raw videos**, use the path that matches your data.
+
+#### 1) Frames-first input (recommended default)
+
+You already have image sequences under `--frames_root` (e.g. `data/Surge_Frames/...`).
+
+| Step | What it does |
+|------|----------------|
+| `--step all` | Runs **`metadata` → `clips`**. Does **not** decode videos in most scripts (see table below). |
+| `--step metadata` | Builds `{train,val,test}_metadata.csv` from annotations + `Frame_Path`. |
+| `--step clips` | Writes dense sliding-window clip lists and detailed CSVs via `gen_clips.py`. |
+
+**Typical command:** `python data_process/<dataset>_prepare.py --step all` with correct `--frames_root` / annotation paths. No `--videos_dir` needed.
+
+#### 2) Videos-first input (optional extraction)
+
+You only have **`.mp4` files** and need JPEG/PNG frames under `--frames_root` first.
+
+| Step | What it does |
+|------|----------------|
+| `--step frames` | Decodes videos → frames (needs a directory of mp4s; flag name varies by script, usually `--videos_dir` or dataset-specific video roots). |
+| Then | Run `--step all` **or** `--step metadata` then `--step clips` on the extracted frames. |
+
+**Typical two-stage flow:**
+
+```bash
+python data_process/<dataset>_prepare.py --step frames --videos_dir /path/to/mp4s  # if supported
+python data_process/<dataset>_prepare.py --step all
+```
+
+Some scripts (e.g. M2CAI2016) **require** non-empty `*.mp4` under `--videos_dir` for `--step frames` or they exit with an error; others only **skip** extraction if the video path is missing.
+
+#### 3) How `--step all` treats frame extraction (by script)
+
+| Script | `--step all` runs video→frames? | Notes |
+|--------|----------------------------------|--------|
+| `cholect80_prepare.py` | **Yes, if** `--videos_dir` exists | If the directory is missing, extraction is skipped and existing `--frames_root` is assumed. |
+| `autolaparo_prepare.py` | **No** | Use `--step frames` explicitly, then `--step all` or `metadata` + `clips`. |
+| `m2cai2016_prepare.py`, `pitvis_prepare.py`, `ophnet_prepare.py`, `pmlr50_prepare.py`, `egosurgery_prepare.py` | **No** | Same as AutoLaparo: extraction is **only** `--step frames`. |
+| `surgicalactions160_prepare.py`, `polypdiag_prepare.py` | **Yes** | `all` runs the full video pipeline (including optional `rename` where applicable), then metadata and clips. |
+
+**Other step names (dataset-specific):**
+
+- `surgicalactions160_prepare.py` and `polypdiag_prepare.py` support `--step rename | frames | metadata | clips` in addition to `all`. Use `--step rename` to normalize video filenames before extraction; `--step all` runs `rename` (when applicable) then `frames` → `metadata` → `clips`.
+- For SurgicalActions160, extracted frames default to `frames_root/fps{fps}/` (see script defaults and `--help`).
+
+#### Quick reference: flags vs. input type
+
+| You have | Use |
+|----------|-----|
+| Frames on disk | `--step all` (or `metadata` + `clips` only). Point `--frames_root` at the image folders. |
+| Only videos | `--step frames` first (where supported), with the script’s video path argument, then `--step all`. |
+| Bundled `Surge_Frames` + annotations | Frames-first row above; **no** extraction step. |
 
 ### Example: Prepare Cholec80
 
@@ -157,7 +277,17 @@ python data_process/cholect80_prepare.py \
     --frames_root data/Surge_Frames/Cholec80/frames \
     --annot_dir data/Landscopy/cholec80/phase_annotations \
     --output_dir data/Surge_Frames/Cholec80 \
+    --step all \
     --debug
+```
+
+### Example: Prepare SurgicalActions160 (with extraction)
+
+```bash
+python data_process/surgicalactions160_prepare.py \
+    --src_root data/Landscopy/SurgicalActions160 \
+    --fps 1 \
+    --step all
 ```
 
 ## Run Foundation Probing
@@ -222,8 +352,9 @@ The script auto-assigns one GPU per task from the available pool (default: all 8
 ## Add a New Dataset
 
 1. Create `data_process/<dataset>_prepare.py` following the existing template (see `polypdiag_prepare.py` for reference).
-2. Output standardized CSVs with the 6-column schema (`Index`, `clip_path`, `label`, `label_name`, `case_id`, `clip_idx`).
-3. Create YAML configs under `configs/foundation_model_probing/<model>/<Dataset>/`.
+2. Output frame-level metadata CSVs with schema: `Case_ID`, `Frame_Path`, `Phase_GT`, `Phase_Name`.
+3. Generate dense clips via `gen_clips.py` (or `--step clips`) to produce `clips_64f/*_dense_64f_detailed.csv`.
+4. Create YAML configs under `configs/foundation_model_probing/<model>/<Dataset>/`.
 
 ## Add a New Foundation Model
 

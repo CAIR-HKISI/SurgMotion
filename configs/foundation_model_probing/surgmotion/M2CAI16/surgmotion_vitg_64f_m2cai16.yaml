@@ -39,7 +39,6 @@ experiment:
     num_segments: 1
     num_views_per_segment: 1
     resolution: 256
-
   optimization:
     batch_size: 4
     multihead_kwargs:
