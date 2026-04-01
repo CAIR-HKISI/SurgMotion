@@ -35,7 +35,7 @@ experiment:
     dataset_train: data/Surge_Frames/PmLR50/clips_64f/train_dense_64f_detailed.csv
     dataset_val: data/Surge_Frames/PmLR50/clips_64f/test_dense_64f_detailed.csv
     frames_per_clip: 64
-    num_classes: 7
+    num_classes: 5
     num_segments: 1
     num_views_per_segment: 1
     resolution: 224
